@@ -1,0 +1,503 @@
+import { query } from '../../infrastructure/database/query';
+import { Inject, Injectable } from '@nestjs/common';
+import { DataSource, EntityManager } from 'typeorm';
+import { createHmac, randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import { ApiError } from '../../common/http';
+import { environment } from '../../config/environment';
+import * as dto from './profile.dto';
+
+@Injectable()
+export class ProfileService {
+  constructor(@Inject(DataSource) public db: DataSource) {}
+  async lock(m: EntityManager, id: string) {
+    const [u] = await query(
+      m,
+      `SELECT id FROM users WHERE id=$1 AND status='ACTIVE' FOR UPDATE`,
+      [id],
+    );
+    if (!u) throw new ApiError('ACCOUNT_UNAVAILABLE', 403);
+  }
+  async event(m: EntityManager, id: string, type: string, revision: number) {
+    await query(
+      m,
+      `INSERT INTO domain_events(id,user_id,type,revision) VALUES($1,$2,$3,$4)`,
+      [randomUUID(), id, type, revision],
+    );
+  }
+  async me(id: string) {
+    return this.db.transaction('REPEATABLE READ', async (m) => {
+      const [u] = await query(
+        m,
+        `SELECT id,email_normalized AS email,verified_at FROM users WHERE id=$1`,
+        [id],
+      );
+      const [profile] = await query(
+        m,
+        `SELECT * FROM user_profiles WHERE user_id=$1`,
+        [id],
+      );
+      const [state] = await query(
+        m,
+        `SELECT injury_revision FROM user_restriction_states WHERE user_id=$1`,
+        [id],
+      );
+      const [weight] = await query(
+        m,
+        `SELECT * FROM body_measurements WHERE user_id=$1 AND weight_kg IS NOT NULL ORDER BY measured_at DESC,created_at DESC,id DESC LIMIT 1`,
+        [id],
+      );
+      const [fat] = await query(
+        m,
+        `SELECT * FROM body_measurements WHERE user_id=$1 AND body_fat_percent IS NOT NULL ORDER BY measured_at DESC,created_at DESC,id DESC LIMIT 1`,
+        [id],
+      );
+      const injuries = await query(
+        m,
+        `SELECT * FROM user_injuries WHERE user_id=$1 AND status='ACTIVE' ORDER BY confirmed_at,id`,
+        [id],
+      );
+      return {
+        user: u,
+        profile,
+        latest_weight: weight || null,
+        latest_body_fat: fat || null,
+        injuries,
+        injury_revision: state.injury_revision,
+        food_preferences: await this.getPreferences(id, m),
+        matching: {
+          status: profile.onboarded_at ? 'PENDING' : 'NOT_STARTED',
+          reason: 'F05_NOT_IMPLEMENTED',
+        },
+        measurement_freshness_policy_days: environment()
+          .MEASUREMENT_MAX_AGE_DAYS
+          ? Number(environment().MEASUREMENT_MAX_AGE_DAYS)
+          : null,
+      };
+    });
+  }
+  validateMeasurement(input: z.infer<typeof dto.measurement>) {
+    if (input.body_fat_method) {
+      const allowed = environment()
+        .BODY_FAT_METHODS.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!allowed.length)
+        throw new ApiError('BODY_FAT_POLICY_NOT_CONFIGURED', 503);
+      if (!allowed.includes(input.body_fat_method))
+        throw new ApiError('INVALID_BODY_FAT_METHOD');
+    }
+  }
+  async updateProfile(
+    m: EntityManager,
+    id: string,
+    input: Record<string, unknown>,
+    expected: number,
+  ) {
+    if (input.avatar_media_id) {
+      const [asset] = await query(
+        m,
+        `SELECT id FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND status='READY'`,
+        [input.avatar_media_id, id],
+      );
+      if (!asset) throw new ApiError('INVALID_AVATAR');
+    }
+    const allowed = Object.keys(dto.profileFields);
+    const pairs = Object.entries(input).filter(([key]) =>
+      allowed.includes(key),
+    );
+    const values = pairs.map(([, v]) => v);
+    const [p] = await query(
+      m,
+      `UPDATE user_profiles SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},profile_revision=profile_revision+1 WHERE user_id=$1 AND profile_revision=$2 RETURNING *`,
+      [id, expected, ...values],
+    );
+    if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+    await this.event(m, id, 'PROFILE_UPDATED', p.profile_revision);
+    return p;
+  }
+  async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      return this.updateProfile(m, id, input, input.expectedRevision);
+    });
+  }
+  async onboard(
+    id: string,
+    input: z.infer<typeof dto.onboarding>,
+    key: string,
+  ) {
+    this.validateMeasurement(input.initialMeasurement);
+    const env = environment();
+    if (!env.MINIMUM_AGE || !env.MEASUREMENT_MAX_AGE_DAYS)
+      throw new ApiError('ONBOARDING_POLICY_NOT_CONFIGURED', 503);
+    const dob = new Date(input.date_of_birth);
+    const now = new Date();
+    let age = now.getUTCFullYear() - dob.getUTCFullYear();
+    if (
+      now.getUTCMonth() < dob.getUTCMonth() ||
+      (now.getUTCMonth() === dob.getUTCMonth() &&
+        now.getUTCDate() < dob.getUTCDate())
+    )
+      age--;
+    if (age < Number(env.MINIMUM_AGE))
+      throw new ApiError('AGE_NOT_ELIGIBLE', 422);
+    if (
+      Date.now() - new Date(input.initialMeasurement.measured_at).valueOf() >
+      Number(env.MEASUREMENT_MAX_AGE_DAYS) * 86400000
+    )
+      throw new ApiError('MEASUREMENT_TOO_OLD', 422);
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const previous = await this.idempotency(m, id, 'onboarding', key, input);
+      if (previous) {
+        const [profile] = await query(
+          m,
+          `SELECT profile_revision FROM user_profiles WHERE user_id=$1`,
+          [id],
+        );
+        return {
+          status: 'COMPLETED',
+          profile_revision: profile.profile_revision,
+          replayed: true,
+          matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
+        };
+      }
+      const { initialMeasurement, expectedRevision, ...profile } = input;
+      const p = await this.updateProfile(m, id, profile, expectedRevision);
+      await query(
+        m,
+        `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
+        [id],
+      );
+      await this.insertMeasurement(m, id, initialMeasurement);
+      await this.recordKey(m, id, 'onboarding', key, input, null);
+      return {
+        status: 'COMPLETED',
+        profile_revision: p.profile_revision,
+        matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
+      };
+    });
+  }
+  digest(input: unknown) {
+    return createHmac('sha256', environment().JWT_SECRET)
+      .update(JSON.stringify(input))
+      .digest('hex');
+  }
+  async idempotency(
+    m: EntityManager,
+    id: string,
+    scope: string,
+    key: string,
+    input: unknown,
+  ) {
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(key))
+      throw new ApiError('IDEMPOTENCY_KEY_REQUIRED');
+    const [p] = await query(
+      m,
+      `SELECT resource_id,body_hash FROM idempotency_keys WHERE user_id=$1 AND scope=$2 AND key=$3`,
+      [id, scope, key],
+    );
+    if (p && p.body_hash !== this.digest(input))
+      throw new ApiError('IDEMPOTENCY_CONFLICT', 409);
+    return p;
+  }
+  async recordKey(
+    m: EntityManager,
+    id: string,
+    scope: string,
+    key: string,
+    input: unknown,
+    resource: string | null,
+  ) {
+    await query(
+      m,
+      `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,$2,$3,$4,$5)`,
+      [id, scope, key, this.digest(input), resource],
+    );
+  }
+  async insertMeasurement(
+    m: EntityManager,
+    id: string,
+    input: z.infer<typeof dto.measurement>,
+  ) {
+    const [r] = await query(
+      m,
+      `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg,body_fat_percent,body_fat_method) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [
+        randomUUID(),
+        id,
+        input.measured_at,
+        input.weight_kg ?? null,
+        input.body_fat_percent ?? null,
+        input.body_fat_method ?? null,
+      ],
+    );
+    return r;
+  }
+  async addMeasurement(
+    id: string,
+    input: z.infer<typeof dto.measurement>,
+    key: string,
+  ) {
+    this.validateMeasurement(input);
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const previous = await this.idempotency(m, id, 'measurement', key, input);
+      if (previous) {
+        const [r] = await query(
+          m,
+          `SELECT * FROM body_measurements WHERE id=$1 AND user_id=$2`,
+          [previous.resource_id, id],
+        );
+        return r;
+      }
+      const r = await this.insertMeasurement(m, id, input);
+      await this.recordKey(m, id, 'measurement', key, input, r.id);
+      const [p] = await query(
+        m,
+        `UPDATE user_profiles SET profile_revision=profile_revision+1 WHERE user_id=$1 RETURNING profile_revision`,
+        [id],
+      );
+      await this.event(m, id, 'MEASUREMENT_ADDED', p.profile_revision);
+      return r;
+    });
+  }
+  async measurements(id: string, q: z.infer<typeof dto.measurementQuery>) {
+    const from = q.from || new Date(Date.now() - 366 * 86400000).toISOString();
+    const to = q.to || new Date().toISOString();
+    if (
+      new Date(to).valueOf() - new Date(from).valueOf() > 366 * 86400000 ||
+      new Date(to) < new Date(from)
+    )
+      throw new ApiError('INVALID_DATE_RANGE');
+    return {
+      items: await query(
+        this.db,
+        `SELECT * FROM body_measurements WHERE user_id=$1 AND measured_at BETWEEN $2 AND $3 ORDER BY measured_at DESC,id DESC LIMIT $4 OFFSET $5`,
+        [id, from, to, q.limit, q.offset],
+      ),
+      limit: q.limit,
+      offset: q.offset,
+    };
+  }
+  async getSettings(id: string) {
+    const [s] = await query(
+      this.db,
+      `SELECT reminders,theme,quiet_hours,version FROM user_settings WHERE user_id=$1`,
+      [id],
+    );
+    return s;
+  }
+  async setSettings(id: string, input: z.infer<typeof dto.settings>) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const pairs = Object.entries(input).filter(
+        ([k]) => k !== 'expectedVersion',
+      );
+      const [s] = await query(
+        m,
+        `UPDATE user_settings SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},version=version+1 WHERE user_id=$1 AND version=$2 RETURNING reminders,theme,quiet_hours,version`,
+        [
+          id,
+          input.expectedVersion,
+          ...pairs.map(([, v]) =>
+            typeof v === 'object' && v !== null ? JSON.stringify(v) : v,
+          ),
+        ],
+      );
+      if (!s) throw new ApiError('REVISION_CONFLICT', 409);
+      return s;
+    });
+  }
+  async getPreferences(id: string, m: EntityManager = this.db.manager) {
+    const [p] = await query(
+      m,
+      `SELECT revision FROM user_food_preferences WHERE user_id=$1`,
+      [id],
+    );
+    return {
+      revision: p.revision,
+      allergen_codes: (
+        await query(
+          m,
+          `SELECT allergen_code FROM user_allergies WHERE user_id=$1 ORDER BY allergen_code`,
+          [id],
+        )
+      ).map((r: any) => r.allergen_code),
+      disliked_food_ids: (
+        await query(
+          m,
+          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='DISLIKE' ORDER BY food_id`,
+          [id],
+        )
+      ).map((r: any) => r.food_id),
+      excluded_food_ids: (
+        await query(
+          m,
+          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='EXCLUSION' ORDER BY food_id`,
+          [id],
+        )
+      ).map((r: any) => r.food_id),
+    };
+  }
+  async putPreferences(id: string, input: z.infer<typeof dto.preferences>) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const [p] = await query(
+        m,
+        `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 AND revision=$2 RETURNING revision`,
+        [id, input.expectedRevision],
+      );
+      if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+      for (const code of new Set(input.allergen_codes)) {
+        const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
+          code,
+        ]);
+        if (!a) throw new ApiError('INVALID_ALLERGEN');
+      }
+      const all = [
+        ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),
+      ];
+      if (all.length) {
+        const rows = await query(
+          m,
+          `SELECT id FROM food_reference_items WHERE id=ANY($1::uuid[])`,
+          [all],
+        );
+        if (rows.length !== all.length)
+          throw new ApiError('INVALID_FOOD_REFERENCE');
+      }
+      await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
+      await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
+      for (const code of new Set(input.allergen_codes))
+        await query(
+          m,
+          `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
+          [id, code],
+        );
+      for (const [kind, ids] of [
+        ['DISLIKE', input.disliked_food_ids],
+        ['EXCLUSION', input.excluded_food_ids],
+      ] as const)
+        for (const food of new Set(ids))
+          await query(
+            m,
+            `INSERT INTO user_food_exclusions(user_id,food_id,kind) VALUES($1,$2,$3)`,
+            [id, food, kind],
+          );
+      await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
+      return this.getPreferences(id, m);
+    });
+  }
+  async injuries(id: string, limit: number, offset: number) {
+    return {
+      items: await query(
+        this.db,
+        `SELECT * FROM user_injuries WHERE user_id=$1 AND status='ACTIVE' ORDER BY confirmed_at,id LIMIT $2 OFFSET $3`,
+        [id, limit, offset],
+      ),
+      limit,
+      offset,
+    };
+  }
+  async bodyArea(m: EntityManager, code: string) {
+    const [area] = await query(m, `SELECT code FROM body_areas WHERE code=$1`, [
+      code,
+    ]);
+    if (!area) throw new ApiError('INVALID_BODY_AREA');
+  }
+  async injuryRevision(m: EntityManager, id: string) {
+    const [s] = await query(
+      m,
+      `UPDATE user_restriction_states SET injury_revision=injury_revision+1 WHERE user_id=$1 RETURNING injury_revision`,
+      [id],
+    );
+    await this.event(m, id, 'INJURIES_UPDATED', s.injury_revision);
+    return s.injury_revision;
+  }
+  async addInjury(id: string, input: z.infer<typeof dto.injury>, key: string) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const previous = await this.idempotency(m, id, 'injury', key, input);
+      if (previous) {
+        const [r] = await query(
+          m,
+          `SELECT * FROM user_injuries WHERE id=$1 AND user_id=$2`,
+          [previous.resource_id, id],
+        );
+        return { injury: r, replayed: true };
+      }
+      await this.bodyArea(m, input.body_area_code);
+      const [r] = await query(
+        m,
+        `INSERT INTO user_injuries(id,user_id,body_area_code,side,description) VALUES($1,$2,$3,$4,$5) RETURNING *`,
+        [
+          randomUUID(),
+          id,
+          input.body_area_code,
+          input.side || null,
+          input.description,
+        ],
+      );
+      await this.recordKey(m, id, 'injury', key, input, r.id);
+      return { injury: r, injury_revision: await this.injuryRevision(m, id) };
+    });
+  }
+  async editInjury(
+    id: string,
+    injuryId: string,
+    input: z.infer<typeof dto.injuryEdit>,
+  ) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      await this.bodyArea(m, input.body_area_code);
+      const [existing] = await query(
+        m,
+        `SELECT version,status FROM user_injuries WHERE id=$1 AND user_id=$2`,
+        [injuryId, id],
+      );
+      if (!existing) throw new ApiError('NOT_FOUND', 404);
+      if (
+        existing.version !== input.expectedVersion ||
+        existing.status !== 'ACTIVE'
+      )
+        throw new ApiError('REVISION_CONFLICT', 409);
+      const [r] = await query(
+        m,
+        `UPDATE user_injuries SET body_area_code=$3,side=$4,description=$5,version=version+1,confirmed_at=now() WHERE id=$1 AND user_id=$2 RETURNING *`,
+        [
+          injuryId,
+          id,
+          input.body_area_code,
+          input.side || null,
+          input.description,
+        ],
+      );
+      return { injury: r, injury_revision: await this.injuryRevision(m, id) };
+    });
+  }
+  async removeInjury(id: string, injuryId: string, version: number) {
+    return this.db.transaction(async (m) => {
+      await this.lock(m, id);
+      const [r] = await query(
+        m,
+        `SELECT * FROM user_injuries WHERE id=$1 AND user_id=$2`,
+        [injuryId, id],
+      );
+      if (!r) throw new ApiError('NOT_FOUND', 404);
+      if (r.version !== version || r.status !== 'ACTIVE')
+        throw new ApiError('REVISION_CONFLICT', 409);
+      await query(
+        m,
+        `UPDATE user_injuries SET status='REMOVED',removed_at=now(),version=version+1 WHERE id=$1`,
+        [injuryId],
+      );
+      return {
+        status: 'REMOVED',
+        version: version + 1,
+        injury_revision: await this.injuryRevision(m, id),
+      };
+    });
+  }
+}
