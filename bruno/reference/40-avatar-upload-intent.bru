@@ -1,0 +1,33 @@
+meta {
+  name: Avatar upload intent
+  type: http
+  seq: 40
+}
+
+post {
+  url: {{baseUrl}}/media/upload-intents
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "mime": "image/png",
+    "size": 1024
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.1.0.
+  Requires configured S3 storage. Upload bytes to uploadUrl with returned headers, then finalize. 503 STORAGE_NOT_CONFIGURED otherwise.
+  Never commit populated credentials or runtime tokens.
+}

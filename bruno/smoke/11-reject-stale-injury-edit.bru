@@ -1,0 +1,37 @@
+meta {
+  name: Reject stale injury edit
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/me/injuries/{{injuryId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "body_area_code": "KNEE",
+    "side": "LEFT",
+    "description": "Stale change",
+    "confirmed": true,
+    "expectedVersion": 9
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(409); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });
+}
+
+docs {
+  Contract version: v1 / 0.1.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}
