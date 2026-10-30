@@ -1,0 +1,26 @@
+meta {
+  name: Deletion status
+  type: http
+  seq: 46
+}
+
+get {
+  url: {{baseUrl}}/me/account-deletion
+  body: none
+  auth: none
+}
+
+headers {
+  X-Deletion-Token: {{deletionToken}}
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.1.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}

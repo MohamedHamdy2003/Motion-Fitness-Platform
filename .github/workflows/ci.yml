@@ -1,0 +1,74 @@
+name: Green CI
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend-checks:
+    name: backend-checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: motion
+          POSTGRES_PASSWORD: ci_disposable_password
+          POSTGRES_DB: motion_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U motion -d motion_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://motion:ci_disposable_password@localhost:5432/motion_test
+      TEST_DATABASE_URL: postgres://motion:ci_disposable_password@localhost:5432/motion_test
+      JWT_SECRET: ci-only-disposable-signing-key-never-use-in-staging
+      MAIL_MODE: capture
+      MAIL_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run migration:run
+      - run: npm run seed:lookups && npm run seed:lookups && npm run seed:content
+      - run: npm run test:integration
+      - name: Run Bruno against the real API
+        run: |
+          npm start > /tmp/motion-api.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:3100/api/v1/health/ready; then break; fi
+            sleep 1
+          done
+          npm run bruno
+  private-ai-checks:
+    name: private-ai-checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ai-service/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

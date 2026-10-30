@@ -1,0 +1,100 @@
+{
+  "note": "Synthetic contract examples; IDs are placeholders, tokens are redacted. No live provider results.",
+  "session": {
+    "accessToken": "<jwt>",
+    "refreshToken": "<opaque-token>",
+    "tokenType": "Bearer",
+    "expiresIn": 900
+  },
+  "me": {
+    "user": {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "email": "athlete@example.test",
+      "verified_at": null
+    },
+    "profile": {
+      "user_id": "10000000-0000-4000-8000-000000000001",
+      "name": "Example Athlete",
+      "phone": null,
+      "height_cm": "175",
+      "primary_goal": "FAT_LOSS",
+      "fitness_level": "BEGINNER",
+      "training_days_per_week": 3,
+      "timezone": "Africa/Cairo",
+      "locale": "ar",
+      "avatar_media_id": null,
+      "date_of_birth": "1998-03-14",
+      "profile_revision": 2,
+      "onboarded_at": null
+    },
+    "latest_weight": {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "user_id": "10000000-0000-4000-8000-000000000001",
+      "measured_at": "2026-10-30T10:00:00.000Z",
+      "weight_kg": "80.5",
+      "body_fat_percent": null,
+      "body_fat_method": null,
+      "created_at": "2026-10-30T10:00:00.000Z"
+    },
+    "latest_body_fat": null,
+    "injuries": [
+      {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "user_id": "10000000-0000-4000-8000-000000000001",
+        "body_area_code": "KNEE",
+        "side": "LEFT",
+        "description": "Final description accepted by the example user.",
+        "version": 1,
+        "status": "ACTIVE",
+        "confirmed_at": "2026-10-30T10:00:00.000Z",
+        "removed_at": null
+      }
+    ],
+    "injury_revision": 1,
+    "food_preferences": {
+      "revision": 1,
+      "allergen_codes": ["MILK"],
+      "disliked_food_ids": [],
+      "excluded_food_ids": []
+    },
+    "matching": { "status": "NOT_STARTED", "reason": "F05_NOT_IMPLEMENTED" },
+    "measurement_freshness_policy_days": null
+  },
+  "settings": {
+    "reminders": false,
+    "theme": "SYSTEM",
+    "quiet_hours": null,
+    "version": 0
+  },
+  "onboarding": {
+    "status": "COMPLETED",
+    "profile_revision": 1,
+    "matching": { "status": "PENDING", "reason": "F05_NOT_IMPLEMENTED" }
+  },
+  "injuryRemoval": { "status": "REMOVED", "version": 2, "injury_revision": 2 },
+  "validationError": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed",
+    "details": [{ "path": "confirmed", "code": "invalid_value" }],
+    "requestId": "40000000-0000-4000-8000-000000000001"
+  },
+  "revisionError": {
+    "code": "REVISION_CONFLICT",
+    "message": "REVISION_CONFLICT",
+    "details": null,
+    "requestId": "40000000-0000-4000-8000-000000000002"
+  },
+  "rewriteBlocked": {
+    "code": "AI_REWRITE_NOT_CONFIGURED",
+    "message": "AI_REWRITE_NOT_CONFIGURED",
+    "details": null,
+    "requestId": "40000000-0000-4000-8000-000000000003"
+  },
+  "deletion": {
+    "status": "PENDING",
+    "trackingToken": "<opaque-tracking-token>",
+    "expiresIn": 2592000,
+    "subscriptionCancellation": "NOT_INTEGRATED",
+    "message": "Deleting Motion data does not cancel App Store or Google Play subscriptions."
+  }
+}

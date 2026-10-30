@@ -1,0 +1,6 @@
+{$API_DOMAIN} {
+  reverse_proxy api:3100
+  header {
+    -Server
+  }
+}

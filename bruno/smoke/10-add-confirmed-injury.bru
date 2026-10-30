@@ -1,0 +1,43 @@
+meta {
+  name: Add confirmed injury
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/me/injuries
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Idempotency-Key: bruno-injury-001
+}
+
+body:json {
+  {
+    "body_area_code": "KNEE",
+    "side": "LEFT",
+    "description": "Final confirmed fixture text",
+    "confirmed": true
+  }
+}
+
+script:post-response {
+  bru.setVar("injuryId",res.getBody().injury.id);
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.1.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}
