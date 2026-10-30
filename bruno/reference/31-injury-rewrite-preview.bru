@@ -1,0 +1,35 @@
+meta {
+  name: Injury rewrite preview
+  type: http
+  seq: 31
+}
+
+post {
+  url: {{baseUrl}}/me/injuries/rewrite
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "body_area_code": "KNEE",
+    "side": "LEFT",
+    "description": "My left knee sometimes hurts",
+    "draftVersion": 1
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.1.0.
+  Requires configured private AI service and approved provider retention. Returns description, draftVersion, previewOnly. Discard if form version changed. Saves nothing.
+  Never commit populated credentials or runtime tokens.
+}

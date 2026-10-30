@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: motion-api-staging
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/infrastructure/database/migrate.js && node dist/main.js
+    healthCheckPath: /api/v1/health/ready
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.15.0
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_SSL
+        value: 'true'
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MAIL_MODE
+        value: disabled
+      - key: DELETION_RETENTION_APPROVED
+        value: 'false'
+      - key: AI_RETENTION_APPROVED
+        value: 'false'

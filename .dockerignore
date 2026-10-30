@@ -1,0 +1,11 @@
+node_modules
+.git
+.env*
+!.env.example
+.local
+dist
+coverage
+ai-service
+docs
+bruno
+test
