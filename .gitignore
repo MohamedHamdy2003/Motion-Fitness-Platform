@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.local/
+bruno/environments/*.local.bru
+ai-service/node_modules/
+ai-service/dist/
