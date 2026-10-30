@@ -33,6 +33,6 @@ Preview timeout is 12 seconds in NestJS and model timeout 10 seconds; there are 
 
 ## Storage and deletion
 
-S3-compatible bucket/endpoint/region and scoped credentials must be supplied separately. No live storage exists. Only owner-scoped avatar intents/finalization/metadata are in this delivery; the full F03 content library is deferred. Configure a private bucket and CORS for the native/upload clients as appropriate.
+S3-compatible bucket/endpoint/region and scoped credentials must be supplied separately. No live storage exists. Only owner-scoped avatar intents/finalization/metadata are in this delivery; the full F03 content library is deferred. Configure a private bucket and CORS for the native/upload clients as appropriate. Require a bucket lifecycle rule expiring the `uploads/` prefix after one day; short-lived signed upload URLs can otherwise recreate an abandoned temporary object after finalization or deletion. Final avatar keys use a different prefix and conditional immutable copy.
 
 Deletion never means automatic store-subscription cancellation. Retention remains pending approval. Until then, account status and sessions are revoked immediately and deletion jobs report a policy blocker. After approval, the job removes owned files and relational data, retries Apple revocation, and retains only expiring anonymous tracking state. Unresolved provider revocation is reported explicitly after five attempts instead of indefinitely retaining user data.

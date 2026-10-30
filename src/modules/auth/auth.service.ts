@@ -181,6 +181,7 @@ export class AuthService {
     return result;
   }
   async revoke(m: EntityManager, userId: string, sessionId?: string) {
+    await query(m, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, [userId]);
     await query(
       m,
       `UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 ${sessionId ? 'AND id=$2' : ''}`,

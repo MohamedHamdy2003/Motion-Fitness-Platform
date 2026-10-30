@@ -175,7 +175,12 @@ export class SocialService {
         if (collision) throw new ApiError('ACCOUNT_LINK_REQUIRED', 409);
         userId = randomUUID();
         const trusted =
-          claims.email_verified === true || claims.email_verified === 'true';
+          !!email &&
+          (claims.email_verified === true ||
+            claims.email_verified === 'true') &&
+          (provider === 'APPLE' ||
+            email.endsWith('@gmail.com') ||
+            typeof claims.hd === 'string');
         await query(
           m,
           `INSERT INTO users(id,email_normalized,verified_at) VALUES($1,$2,$3)`,

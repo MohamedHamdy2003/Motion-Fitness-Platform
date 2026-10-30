@@ -93,6 +93,7 @@ export class MediaService {
       );
       throw new ApiError('UPLOAD_METADATA_MISMATCH', 422);
     }
+    if (!result.ETag) throw new ApiError('STORAGE_INVALID_RESPONSE', 502);
     const prefix = await client.send(
       new GetObjectCommand({
         Bucket: environment().S3_BUCKET,
@@ -126,10 +127,18 @@ export class MediaService {
     );
     const [updated] = await query(
       this.db,
-      `UPDATE media_assets SET status='READY',storage_key=$3 WHERE id=$1 AND owner_user_id=$2 AND status='PENDING' RETURNING id`,
+      `UPDATE media_assets SET status='READY',storage_key=$3 WHERE id=$1 AND owner_user_id=$2 AND status='PENDING' AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND status='ACTIVE') RETURNING id`,
       [id, userId, finalKey],
     );
-    if (!updated) await this.erase(finalKey);
+    if (!updated) {
+      await this.erase(finalKey);
+      const [current] = await query(
+        this.db,
+        `SELECT a.id FROM media_assets a JOIN users u ON u.id=a.owner_user_id WHERE a.id=$1 AND a.owner_user_id=$2 AND a.status='READY' AND u.status='ACTIVE'`,
+        [id, userId],
+      );
+      if (!current) throw new ApiError('ACCOUNT_UNAVAILABLE', 403);
+    }
     await this.erase(media.upload_key);
     return { id, status: 'READY' };
   }
