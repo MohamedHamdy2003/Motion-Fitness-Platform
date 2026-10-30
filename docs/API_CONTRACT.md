@@ -1,6 +1,6 @@
 # Motion API contract v1 / 0.1.0
 
-All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height, weight and body fat; clients submit JSON numbers. UUIDs are server-generated.
+All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height, weight and body fat; clients submit JSON numbers. UUIDs are server-generated. See [complete synthetic response/error examples](examples/responses.json).
 
 Responses include `X-Request-Id` and `Cache-Control: no-store`. Client request IDs are not trusted. Error bodies are always:
 
@@ -142,7 +142,7 @@ Protected reference routes: GET `/references/body-areas` → `{items:[{code,pare
 
 ## Media and account deletion
 
-Protected POST `/media/upload-intents` with `{mime:"image/png",size:1024}` → 201 `{id,uploadUrl,method:"PUT",headers,expiresIn:300}`. JPEG/PNG/WebP only; max 5 MiB. Upload to the returned URL, then protected POST `/media/:id/finalize` with `{}` → 201 `{id,status:"READY"}` after validation. Protected GET `/media/:id` returns owned metadata. Use the READY ID as `avatar_media_id` in PATCH /me. No configured S3 bucket: 503; wrong owner: 404. Live storage has not been connected.
+Protected POST `/media/upload-intents` with `{mime:"image/png",size:1024}` → 201 `{id,uploadUrl,method:"PUT",headers,expiresIn:300}`. JPEG/PNG/WebP only; max 5 MiB. Upload to the returned URL, then protected POST `/media/:id/finalize` with `{}` → 201 `{id,status:"READY"}` after size/MIME/signature checks and conditional copy into an immutable final key. Protected GET `/media/:id` returns owned metadata and, for READY assets, a five-minute `downloadUrl`/`expiresIn`. Use the READY ID as `avatar_media_id` in PATCH /me. No configured S3 bucket: 503; wrong owner: 404. Live storage has not been connected.
 
 Protected POST `/me/account-deletion` with `{reauthenticationToken:"<DELETE-proof>"}` returns 202 `{status:"PENDING",trackingToken,expiresIn:2592000,subscriptionCancellation:"NOT_INTEGRATED",message}`. It immediately sets DELETION_PENDING and revokes all sessions. Poll GET `/me/account-deletion` using **`X-Deletion-Token`**, without Bearer: `{status,requested_at,completed_at}` only. Tracking secret is hashed in DB and expires after 30 days. This endpoint never exposes account data.
 

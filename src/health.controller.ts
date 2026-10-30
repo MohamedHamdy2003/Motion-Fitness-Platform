@@ -12,6 +12,11 @@ export class HealthController {
   @Get('ready') async ready() {
     try {
       await query(this.db, 'SELECT 1');
+      const [lookup] = await query(
+        this.db,
+        `SELECT code FROM roles WHERE code='ATHLETE'`,
+      );
+      if (!lookup) throw Error();
       const pending = await this.db.showMigrations();
       if (pending) throw Error();
     } catch {

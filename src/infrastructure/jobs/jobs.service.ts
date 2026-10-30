@@ -146,10 +146,13 @@ export class JobsService
       }
     const assets = await query(
       this.db,
-      `SELECT storage_key FROM media_assets WHERE owner_user_id=$1`,
+      `SELECT storage_key,upload_key FROM media_assets WHERE owner_user_id=$1`,
       [job.user_id],
     );
-    for (const a of assets) await this.media.erase(a.storage_key);
+    for (const a of assets) {
+      await this.media.erase(a.storage_key);
+      if (a.upload_key !== a.storage_key) await this.media.erase(a.upload_key);
+    }
     await this.db.transaction(async (m) => {
       const [current] = await query(
         m,

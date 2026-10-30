@@ -65,7 +65,11 @@ beforeAll(async () => {
   db = new DataSource(databaseOptions());
   await db.initialize();
   await db.runMigrations();
-  await db.undoLastMigration();
+  const migrations = await db.query('SELECT id FROM migrations');
+  for (const ignored of migrations) {
+    void ignored;
+    await db.undoLastMigration();
+  }
   await db.runMigrations();
   await seedLookups(db);
   const { createApp } = await import('../../src/bootstrap.js');
@@ -94,6 +98,20 @@ afterAll(async () => {
   if (db?.isInitialized) await db.destroy();
 });
 describe('foundation against PostgreSQL', () => {
+  it('returns bounded safe JSON errors for malformed and oversized request bodies', async () => {
+    const malformed = await api
+      .post(prefix + '/auth/login')
+      .set('content-type', 'application/json')
+      .send('{invalid JSON');
+    expect(malformed.status, malformed.text).toBe(400);
+    expect(malformed.body).toHaveProperty('requestId');
+    expect(malformed.text).not.toContain('SyntaxError');
+    const oversized = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'x'.repeat(40000), password });
+    expect(oversized.status, oversized.text).toBe(413);
+    expect(oversized.body).toHaveProperty('requestId');
+  });
   it('runs reversible migrations and transactional, idempotent lookup seeds', async () => {
     await seedLookups(db);
     const before = await db.query('SELECT * FROM body_areas ORDER BY code');
@@ -555,7 +573,187 @@ describe('social adapter orchestration with verified-provider fixtures', () => {
     ).toBe('PASSWORD_LOGIN_NOT_ENABLED');
   });
 });
+describe('external adapter boundaries with fixture transports', () => {
+  it('sends queued mail through TLS SMTP and retries failures without persisting message contents in errors', async () => {
+    await register();
+    const smtp = (await import('nodemailer')).default;
+    const sendMail = vi.fn().mockResolvedValue({ messageId: 'fixture' });
+    const create = vi
+      .spyOn(smtp, 'createTransport')
+      .mockReturnValue({ sendMail } as any);
+    Object.assign(process.env, {
+      MAIL_MODE: 'smtp',
+      SMTP_USER: 'sender@example.test',
+      SMTP_PASSWORD: 'fixture-app-password',
+      MAIL_FROM: 'sender@example.test',
+      RESET_LINK_BASE: 'https://client.example.test/reset',
+      VERIFY_LINK_BASE: 'https://client.example.test/verify',
+    });
+    const { JobsService } =
+      await import('../../src/infrastructure/jobs/jobs.service.js');
+    const jobs = app.get(JobsService);
+    await jobs.processOne();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'smtp.gmail.com',
+        port: 587,
+        requireTLS: true,
+        logger: false,
+        debug: false,
+      }),
+    );
+    expect(sendMail).toHaveBeenCalledOnce();
+    const [done] = await db.query(
+      `SELECT payload,completed_at FROM jobs WHERE kind='MAIL'`,
+    );
+    expect(done.completed_at).not.toBeNull();
+    expect(done.payload).toEqual({});
+    await api
+      .post(prefix + '/auth/forgot-password')
+      .send({ email: 'athlete@example.test' });
+    sendMail.mockRejectedValue(new Error('PRIVATE CONTENT MUST NOT APPEAR'));
+    await jobs.processOne();
+    const [failed] = await db.query(
+      `SELECT last_error_code,payload FROM jobs WHERE completed_at IS NULL`,
+    );
+    expect(failed.last_error_code).toBe('EXTERNAL_OPERATION_FAILED');
+    expect(JSON.stringify(failed)).not.toContain('PRIVATE CONTENT');
+  });
+  it('finalizes avatar bytes into an immutable owned key and rejects a different user', async () => {
+    const user = await register();
+    const other = await register('other@example.test');
+    const id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,'uploads/fixture','uploads/fixture','image/png',16,'PENDING')`,
+      [id, user.user.id],
+    );
+    const { MediaService } =
+      await import('../../src/modules/media/media.service.js');
+    const media = app.get(MediaService);
+    const commands: any[] = [];
+    const send = vi.fn(async (command: any) => {
+      commands.push(command);
+      if (command.constructor.name === 'HeadObjectCommand')
+        return {
+          ContentLength: 16,
+          ContentType: 'image/png',
+          ETag: '"fixture-etag"',
+        };
+      if (command.constructor.name === 'GetObjectCommand')
+        return {
+          Body: {
+            transformToByteArray: async () =>
+              Buffer.from('89504e470d0a1a0a0000000000000000', 'hex'),
+          },
+        };
+      return {};
+    });
+    vi.spyOn(media, 'client').mockReturnValue({ send } as any);
+    expect(
+      (
+        await api
+          .post(prefix + '/media/' + id + '/finalize')
+          .set(bearer(other.accessToken))
+          .send({})
+      ).status,
+    ).toBe(404);
+    const response = await api
+      .post(prefix + '/media/' + id + '/finalize')
+      .set(bearer(user.accessToken))
+      .send({});
+    expect(response.status, response.text).toBe(201);
+    const [stored] = await db.query('SELECT * FROM media_assets WHERE id=$1', [
+      id,
+    ]);
+    expect(stored.status).toBe('READY');
+    expect(stored.storage_key).toContain('avatars/' + user.user.id + '/');
+    expect(stored.storage_key).not.toBe(stored.upload_key);
+    expect(
+      commands.find((c) => c.constructor.name === 'CopyObjectCommand').input
+        .CopySourceIfMatch,
+    ).toBe('"fixture-etag"');
+    expect(
+      (
+        await api
+          .patch(prefix + '/me')
+          .set(bearer(other.accessToken))
+          .send({ expectedRevision: 0, avatar_media_id: id })
+      ).body.code,
+    ).toBe('INVALID_AVATAR');
+  });
+  it('rejects mismatched image content before marking an avatar ready', async () => {
+    const user = await register();
+    const id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,'uploads/wrong','uploads/wrong','image/png',16,'PENDING')`,
+      [id, user.user.id],
+    );
+    const { MediaService } =
+      await import('../../src/modules/media/media.service.js');
+    const media = app.get(MediaService);
+    vi.spyOn(media, 'client').mockReturnValue({
+      send: vi.fn(async (command: any) =>
+        command.constructor.name === 'HeadObjectCommand'
+          ? { ContentLength: 16, ContentType: 'image/png', ETag: '"fixture"' }
+          : {
+              Body: {
+                transformToByteArray: async () =>
+                  Buffer.from('this is not a PNG'),
+              },
+            },
+      ),
+    } as any);
+    const response = await api
+      .post(prefix + '/media/' + id + '/finalize')
+      .set(bearer(user.accessToken))
+      .send({});
+    expect(response.body.code).toBe('UPLOAD_CONTENT_TYPE_MISMATCH');
+    expect(
+      (await db.query('SELECT status FROM media_assets WHERE id=$1', [id]))[0]
+        .status,
+    ).toBe('PENDING');
+  });
+  it('fences an expired deletion worker before relational data removal', async () => {
+    const user = await register();
+    const { JobsService } =
+      await import('../../src/infrastructure/jobs/jobs.service.js');
+    const jobs = app.get(JobsService);
+    process.env.DELETION_RETENTION_APPROVED = 'true';
+    await db.query(`UPDATE users SET status='DELETION_PENDING' WHERE id=$1`, [
+      user.user.id,
+    ]);
+    const jobId = crypto.randomUUID();
+    const current = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO jobs(id,kind,user_id,lease_token,lease_expires_at) VALUES($1,'ACCOUNT_DELETION',$2,$3,now()+interval '1 minute')`,
+      [jobId, user.user.id, current],
+    );
+    await expect(
+      jobs.erase(
+        { id: jobId, user_id: user.user.id, attempts: 1 },
+        crypto.randomUUID(),
+      ),
+    ).rejects.toMatchObject({ code: 'JOB_LEASE_LOST' });
+    expect(
+      (await db.query('SELECT id FROM users WHERE id=$1', [user.user.id]))
+        .length,
+    ).toBe(1);
+  });
+});
 describe('profiles, onboarding and injuries', () => {
+  it('does not bypass an approved minimum age through profile edits', async () => {
+    const user = await register();
+    const r = await api
+      .patch(prefix + '/me')
+      .set(bearer(user.accessToken))
+      .send({ expectedRevision: 0, date_of_birth: '2020-01-01' });
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('AGE_NOT_ELIGIBLE');
+    expect(
+      (await db.query('SELECT profile_revision FROM user_profiles'))[0]
+        .profile_revision,
+    ).toBe(0);
+  });
   it('gates unresolved onboarding policy; idempotent onboarding records one weight and honest matching state', async () => {
     const r = await register();
     const input = {

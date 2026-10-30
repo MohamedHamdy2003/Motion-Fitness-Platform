@@ -94,6 +94,11 @@ export class ProfileService {
     input: Record<string, unknown>,
     expected: number,
   ) {
+    if (input.date_of_birth && environment().MINIMUM_AGE)
+      this.assertAge(
+        String(input.date_of_birth),
+        Number(environment().MINIMUM_AGE),
+      );
     if (input.avatar_media_id) {
       const [asset] = await query(
         m,
@@ -131,17 +136,7 @@ export class ProfileService {
     const env = environment();
     if (!env.MINIMUM_AGE || !env.MEASUREMENT_MAX_AGE_DAYS)
       throw new ApiError('ONBOARDING_POLICY_NOT_CONFIGURED', 503);
-    const dob = new Date(input.date_of_birth);
-    const now = new Date();
-    let age = now.getUTCFullYear() - dob.getUTCFullYear();
-    if (
-      now.getUTCMonth() < dob.getUTCMonth() ||
-      (now.getUTCMonth() === dob.getUTCMonth() &&
-        now.getUTCDate() < dob.getUTCDate())
-    )
-      age--;
-    if (age < Number(env.MINIMUM_AGE))
-      throw new ApiError('AGE_NOT_ELIGIBLE', 422);
+    this.assertAge(input.date_of_birth, Number(env.MINIMUM_AGE));
     if (
       Date.now() - new Date(input.initialMeasurement.measured_at).valueOf() >
       Number(env.MEASUREMENT_MAX_AGE_DAYS) * 86400000
@@ -183,6 +178,18 @@ export class ProfileService {
     return createHmac('sha256', environment().JWT_SECRET)
       .update(JSON.stringify(input))
       .digest('hex');
+  }
+  assertAge(birth: string, minimum: number) {
+    const dob = new Date(birth);
+    const now = new Date();
+    let age = now.getUTCFullYear() - dob.getUTCFullYear();
+    if (
+      now.getUTCMonth() < dob.getUTCMonth() ||
+      (now.getUTCMonth() === dob.getUTCMonth() &&
+        now.getUTCDate() < dob.getUTCDate())
+    )
+      age--;
+    if (age < minimum) throw new ApiError('AGE_NOT_ELIGIBLE', 422);
   }
   async idempotency(
     m: EntityManager,
@@ -310,7 +317,11 @@ export class ProfileService {
       return s;
     });
   }
-  async getPreferences(id: string, m: EntityManager = this.db.manager) {
+  async getPreferences(id: string, m?: EntityManager): Promise<any> {
+    if (!m)
+      return this.db.transaction('REPEATABLE READ', (manager) =>
+        this.getPreferences(id, manager),
+      );
     const [p] = await query(
       m,
       `SELECT revision FROM user_food_preferences WHERE user_id=$1`,
