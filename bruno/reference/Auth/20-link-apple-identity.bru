@@ -1,0 +1,35 @@
+meta {
+  name: Link Apple identity
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{baseUrl}}/auth/identities/apple/link
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "idToken": "{{idToken}}",
+    "authorizationCode": "{{authorizationCode}}",
+    "challengeId": "{{challengeId}}",
+    "reauthenticationToken": "{{reauthenticationToken}}"
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.2.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}

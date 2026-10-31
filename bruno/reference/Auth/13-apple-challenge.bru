@@ -1,0 +1,29 @@
+meta {
+  name: Apple challenge
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/auth/challenges
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "provider": "APPLE",
+    "purpose": "SIGN_IN"
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.2.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}
