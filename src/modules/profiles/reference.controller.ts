@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { AuthGuard } from '../../common/auth.guard';
 import { parse } from '../../common/http';
 import { listQuery } from './profile.dto';
-import { environment } from '../../config/environment';
+import { minimumAge } from './profile.policy';
 @Controller('references')
 @UseGuards(AuthGuard)
 export class ReferenceController {
@@ -43,22 +43,14 @@ export class ReferenceController {
     };
   }
   @Get('onboarding') options() {
-    const e = environment();
     return {
       primary_goals: ['FAT_LOSS', 'STRENGTH_HYPERTROPHY'],
       fitness_levels: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'],
       training_days_per_week: [2, 3, 4, 5],
-      body_fat_methods: e.BODY_FAT_METHODS.split(',')
-        .map((v) => v.trim())
-        .filter(Boolean),
-      minimum_age: e.MINIMUM_AGE ? Number(e.MINIMUM_AGE) : null,
-      measurement_max_age_days: e.MEASUREMENT_MAX_AGE_DAYS
-        ? Number(e.MEASUREMENT_MAX_AGE_DAYS)
-        : null,
-      policyStatus:
-        e.MINIMUM_AGE && e.MEASUREMENT_MAX_AGE_DAYS
-          ? 'CONFIGURED'
-          : 'PENDING_APPROVAL',
+      minimum_age: minimumAge,
+      minimum_age_inclusive: false,
+      measurement_max_age_days: null,
+      policyStatus: 'CONFIGURED',
     };
   }
 }

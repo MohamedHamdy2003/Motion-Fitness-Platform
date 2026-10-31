@@ -51,9 +51,6 @@ beforeAll(async () => {
     JWT_SECRET: randomBytes(48).toString('hex'),
     MAIL_MODE: 'capture',
     MAIL_ENCRYPTION_KEY: randomBytes(32).toString('hex'),
-    MINIMUM_AGE: '18',
-    BODY_FAT_METHODS: 'SELF_REPORTED,BIA',
-    MEASUREMENT_MAX_AGE_DAYS: '90',
     GOOGLE_CLIENT_IDS: '',
     APPLE_CLIENT_IDS: '',
     AI_REWRITE_URL: '',
@@ -85,8 +82,6 @@ beforeEach(async () => {
   Object.assign(process.env, {
     GOOGLE_CLIENT_IDS: '',
     MAIL_MODE: 'capture',
-    MINIMUM_AGE: '18',
-    MEASUREMENT_MAX_AGE_DAYS: '90',
     AI_REWRITE_URL: '',
     AI_RETENTION_APPROVED: 'false',
     DELETION_RETENTION_APPROVED: 'false',
@@ -98,6 +93,54 @@ afterAll(async () => {
   if (db?.isInitialized) await db.destroy();
 });
 describe('foundation against PostgreSQL', () => {
+  it('removes legacy body-fat data while preserving weight rows and enforcing required weight', async () => {
+    const user = await register();
+    const { RemoveBodyFat1793404800000 } =
+      await import('../../src/infrastructure/database/migrations/1793404800000-RemoveBodyFat.js');
+    const migration = new RemoveBodyFat1793404800000();
+    const runner = db.createQueryRunner();
+    await runner.connect();
+    await runner.startTransaction();
+    try {
+      await migration.down(runner);
+      const mixedId = crypto.randomUUID();
+      const removedId = crypto.randomUUID();
+      await runner.query(
+        `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg,body_fat_percent,body_fat_method) VALUES($1,$3,now(),80,20,'BIA'),($2,$3,now(),NULL,21,'BIA')`,
+        [mixedId, removedId, user.user.id],
+      );
+      await runner.query(
+        `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,'measurement','legacy-fat-only','fixture-hash',$2)`,
+        [user.user.id, removedId],
+      );
+      await migration.up(runner);
+      const rows = await runner.query(
+        'SELECT * FROM body_measurements WHERE user_id=$1',
+        [user.user.id],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(mixedId);
+      expect(Number(rows[0].weight_kg)).toBe(80);
+      expect(rows[0]).not.toHaveProperty('body_fat_percent');
+      expect(rows[0]).not.toHaveProperty('body_fat_method');
+      expect(
+        await runner.query(
+          `SELECT key FROM idempotency_keys WHERE resource_id=$1`,
+          [removedId],
+        ),
+      ).toEqual([]);
+      const [column] = await runner.query(
+        `SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='body_measurements' AND column_name='weight_kg'`,
+      );
+      expect(column.is_nullable).toBe('NO');
+      await runner.commitTransaction();
+    } catch (error) {
+      await runner.rollbackTransaction();
+      throw error;
+    } finally {
+      await runner.release();
+    }
+  });
   it('returns bounded safe JSON errors for malformed and oversized request bodies', async () => {
     const malformed = await api
       .post(prefix + '/auth/login')
@@ -754,7 +797,7 @@ describe('profiles, onboarding and injuries', () => {
         .profile_revision,
     ).toBe(0);
   });
-  it('gates unresolved onboarding policy; idempotent onboarding records one weight and honest matching state', async () => {
+  it('accepts old measurements without expiry; idempotent onboarding records one weight and honest matching state', async () => {
     const r = await register();
     const input = {
       name: 'Athlete',
@@ -768,20 +811,9 @@ describe('profiles, onboarding and injuries', () => {
       expectedRevision: 0,
       initialMeasurement: {
         weight_kg: 80,
-        measured_at: new Date().toISOString(),
+        measured_at: '2020-01-01T00:00:00Z',
       },
     };
-    process.env.MINIMUM_AGE = '';
-    expect(
-      (
-        await api
-          .put(prefix + '/me/onboarding')
-          .set(bearer(r.accessToken))
-          .set('idempotency-key', 'onboarding-test')
-          .send(input)
-      ).body.code,
-    ).toBe('ONBOARDING_POLICY_NOT_CONFIGURED');
-    process.env.MINIMUM_AGE = '18';
     const first = await api
       .put(prefix + '/me/onboarding')
       .set(bearer(r.accessToken))
@@ -824,7 +856,7 @@ describe('profiles, onboarding and injuries', () => {
     ]);
     expect(responses.map((x) => x.status).sort()).toEqual([200, 409]);
   });
-  it('stores independent latest weight/body-fat observations and rejects conflicting idempotency keys', async () => {
+  it('stores weight history, rejects removed fields and conflicting idempotency keys', async () => {
     const r = await register();
     const header = bearer(r.accessToken);
     const weight = { weight_kg: 80, measured_at: '2026-01-02T00:00:00Z' };
@@ -867,11 +899,27 @@ describe('profiles, onboarding and injuries', () => {
             measured_at: '2026-01-03T00:00:00Z',
           })
       ).status,
-    ).toBe(201);
+    ).toBe(400);
+    expect(
+      (
+        await api
+          .post(prefix + '/me/measurements')
+          .set(header)
+          .set('idempotency-key', 'removed-field-test')
+          .send({ ...weight, body_fat_percent: 21 })
+      ).status,
+    ).toBe(400);
     const me = await api.get(prefix + '/me').set(header);
     expect(Number(me.body.latest_weight.weight_kg)).toBe(80);
-    expect(Number(me.body.latest_body_fat.body_fat_percent)).toBe(21);
-    expect(me.body.latest_weight.id).not.toBe(me.body.latest_body_fat.id);
+    expect(me.body).not.toHaveProperty('latest_body_fat');
+    expect(me.body.latest_weight).not.toHaveProperty('body_fat_percent');
+    expect(me.body.latest_weight).not.toHaveProperty('body_fat_method');
+    const history = await api.get(prefix + '/me/measurements').set(header);
+    expect(history.body.items).toHaveLength(1);
+    expect(history.body.items[0]).not.toHaveProperty('body_fat_percent');
+    const refs = await api.get(prefix + '/references/onboarding').set(header);
+    expect(refs.body).not.toHaveProperty('body_fat_methods');
+    expect(refs.body).not.toHaveProperty('body_fat_policy_status');
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
     const r = await register();

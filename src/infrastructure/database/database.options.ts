@@ -2,6 +2,7 @@ import { DataSourceOptions } from 'typeorm';
 import { environment } from '../../config/environment';
 import { Initial1793318400000 } from './migrations/1793318400000-Initial';
 import { AvatarUploadKeys1793318401000 } from './migrations/1793318401000-AvatarUploadKeys';
+import { RemoveBodyFat1793404800000 } from './migrations/1793404800000-RemoveBodyFat';
 import { UserSchema } from '../../modules/auth/user.entity';
 import {
   ProfileSchema,
@@ -22,7 +23,11 @@ export function databaseOptions(): DataSourceOptions {
       InjurySchema,
       MediaSchema,
     ],
-    migrations: [Initial1793318400000, AvatarUploadKeys1793318401000],
+    migrations: [
+      Initial1793318400000,
+      AvatarUploadKeys1793318401000,
+      RemoveBodyFat1793404800000,
+    ],
     synchronize: false,
     migrationsRun: false,
     logging: false,
