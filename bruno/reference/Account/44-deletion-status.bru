@@ -1,17 +1,17 @@
 meta {
-  name: Media metadata
+  name: Deletion status
   type: http
-  seq: 42
+  seq: 44
 }
 
 get {
-  url: {{baseUrl}}/media/{{mediaId}}
+  url: {{baseUrl}}/me/account-deletion
   body: none
-  auth: bearer
+  auth: none
 }
 
-auth:bearer {
-  token: {{accessToken}}
+headers {
+  X-Deletion-Token: {{deletionToken}}
 }
 
 tests {
@@ -20,7 +20,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }
