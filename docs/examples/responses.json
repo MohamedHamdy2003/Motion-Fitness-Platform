@@ -32,11 +32,8 @@
       "user_id": "10000000-0000-4000-8000-000000000001",
       "measured_at": "2026-10-30T10:00:00.000Z",
       "weight_kg": "80.5",
-      "body_fat_percent": null,
-      "body_fat_method": null,
       "created_at": "2026-10-30T10:00:00.000Z"
     },
-    "latest_body_fat": null,
     "injuries": [
       {
         "id": "30000000-0000-4000-8000-000000000001",
@@ -57,7 +54,10 @@
       "disliked_food_ids": [],
       "excluded_food_ids": []
     },
-    "matching": { "status": "NOT_STARTED", "reason": "F05_NOT_IMPLEMENTED" },
+    "matching": {
+      "status": "NOT_STARTED",
+      "reason": "F05_NOT_IMPLEMENTED"
+    },
     "measurement_freshness_policy_days": null
   },
   "settings": {
@@ -69,13 +69,25 @@
   "onboarding": {
     "status": "COMPLETED",
     "profile_revision": 1,
-    "matching": { "status": "PENDING", "reason": "F05_NOT_IMPLEMENTED" }
+    "matching": {
+      "status": "PENDING",
+      "reason": "F05_NOT_IMPLEMENTED"
+    }
   },
-  "injuryRemoval": { "status": "REMOVED", "version": 2, "injury_revision": 2 },
+  "injuryRemoval": {
+    "status": "REMOVED",
+    "version": 2,
+    "injury_revision": 2
+  },
   "validationError": {
     "code": "VALIDATION_ERROR",
     "message": "Request validation failed",
-    "details": [{ "path": "confirmed", "code": "invalid_value" }],
+    "details": [
+      {
+        "path": "confirmed",
+        "code": "invalid_value"
+      }
+    ],
     "requestId": "40000000-0000-4000-8000-000000000001"
   },
   "revisionError": {
