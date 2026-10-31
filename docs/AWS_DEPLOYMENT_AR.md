@@ -4,11 +4,40 @@
 
 ## المطلوب على EC2
 
-- Linux مع Docker Engine وCompose v2 وGit وcurl وflock. الصورة تدعم البناء على x86_64 أو ARM64 حسب الجهاز.
+- Amazon Linux 2023 x86_64 (تم تأكيده) مع Docker Engine وCompose plugin وGit وcurl وflock. الصورة تدعم البناء على x86_64 أو ARM64 حسب الجهاز.
 - IAM Instance Profile مرفق بـEC2. داخل Docker bridge يجب أن يصل AWS SDK إلى IMDSv2؛ راجع hop limit=2 وHttpTokens=required. لا تحتاج وضع Access Keys ثابتة في GitHub أو داخل التطبيق.
 - RDS PostgreSQL، مع سماح Security Group باتصال EC2 بمنفذ 5432. استخدم اسم RDS endpoint الأصلي للتحقق من شهادة TLS.
 - Bucket خاص في نفس المنطقة المحددة في S3_REGION؛ اترك S3_ENDPOINT فارغًا وS3_AUTH_MODE=iam.
 - مستخدم النشر يملك صلاحية تشغيل Docker والكتابة إلى checkout؛ صلاحية Docker قوية ويجب تخصيص الوصول إليها.
+
+## تثبيت Docker على Amazon Linux 2023
+
+نفذ داخل جلسة SSH على EC2. لا تحتاج تثبيت Node.js أو PostgreSQL على EC2؛ Node داخل الصورة، وقاعدة البيانات على RDS PostgreSQL كما تم تأكيده.
+
+```bash
+# تثبيت Docker وGit وأداة قفل النشر
+sudo dnf install -y docker git util-linux
+# تشغيل Docker تلقائيًا مع السيرفر
+sudo systemctl enable --now docker
+# السماح لمستخدم SSH الحالي بتشغيل Docker
+sudo usermod -aG docker "$USER"
+# تثبيت Compose plugin لجميع المستخدمين
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl --fail --show-error --location https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64 --output /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```
+
+اخرج من SSH وادخل من جديد لتفعيل المجموعة، ثم:
+
+```bash
+docker version
+docker compose version
+docker run --rm hello-world
+```
+
+إصدار Compose مثبت حسب [تعليمات Docker الحالية](https://docs.docker.com/compose/install/linux/)؛ التثبيت اليدوي يحتاج تحديثًا يدويًا لاحقًا.
+
+المستخدم أكد عدم وجود Domain أو HTTPS حتى الآن، ووجود Public IP ومنافذ 80/443 مفتوحة. فتح المنافذ لا ينشئ شهادة. يمكن إصدار شهادة IP موثوقة بدون شراء domain، لكن يجب إعداد ACME والتجديد الآلي وproxy والتحقق من ثبات IP؛ لم يتم تنفيذ ذلك على EC2 بعد. [توثيق Let's Encrypt لشهادات IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability).
 
 ## أول إعداد
 
