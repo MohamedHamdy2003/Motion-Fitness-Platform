@@ -1,3 +1,7 @@
+> تحديث 1 نوفمبر 2026: هدف النشر المعتمد أصبح AWS EC2 + RDS PostgreSQL + S3 عبر IAM Role. تعليمات Oracle/Neon أدناه مرجع سابق؛ استخدم [دليل AWS](AWS_DEPLOYMENT_AR.md) للنشر الحالي.
+
+> تحديث 31 أكتوبر 2026: تأكيد البريد واستعادة الباسورد أصبحا عبر OTP؛ إعدادات RESET_LINK_BASE وVERIFY_LINK_BASE وخطوات deep links الخاصة بهما أدناه لم تعد مطلوبة. راجع [دليل OTP وOAuth](OTP_OAUTH_SETUP_AR.md).
+
 # Free staging preparation — verified 2026-10-30
 
 **Approved update 2026-10-31:** use a public server IP without buying a domain. DNS/hostname instructions below are an optional alternative. Publicly trusted IP TLS issuance/renewal must be configured and tested before live mobile access; the default Caddyfile alone is not evidence of that integration. Age is strictly greater than 18 and current weight/height are profile values without measurement dates/history. See [latest decisions](PRODUCT_DECISIONS_AR.md).

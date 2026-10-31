@@ -2,7 +2,7 @@
 
 ## Email
 
-`MAIL_MODE=smtp` supports Gmail SMTP (`smtp.gmail.com`, 587 with mandatory STARTTLS, or 465 with TLS). Set SMTP_USER, SMTP_PASSWORD, MAIL_FROM, MAIL_ENCRYPTION_KEY, RESET_LINK_BASE and VERIFY_LINK_BASE using local ignored files or provider secrets. A Google app password requires 2-Step Verification and may be unavailable under some account policies; do not use the Google account password. [Google account instructions](https://support.google.com/accounts/answer/185833).
+`MAIL_MODE=smtp` supports Gmail SMTP (`smtp.gmail.com`, 587 with mandatory STARTTLS, or 465 with TLS). Set SMTP_USER, SMTP_PASSWORD, MAIL_FROM, MAIL_ENCRYPTION_KEY using local ignored files or provider secrets. A Google app password requires 2-Step Verification and may be unavailable under some account policies; do not use the Google account password. [Google account instructions](https://support.google.com/accounts/answer/185833).
 
 No Google account/app password or real recipient has been configured or tested. The user authorizes no outgoing test email until a recipient is specified. The SMTP adapter uses no debug logging. A crash after SMTP accepts a message can cause duplicate delivery; challenge tokens remain single-use. HTTPS Resend is an optional adapter, not a configured integration.
 
@@ -36,3 +36,5 @@ Preview timeout is 12 seconds in NestJS and model timeout 10 seconds; there are 
 S3-compatible bucket/endpoint/region and scoped credentials must be supplied separately. No live storage exists. Only owner-scoped avatar intents/finalization/metadata are in this delivery; the full F03 content library is deferred. Configure a private bucket and CORS for the native/upload clients as appropriate. Require a bucket lifecycle rule expiring the `uploads/` prefix after one day; short-lived signed upload URLs can otherwise recreate an abandoned temporary object after finalization or deletion. Final avatar keys use a different prefix and conditional immutable copy.
 
 Deletion never means automatic store-subscription cancellation. Retention remains pending approval. Until then, account status and sessions are revoked immediately and deletion jobs report a policy blocker. After approval, the job removes owned files and relational data, retries Apple revocation, and retains only expiring anonymous tracking state. Unresolved provider revocation is reported explicitly after five attempts instead of indefinitely retaining user data.
+
+Email verification and password recovery use emailed OTP codes. No reset/verification link configuration is required. Old captured jobs are never sent when SMTP is enabled; new jobs are tagged with their delivery mode.

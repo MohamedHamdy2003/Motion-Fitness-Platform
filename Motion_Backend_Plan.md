@@ -1,8 +1,12 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.15 · **Updated:** 2026-10-31 · **Status:** F00–F02 implemented locally; external integrations and staging remain pending. Feature-specific decisions in Section 12 remain open.
+**Version:** 2.18 · **Updated:** 2026-11-01 · **Status:** F00–F03 backend implemented locally; external integrations and staging remain pending. Feature-specific decisions in Section 12 remain open.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
+
+**Approved F01 update (2026-10-31):** Email verification and password recovery now use six-digit emailed OTPs (10-minute lifetime, five attempts, 60-second resend cooldown). Verification accepts email/code; recovery exchanges email/code for a five-minute single-use reset proof before changing the password. Previous email-link requirements below are superseded; no VERIFY_LINK_BASE or RESET_LINK_BASE is required. See [OTP/OAuth setup](docs/OTP_OAUTH_SETUP_AR.md).
+
+**Deployment update (2026-11-01):** AWS EC2 + RDS PostgreSQL + private S3 using the EC2 IAM role replaces the previous Oracle/Neon target. User verified infrastructure connectivity and is preparing GitHub Actions deployment from main. App rollout and public HTTPS remain to be verified.
 
 ## 1. Product and Technology
 

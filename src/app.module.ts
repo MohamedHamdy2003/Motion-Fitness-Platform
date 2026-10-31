@@ -1,3 +1,4 @@
+import { ContentModule } from './modules/content/content.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseOptions } from './infrastructure/database/database.options';
@@ -14,6 +15,7 @@ import { HealthController } from './health.controller';
     AuthModule,
     ProfileModule,
     MediaModule,
+    ContentModule,
   ],
   controllers: [HealthController],
   providers: [JobsService],

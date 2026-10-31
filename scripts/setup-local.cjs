@@ -12,7 +12,7 @@ const template = fs
   )
   .replace('MAIL_MODE=disabled', 'MAIL_MODE=capture')
   .replace(
-    'MAIL_ENCRYPTION_KEY=',
+    /^MAIL_ENCRYPTION_KEY=.*$/m,
     'MAIL_ENCRYPTION_KEY=' + crypto.randomBytes(32).toString('hex'),
   );
 fs.writeFileSync('.env', template, { flag: 'wx' });

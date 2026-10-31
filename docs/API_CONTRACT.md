@@ -22,7 +22,7 @@ Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes
 | POST `/auth/register`               | `email`, `password`                                                                                             | 201, session plus `{user:{id,email,verified:false},emailDelivery:"QUEUED"}` |
 | POST `/auth/login`                  | `email`, `password`                                                                                             | 200, session                                                                |
 | POST `/auth/refresh`                | `refreshToken`                                                                                                  | 200, rotated session tokens                                                 |
-| POST `/auth/verify-email`           | `token`                                                                                                         | 200, `{status:"VERIFIED"}`                                                  |
+| POST `/auth/verify-email`           | `email`, `code`                                                                                                 | 200, `{status:"VERIFIED"}`                                                  |
 | POST `/auth/resend-verification`    | `email`                                                                                                         | 202, generic accepted response                                              |
 | POST `/auth/forgot-password`        | `email`                                                                                                         | 202, identical accepted response for eligible/unknown accounts              |
 | POST `/auth/reset-password`         | `token`, `newPassword`, `confirmPassword`                                                                       | 200, `{status:"PASSWORD_CHANGED",requiresLogin:true}`                       |
@@ -36,7 +36,7 @@ Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes
 | POST `/auth/identities/google/link` | `idToken`, `challengeId`, `reauthenticationToken`                                                               | Protected, 200, `{status:"LINKED",provider:"GOOGLE"}`                       |
 | POST `/auth/identities/apple/link`  | Same plus `authorizationCode`                                                                                   | Protected, 200 after Apple code exchange                                    |
 
-Passwords are 12–128 characters. Normalize email with trim/lowercase. Verification lasts 24 hours; reset tokens last 15 minutes. Reset/change revokes every session and outstanding proof/reset token. Social-only accounts return `PASSWORD_LOGIN_NOT_ENABLED` for password changes; forgot password does not create local credentials.
+Passwords are 12–128 characters. Normalize email with trim/lowercase. Email OTPs contain six digits, expire after 10 minutes, and allow five attempts. Resends have a 60-second cooldown and invalidate the old code. POST `/auth/verify-reset-code` accepts `{email,code}` and returns a single-use `resetToken` valid for five minutes; send it as `token` to `/auth/reset-password`. OTPs cannot be used directly as reset tokens. Reset/change revokes every session and outstanding proof/reset token. Social-only accounts return `PASSWORD_LOGIN_NOT_ENABLED` for password changes; forgot password does not create local credentials.
 
 Session example (opaque placeholders, not usable secrets):
 
@@ -150,3 +150,11 @@ Profile/settings/preferences/injury changes use expected revisions/versions. On 
 ## Foundation
 
 Public GET `/health` → `{status:"ok",version:"0.3.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.
+
+## F03 content library
+
+Administrative endpoints require ADMIN or CONTENT_EDITOR from current database roles. See [F03 walkthrough](F03_CONTENT_AR.md). GET lists use limit (1–100, default 30) and offset. Exercise and food creation accepts `{slug, content}`; PATCH replaces the full validated content using `{expectedRevision, content}`. POST `/:id/publish` and DELETE `/:id` accept `{expectedRevision}`. GET `/:id` includes all revisions. A published revision cannot be overwritten; editing creates a draft successor. Deletion archives the identity.
+
+Ingredient metadata uses `{slug, content}` on creation and `{expectedRevision, content}` on PATCH, where expectedRevision equals metadata_version. Verification status is UNKNOWN or VERIFIED; unknown nutrient values are null. Sources and reuse notes are required in exercise/food payloads. No automatically sourced or approved production content is included.
+
+Admin media upload/finalize/read endpoints live under `/admin/media`. JPEG/PNG/WebP/MP4 uploads are limited to 100 MiB, checked against object metadata and initial signature bytes, and copied to a separate final key. DELETE archives an unreferenced library asset; existing signed URLs expire within five minutes. These APIs require configured S3 storage and do not expose a public athlete content catalog.

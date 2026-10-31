@@ -21,12 +21,6 @@ export class MailService {
   ) {
     this.assertConfigured();
     const env = environment();
-    const base =
-      purpose === 'PASSWORD_RESET' ? env.RESET_LINK_BASE : env.VERIFY_LINK_BASE;
-    if (!base && env.MAIL_MODE !== 'capture')
-      throw new ApiError('EMAIL_NOT_CONFIGURED', 503);
-    const url = new URL(base || `motion-local://${purpose.toLowerCase()}`);
-    url.searchParams.set('token', token);
     const payload = encrypt(
       JSON.stringify({
         to,
@@ -34,14 +28,18 @@ export class MailService {
           purpose === 'PASSWORD_RESET'
             ? 'Reset your Motion password'
             : 'Verify your Motion email',
-        text: `${url.toString()}`,
+        text: `Your Motion ${purpose === 'PASSWORD_RESET' ? 'password reset' : 'email verification'} code is: ${token}. It expires in 10 minutes. Do not share this code.`,
       }),
       env.MAIL_ENCRYPTION_KEY,
     );
     await query(
       m,
       `INSERT INTO jobs(id,kind,user_id,payload) VALUES($1,'MAIL',$2,$3)`,
-      [randomUUID(), userId, JSON.stringify({ encrypted: payload })],
+      [
+        randomUUID(),
+        userId,
+        JSON.stringify({ encrypted: payload, deliveryMode: env.MAIL_MODE }),
+      ],
     );
   }
 }

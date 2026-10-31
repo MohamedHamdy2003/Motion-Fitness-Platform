@@ -1,12 +1,20 @@
-# Motion API — F00–F02
+[النشر الحالي على AWS EC2 + RDS + S3](docs/AWS_DEPLOYMENT_AR.md).
 
-NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.3.0`. No Swagger/OpenAPI.
+[أوامر التشغيل لفريق الموبايل من main](docs/MOBILE_LOCAL_SETUP_AR.md).
+
+[تشغيل OTP والناقص لإعداد Google وApple](docs/OTP_OAUTH_SETUP_AR.md).
+
+# Motion API — F00–F03
+
+NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.4.0`. No Swagger/OpenAPI.
+
+[شرح F03 ومكتبة المحتوى والوسائط](docs/F03_CONTENT_AR.md).
 
 [شرح مبسط بالعربي لحالة المشروع والشغل المنفّذ](docs/PROJECT_PROGRESS_AR.md).
 
 [دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
 
-The original [roadmap](Motion_Backend_Plan.md) and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
+The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.18, updated 2026-11-01) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
 
 ## Local setup
 
