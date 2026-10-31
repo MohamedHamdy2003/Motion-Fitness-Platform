@@ -43,11 +43,6 @@ export class ProfileService {
         `SELECT injury_revision FROM user_restriction_states WHERE user_id=$1`,
         [id],
       );
-      const [weight] = await query(
-        m,
-        `SELECT * FROM body_measurements WHERE user_id=$1 AND weight_kg IS NOT NULL ORDER BY measured_at DESC,created_at DESC,id DESC LIMIT 1`,
-        [id],
-      );
       const injuries = await query(
         m,
         `SELECT * FROM user_injuries WHERE user_id=$1 AND status='ACTIVE' ORDER BY confirmed_at,id`,
@@ -56,7 +51,6 @@ export class ProfileService {
       return {
         user: u,
         profile,
-        latest_weight: weight || null,
         injuries,
         injury_revision: state.injury_revision,
         food_preferences: await this.getPreferences(id, m),
@@ -64,7 +58,6 @@ export class ProfileService {
           status: profile.onboarded_at ? 'PENDING' : 'NOT_STARTED',
           reason: 'F05_NOT_IMPLEMENTED',
         },
-        measurement_freshness_policy_days: null,
       };
     });
   }
@@ -137,14 +130,13 @@ export class ProfileService {
           matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
         };
       }
-      const { initialMeasurement, expectedRevision, ...profile } = input;
+      const { expectedRevision, ...profile } = input;
       const p = await this.updateProfile(m, id, profile, expectedRevision);
       await query(
         m,
         `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
         [id],
       );
-      await this.insertMeasurement(m, id, initialMeasurement);
       await this.recordKey(m, id, 'onboarding', key, input, null);
       return {
         status: 'COMPLETED',
@@ -189,63 +181,6 @@ export class ProfileService {
       `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,$2,$3,$4,$5)`,
       [id, scope, key, this.digest(input), resource],
     );
-  }
-  async insertMeasurement(
-    m: EntityManager,
-    id: string,
-    input: z.infer<typeof dto.measurement>,
-  ) {
-    const [r] = await query(
-      m,
-      `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg) VALUES($1,$2,$3,$4) RETURNING *`,
-      [randomUUID(), id, input.measured_at, input.weight_kg],
-    );
-    return r;
-  }
-  async addMeasurement(
-    id: string,
-    input: z.infer<typeof dto.measurement>,
-    key: string,
-  ) {
-    return this.db.transaction(async (m) => {
-      await this.lock(m, id);
-      const previous = await this.idempotency(m, id, 'measurement', key, input);
-      if (previous) {
-        const [r] = await query(
-          m,
-          `SELECT * FROM body_measurements WHERE id=$1 AND user_id=$2`,
-          [previous.resource_id, id],
-        );
-        return r;
-      }
-      const r = await this.insertMeasurement(m, id, input);
-      await this.recordKey(m, id, 'measurement', key, input, r.id);
-      const [p] = await query(
-        m,
-        `UPDATE user_profiles SET profile_revision=profile_revision+1 WHERE user_id=$1 RETURNING profile_revision`,
-        [id],
-      );
-      await this.event(m, id, 'MEASUREMENT_ADDED', p.profile_revision);
-      return r;
-    });
-  }
-  async measurements(id: string, q: z.infer<typeof dto.measurementQuery>) {
-    const from = q.from || new Date(Date.now() - 366 * 86400000).toISOString();
-    const to = q.to || new Date().toISOString();
-    if (
-      new Date(to).valueOf() - new Date(from).valueOf() > 366 * 86400000 ||
-      new Date(to) < new Date(from)
-    )
-      throw new ApiError('INVALID_DATE_RANGE');
-    return {
-      items: await query(
-        this.db,
-        `SELECT * FROM body_measurements WHERE user_id=$1 AND measured_at BETWEEN $2 AND $3 ORDER BY measured_at DESC,id DESC LIMIT $4 OFFSET $5`,
-        [id, from, to, q.limit, q.offset],
-      ),
-      limit: q.limit,
-      offset: q.offset,
-    };
   }
   async getSettings(id: string) {
     const [s] = await query(

@@ -1,11 +1,11 @@
 meta {
-  name: Logout
+  name: Finalize avatar
   type: http
-  seq: 43
+  seq: 39
 }
 
 post {
-  url: {{baseUrl}}/auth/logout
+  url: {{baseUrl}}/media/{{mediaId}}/finalize
   body: json
   auth: bearer
 }
@@ -19,12 +19,12 @@ body:json {
 }
 
 tests {
-  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

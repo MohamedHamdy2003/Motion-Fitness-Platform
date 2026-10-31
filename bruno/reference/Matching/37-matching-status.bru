@@ -1,27 +1,17 @@
 meta {
-  name: Edit injury
+  name: Matching status
   type: http
-  seq: 33
+  seq: 37
 }
 
-patch {
-  url: {{baseUrl}}/me/injuries/{{injuryId}}
-  body: json
+get {
+  url: {{baseUrl}}/me/matching/status
+  body: none
   auth: bearer
 }
 
 auth:bearer {
   token: {{accessToken}}
-}
-
-body:json {
-  {
-    "body_area_code": "KNEE",
-    "side": "LEFT",
-    "description": "Edited final user-confirmed description",
-    "confirmed": true,
-    "expectedVersion": 1
-  }
 }
 
 tests {
@@ -30,7 +20,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

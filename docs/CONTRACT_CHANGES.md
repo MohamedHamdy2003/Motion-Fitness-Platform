@@ -1,5 +1,26 @@
 # API contract changes
 
+## 0.3.0 — 2026-10-31
+
+The initial product now keeps a single current weight in the profile, without measurement dates or weight history. Height remains a profile field. Tracking history is deferred to a future feature.
+
+- GET `/me` returns current weight as `profile.weight_kg` (decimal string or null until provided).
+- PATCH `/me` accepts `weight_kg` with the existing `expectedRevision`; updating it replaces the current value.
+- PUT `/me/onboarding` requires a flat `weight_kg` field. The former `initialMeasurement` object is rejected.
+- POST/GET `/me/measurements` are removed and return 404.
+- `measured_at`, `latest_weight`, `measurement_freshness_policy_days`, and the reference-list expiry field are removed from the active contract.
+- Measurement dates/history are not collected. General account/session/onboarding timestamps remain operational metadata.
+
+Example weight update:
+
+```json
+{ "expectedRevision": 1, "weight_kg": 80.5 }
+```
+
+Run `CurrentProfileWeight1793404801000` after the earlier migrations. It copies the latest existing weight into the profile, increments affected profile revisions, clears old measurement/onboarding idempotency keys, then drops the old history table. No measurement timestamp is copied to the profile. Rollback preserves the current profile weight and creates an empty compatibility table; it cannot reconstruct deleted history or dates. Take a backup before downgrading if historical restoration is required. Use new onboarding idempotency keys for the changed payload.
+
+Bruno now contains 44 reference requests and 19 smoke requests; weight updates use the Profile folder and the existing profile API. There is no separate Measurements folder.
+
 ## 0.2.0 — 2026-10-31
 
 User-approved measurement scope: weight history in kg and profile height in cm. Body-fat collection is removed from the current product scope.

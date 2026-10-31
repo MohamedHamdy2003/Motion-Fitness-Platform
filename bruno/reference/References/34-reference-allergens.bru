@@ -1,28 +1,17 @@
 meta {
-  name: Replace food preferences
+  name: Reference allergens
   type: http
-  seq: 29
+  seq: 34
 }
 
-put {
-  url: {{baseUrl}}/me/food-preferences
-  body: json
+get {
+  url: {{baseUrl}}/references/allergens
+  body: none
   auth: bearer
 }
 
 auth:bearer {
   token: {{accessToken}}
-}
-
-body:json {
-  {
-    "expectedRevision": 0,
-    "allergen_codes": [
-      "MILK"
-    ],
-    "disliked_food_ids": [],
-    "excluded_food_ids": []
-  }
 }
 
 tests {
@@ -31,7 +20,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

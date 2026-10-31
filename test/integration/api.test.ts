@@ -98,10 +98,14 @@ describe('foundation against PostgreSQL', () => {
     const { RemoveBodyFat1793404800000 } =
       await import('../../src/infrastructure/database/migrations/1793404800000-RemoveBodyFat.js');
     const migration = new RemoveBodyFat1793404800000();
+    const { CurrentProfileWeight1793404801000 } =
+      await import('../../src/infrastructure/database/migrations/1793404801000-CurrentProfileWeight.js');
+    const currentWeight = new CurrentProfileWeight1793404801000();
     const runner = db.createQueryRunner();
     await runner.connect();
     await runner.startTransaction();
     try {
+      await currentWeight.down(runner);
       await migration.down(runner);
       const mixedId = crypto.randomUUID();
       const removedId = crypto.randomUUID();
@@ -133,6 +137,23 @@ describe('foundation against PostgreSQL', () => {
         `SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='body_measurements' AND column_name='weight_kg'`,
       );
       expect(column.is_nullable).toBe('NO');
+      await runner.query(
+        `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg) VALUES($1,$2,'2020-01-01T00:00:00Z',90)`,
+        [crypto.randomUUID(), user.user.id],
+      );
+      await currentWeight.up(runner);
+      const [profile] = await runner.query(
+        'SELECT weight_kg FROM user_profiles WHERE user_id=$1',
+        [user.user.id],
+      );
+      expect(Number(profile.weight_kg)).toBe(80);
+      expect(
+        (
+          await runner.query(
+            "SELECT to_regclass('public.body_measurements') AS table_name",
+          )
+        )[0].table_name,
+      ).toBeNull();
       await runner.commitTransaction();
     } catch (error) {
       await runner.rollbackTransaction();
@@ -797,7 +818,7 @@ describe('profiles, onboarding and injuries', () => {
         .profile_revision,
     ).toBe(0);
   });
-  it('accepts old measurements without expiry; idempotent onboarding records one weight and honest matching state', async () => {
+  it('onboards using current weight without a measurement date and keeps matching honest', async () => {
     const r = await register();
     const input = {
       name: 'Athlete',
@@ -809,10 +830,7 @@ describe('profiles, onboarding and injuries', () => {
       locale: 'ar',
       date_of_birth: '1998-03-14',
       expectedRevision: 0,
-      initialMeasurement: {
-        weight_kg: 80,
-        measured_at: '2020-01-01T00:00:00Z',
-      },
+      weight_kg: 80,
     };
     const first = await api
       .put(prefix + '/me/onboarding')
@@ -830,9 +848,12 @@ describe('profiles, onboarding and injuries', () => {
           .send(input)
       ).status,
     ).toBe(200);
-    expect(
-      (await db.query('SELECT count(*)::int AS n FROM body_measurements'))[0].n,
-    ).toBe(1);
+    const [saved] = await db.query(
+      'SELECT weight_kg,profile_revision FROM user_profiles WHERE user_id=$1',
+      [r.user.id],
+    );
+    expect(Number(saved.weight_kg)).toBe(80);
+    expect(saved.profile_revision).toBe(1);
   });
   it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
     const r = await register();
@@ -856,70 +877,65 @@ describe('profiles, onboarding and injuries', () => {
     ]);
     expect(responses.map((x) => x.status).sort()).toEqual([200, 409]);
   });
-  it('stores weight history, rejects removed fields and conflicting idempotency keys', async () => {
-    const r = await register();
-    const header = bearer(r.accessToken);
-    const weight = { weight_kg: 80, measured_at: '2026-01-02T00:00:00Z' };
+  it('replaces current weight without dates/history and rejects stale or legacy writes', async () => {
+    const user = await register();
+    const headers = bearer(user.accessToken);
     expect(
       (
         await api
-          .post(prefix + '/me/measurements')
-          .set(header)
-          .set('idempotency-key', 'weight-test')
-          .send(weight)
+          .patch(prefix + '/me')
+          .set(headers)
+          .send({ expectedRevision: 0, weight_kg: 80 })
       ).status,
-    ).toBe(201);
+    ).toBe(200);
     expect(
       (
         await api
-          .post(prefix + '/me/measurements')
-          .set(header)
-          .set('idempotency-key', 'weight-test')
-          .send(weight)
-      ).status,
-    ).toBe(201);
-    expect(
-      (
-        await api
-          .post(prefix + '/me/measurements')
-          .set(header)
-          .set('idempotency-key', 'weight-test')
-          .send({ ...weight, weight_kg: 81 })
+          .patch(prefix + '/me')
+          .set(headers)
+          .send({ expectedRevision: 0, weight_kg: 81 })
       ).status,
     ).toBe(409);
     expect(
       (
         await api
-          .post(prefix + '/me/measurements')
-          .set(header)
-          .set('idempotency-key', 'fat-test')
-          .send({
-            body_fat_percent: 21,
-            body_fat_method: 'BIA',
-            measured_at: '2026-01-03T00:00:00Z',
-          })
+          .patch(prefix + '/me')
+          .set(headers)
+          .send({ expectedRevision: 1, weight_kg: 82 })
       ).status,
-    ).toBe(400);
+    ).toBe(200);
+    for (const extra of [
+      { measured_at: '2020-01-01T00:00:00Z' },
+      { body_fat_percent: 21 },
+      { initialMeasurement: { weight_kg: 83 } },
+    ])
+      expect(
+        (
+          await api
+            .patch(prefix + '/me')
+            .set(headers)
+            .send({ expectedRevision: 2, weight_kg: 83, ...extra })
+        ).status,
+      ).toBe(400);
+    const me = await api.get(prefix + '/me').set(headers);
+    expect(Number(me.body.profile.weight_kg)).toBe(82);
+    expect(me.body).not.toHaveProperty('latest_weight');
+    expect(me.body).not.toHaveProperty('latest_body_fat');
+    expect(me.body).not.toHaveProperty('measurement_freshness_policy_days');
+    expect(me.body.profile).not.toHaveProperty('measured_at');
+    expect(
+      (await api.get(prefix + '/me/measurements').set(headers)).status,
+    ).toBe(404);
     expect(
       (
         await api
           .post(prefix + '/me/measurements')
-          .set(header)
-          .set('idempotency-key', 'removed-field-test')
-          .send({ ...weight, body_fat_percent: 21 })
+          .set(headers)
+          .send({ weight_kg: 83 })
       ).status,
-    ).toBe(400);
-    const me = await api.get(prefix + '/me').set(header);
-    expect(Number(me.body.latest_weight.weight_kg)).toBe(80);
-    expect(me.body).not.toHaveProperty('latest_body_fat');
-    expect(me.body.latest_weight).not.toHaveProperty('body_fat_percent');
-    expect(me.body.latest_weight).not.toHaveProperty('body_fat_method');
-    const history = await api.get(prefix + '/me/measurements').set(header);
-    expect(history.body.items).toHaveLength(1);
-    expect(history.body.items[0]).not.toHaveProperty('body_fat_percent');
-    const refs = await api.get(prefix + '/references/onboarding').set(header);
-    expect(refs.body).not.toHaveProperty('body_fat_methods');
-    expect(refs.body).not.toHaveProperty('body_fat_policy_status');
+    ).toBe(404);
+    const refs = await api.get(prefix + '/references/onboarding').set(headers);
+    expect(refs.body).not.toHaveProperty('measurement_max_age_days');
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
     const r = await register();

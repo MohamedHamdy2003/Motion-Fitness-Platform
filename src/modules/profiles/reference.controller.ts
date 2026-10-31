@@ -49,7 +49,6 @@ export class ReferenceController {
       training_days_per_week: [2, 3, 4, 5],
       minimum_age: minimumAge,
       minimum_age_inclusive: false,
-      measurement_max_age_days: null,
       policyStatus: 'CONFIGURED',
     };
   }
