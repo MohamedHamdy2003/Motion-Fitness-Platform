@@ -123,4 +123,4 @@
 - [حالة كل جزء بالتفصيل](DELIVERY_STATUS.md).
 - [إعداد الخدمات الخارجية](PROVIDER_INTEGRATION.md).
 - [تجهيزات النشر](STAGING.md).
-- [الخطة الكاملة للمشروع](../Motion_Backend_Plan.md).
+- [الخطة الكاملة للمشروع](Motion_Backend_Plan.md).
