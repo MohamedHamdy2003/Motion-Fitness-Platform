@@ -44,6 +44,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Validate AWS deployment assets
+        run: |
+          bash -n deployment/deploy-aws.sh
+          cp deployment/aws.env.example .env.aws
+          MOTION_IMAGE=motion-api:ci docker compose --env-file .env.aws -f deployment/compose.aws.yaml config --quiet
+          rm .env.aws
+      - name: Build and verify deployment image
+        run: |
+          docker build -t motion-api:ci .
+          docker run --rm motion-api:ci node -e "require('argon2'); require('@aws-sdk/client-s3'); require('pg'); console.log('Deployment runtime dependencies ready')"
       - run: npm run migration:run
       - run: npm run seed:lookups && npm run seed:lookups && npm run seed:content
       - run: npm run test:integration

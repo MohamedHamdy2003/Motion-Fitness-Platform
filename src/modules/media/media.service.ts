@@ -19,22 +19,27 @@ export class MediaService {
   client() {
     const e = environment();
     if (
-      !e.S3_ENDPOINT ||
       !e.S3_BUCKET ||
-      !e.S3_ACCESS_KEY_ID ||
-      !e.S3_SECRET_ACCESS_KEY
+      (e.S3_AUTH_MODE === 'iam'
+        ? !e.S3_REGION || e.S3_REGION === 'auto'
+        : !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY)
     )
       throw new ApiError('STORAGE_NOT_CONFIGURED', 503);
     return new S3Client({
-      endpoint: e.S3_ENDPOINT,
+      ...(e.S3_ENDPOINT ? { endpoint: e.S3_ENDPOINT } : {}),
       region: e.S3_REGION,
       forcePathStyle: e.S3_FORCE_PATH_STYLE === 'true',
-      credentials: {
-        accessKeyId: e.S3_ACCESS_KEY_ID,
-        secretAccessKey: e.S3_SECRET_ACCESS_KEY,
-      },
+      ...(e.S3_AUTH_MODE === 'static'
+        ? {
+            credentials: {
+              accessKeyId: e.S3_ACCESS_KEY_ID,
+              secretAccessKey: e.S3_SECRET_ACCESS_KEY,
+            },
+          }
+        : {}),
     });
   }
+
   async intent(id: string, mime: string, size: number, library = false) {
     const client = this.client();
     const mediaId = randomUUID();

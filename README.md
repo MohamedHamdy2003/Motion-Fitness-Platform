@@ -1,3 +1,5 @@
+[النشر الحالي على AWS EC2 + RDS + S3](docs/AWS_DEPLOYMENT_AR.md).
+
 [أوامر التشغيل لفريق الموبايل من main](docs/MOBILE_LOCAL_SETUP_AR.md).
 
 [تشغيل OTP والناقص لإعداد Google وApple](docs/OTP_OAUTH_SETUP_AR.md).
@@ -12,7 +14,7 @@ NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract 
 
 [دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
 
-The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.17, updated 2026-10-31) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
+The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.18, updated 2026-11-01) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
 
 ## Local setup
 

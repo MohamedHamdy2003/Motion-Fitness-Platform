@@ -1,4 +1,4 @@
-# Delivery status — 2026-10-31
+# Delivery status — 2026-11-01
 
 Contract: v1 / 0.4.0. F00–F03 backend implementation and OTP email authentication are implemented locally. The release PR and GitHub Actions record remote validation and merge status.
 
@@ -10,6 +10,8 @@ Contract: v1 / 0.4.0. F00–F03 backend implementation and OTP email authenticat
 - AI rewrite adapter and private service exist, but no live provider/model is enabled. Matching, fitting, billing, program/meal construction and the admin UI remain later features.
 - Local PostgreSQL, migrations, Docker and deployment preparation exist. No Oracle/Neon/cloud deployment or public HTTPS endpoint is claimed.
 
-Validation target for this release: 38 PostgreSQL tests, 11 backend unit tests, 3 private-AI fixture tests, plus the existing Bruno smoke suite and required CI build/type/lint/format checks.
+Validation target for this release: 38 PostgreSQL tests, 14 backend unit tests, 3 private-AI fixture tests, plus the existing Bruno smoke suite and required CI build/type/lint/format checks.
 
 [Mobile local setup](MOBILE_LOCAL_SETUP_AR.md) · [F03 walkthrough](F03_CONTENT_AR.md) · [OTP and OAuth](OTP_OAUTH_SETUP_AR.md).
+
+AWS preparation: EC2/RDS/S3 connectivity was verified by the user. Repository now supports the SDK credential chain for EC2 IAM roles, RDS CA-verified TLS, and an image-per-commit deploy script with readiness checks. No remote application deployment has been performed by the agent. The user is preparing GitHub Actions deployment; existing Green CI validates the deployment image/config.
