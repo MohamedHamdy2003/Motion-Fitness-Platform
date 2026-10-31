@@ -25,14 +25,8 @@
       "avatar_media_id": null,
       "date_of_birth": "1998-03-14",
       "profile_revision": 2,
-      "onboarded_at": null
-    },
-    "latest_weight": {
-      "id": "20000000-0000-4000-8000-000000000001",
-      "user_id": "10000000-0000-4000-8000-000000000001",
-      "measured_at": "2026-10-30T10:00:00.000Z",
-      "weight_kg": "80.5",
-      "created_at": "2026-10-30T10:00:00.000Z"
+      "onboarded_at": null,
+      "weight_kg": "80.5"
     },
     "injuries": [
       {
@@ -57,8 +51,7 @@
     "matching": {
       "status": "NOT_STARTED",
       "reason": "F05_NOT_IMPLEMENTED"
-    },
-    "measurement_freshness_policy_days": null
+    }
   },
   "settings": {
     "reminders": false,

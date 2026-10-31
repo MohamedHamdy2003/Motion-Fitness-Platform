@@ -1,4 +1,4 @@
-# Motion API contract v1 / 0.2.0
+# Motion API contract v1 / 0.3.0
 
 All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height and weight; clients submit JSON numbers. UUIDs are server-generated. See [complete synthetic response/error examples](examples/responses.json).
 
@@ -71,26 +71,21 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 | PUT `/me/onboarding`      | `expectedRevision`, required profile fields below, `initialMeasurement` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
 | GET `/me/settings`        | —                                                                       | 200 `{reminders,theme,quiet_hours,version}`                                                          |
 | PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`         | 200 updated settings/version                                                                         |
-| POST `/me/measurements`   | required `weight_kg` and `measured_at`                                  | 201 measurement row                                                                                  |
-| GET `/me/measurements`    | `from`, `to` ISO timestamps; `limit`, `offset`                          | 200 `{items,limit,offset}`                                                                           |
 | GET `/me/matching/status` | —                                                                       | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
 
-All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `height_cm`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY.
+All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY.
 
-Onboarding requires name, height, primary goal, fitness level, training days, timezone, locale, date of birth and initial measurement containing weight. It updates the aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Measurements never expire; backdated observations do not block onboarding. The former onboarding-policy configuration gate and MEASUREMENT_TOO_OLD rejection are removed.
+Onboarding requires name, height, primary goal, fitness level, training days, timezone, locale, date of birth and a flat `weight_kg` field. It updates the aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Current weight has no measurement date or expiry. Historical tracking is deferred.
 
-Measurement request:
+Update current weight with PATCH /me:
 
 ```json
-{
-  "weight_kg": 80.5,
-  "measured_at": "2026-10-30T10:00:00Z"
-}
+{ "expectedRevision": 1, "weight_kg": 80.5 }
 ```
 
-Weight is required and positive; height is positive; measurement cannot be in the future. Technical abuse bounds are 1000 cm and 10000 kg, not clinical acceptance ranges. Each accepted new measurement increments `profile_revision` and appends history. Measurements have no expiry. History defaults to the last 366 days; this query window does not invalidate older records, which can be read in earlier bounded ranges. Pagination defaults 30, max 100, offset max 10000.
+Weight and height are positive JSON numbers; technical abuse bounds are 10000 kg and 1000 cm, not clinical acceptance ranges. Weight is required during onboarding and nullable until supplied in a new account. Each accepted profile edit increments profile_revision. No measurement dates, history, date filters or separate measurement routes are provided. Old measurement routes return 404; legacy date/initialMeasurement fields are rejected by strict request validation.
 
-`GET /me` returns `{user,profile,latest_weight,injuries,injury_revision,food_preferences,matching,measurement_freshness_policy_days}` under a repeatable-read snapshot. Latest weight is chosen by measurement date; when no observation exists it is null. `user` exposes id/email/verified_at only. Injuries/preferences remain separate tables. No BMI classifications, programs, billing entitlement or AI matching are fabricated.
+GET /me returns `{user,profile,injuries,injury_revision,food_preferences,matching}` under a repeatable-read snapshot. Current weight is in `profile.weight_kg` as a decimal string or null. User exposes id/email/verified_at only. Injuries/preferences remain separate tables. No BMI classifications, programs, billing entitlement or AI matching are fabricated.
 
 Settings: `theme:SYSTEM|LIGHT|DARK`, reminders boolean, nullable `quiet_hours:{start:"22:00",end:"07:00"}`. These settings do not claim push delivery exists.
 
@@ -148,10 +143,10 @@ Cleanup waits for `DELETION_RETENTION_APPROVED=true`; completion is never report
 
 ## Idempotency and concurrency
 
-Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST measurements, POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. JSON numbers/revisions must be numbers, not strings.
+Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. JSON numbers/revisions must be numbers, not strings.
 
 Profile/settings/preferences/injury changes use expected revisions/versions. On conflict, refetch current state, reconcile and explicitly retry. Writes serialize on the user row; model/provider calls stay outside DB transactions. Identity linking and deletion proofs are purpose-, session- and user-bound, single-use, and five minutes old at most.
 
 ## Foundation
 
-Public GET `/health` → `{status:"ok",version:"0.2.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.
+Public GET `/health` → `{status:"ok",version:"0.3.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.

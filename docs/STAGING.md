@@ -1,6 +1,6 @@
 # Free staging preparation — verified 2026-10-30
 
-**Approved update 2026-10-31:** use a public server IP without buying a domain. DNS/hostname instructions below are an optional alternative. Publicly trusted IP TLS issuance/renewal must be configured and tested before live mobile access; the default Caddyfile alone is not evidence of that integration. Age is strictly greater than 18 and measurements never expire; measurement history now collects weight only. See [latest decisions](PRODUCT_DECISIONS_AR.md).
+**Approved update 2026-10-31:** use a public server IP without buying a domain. DNS/hostname instructions below are an optional alternative. Publicly trusted IP TLS issuance/renewal must be configured and tested before live mobile access; the default Caddyfile alone is not evidence of that integration. Age is strictly greater than 18 and current weight/height are profile values without measurement dates/history. See [latest decisions](PRODUCT_DECISIONS_AR.md).
 
 No staging service, cloud database, DNS record or hosting account exists yet. No live base URL is claimed. User requested Google SMTP and will create accounts while implementation continues. No paid plan is authorized.
 
@@ -29,7 +29,7 @@ Oracle free account and an Always Free eligible VM/SSH access; Neon free account
 4. Run `docker compose -f deployment/compose.staging.yaml build api`, then `docker compose -f deployment/compose.staging.yaml up -d api proxy`. Startup explicitly migrates and seeds under an advisory lock. API filesystem is disposable; PostgreSQL and Caddy certificates persist separately.
 5. With SMTP configured, test TLS connectivity and an explicitly authorized recipient, then verification/reset deep-link round trips. Queued is not delivered. Sleeping/paused database introduces cold-start delay.
 6. To activate rewrite after provider approval, prepare `.env.ai` with AI_MODEL, provider key, matching AI_SERVICE_TOKEN and AI_RETENTION_APPROVED=true; **no database URL**. Set API AI_REWRITE_URL to `http://ai:3001/internal/v1/rewrite`, then start with `--profile rewrite`. The AI service is not published by Caddy or host ports.
-7. Verify HTTPS `/health/ready`, registration, email verification, login/refresh/replay, onboarding under the approved strictly-over-18 policy without measurement expiry, injuries, ownership and deletion state. Populate an ignored Bruno staging environment with the **actual** HTTPS URL and run the relevant requests. Do not run disposable example.test-email smoke against Gmail delivery.
+7. Verify HTTPS `/health/ready`, registration, email verification, login/refresh/replay, onboarding under the approved strictly-over-18 policy with current profile weight only, injuries, ownership and deletion state. Populate an ignored Bruno staging environment with the **actual** HTTPS URL and run the relevant requests. Do not run disposable example.test-email smoke against Gmail delivery.
 8. Record service IDs, region, migration SHA, last CI URL, external provider test results and actual base URL in DELIVERY_STATUS.md. Only then call routes live.
 
 ## Operation and rollback
