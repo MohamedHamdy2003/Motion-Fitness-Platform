@@ -1,6 +1,6 @@
 {
   "name": "motion-api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "engines": {
     "node": ">=22 <25"
@@ -20,7 +20,8 @@
     "seed:lookups": "tsx src/infrastructure/database/seeds/seed-lookups.ts",
     "seed:content": "tsx src/infrastructure/database/seeds/seed-content.ts",
     "worker": "tsx src/infrastructure/jobs/worker.ts",
-    "bruno": "node scripts/run-bruno.cjs"
+    "bruno": "node scripts/run-bruno.cjs",
+    "dev:grant-editor": "tsx scripts/grant-local-editor.ts"
   },
   "overrides": {
     "@faker-js/faker": "10.6.0",

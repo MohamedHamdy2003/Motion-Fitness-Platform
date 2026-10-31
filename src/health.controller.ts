@@ -7,7 +7,7 @@ import { environment } from './config/environment';
 export class HealthController {
   constructor(@Inject(DataSource) private db: DataSource) {}
   @Get() live() {
-    return { status: 'ok', version: '0.3.0' };
+    return { status: 'ok', version: '0.4.0' };
   }
   @Get('ready') async ready() {
     try {

@@ -51,7 +51,7 @@ export class JobsService
     const lease = randomUUID();
     const [job] = await query(
       this.db,
-      `UPDATE jobs SET lease_token=$1,lease_expires_at=now()+interval '60 seconds',attempts=attempts+1 WHERE id=(SELECT id FROM jobs WHERE completed_at IS NULL AND available_at<=now() AND (lease_expires_at IS NULL OR lease_expires_at<now()) AND NOT(kind='MAIL' AND $2='capture') ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,
+      `UPDATE jobs SET lease_token=$1,lease_expires_at=now()+interval '60 seconds',attempts=attempts+1 WHERE id=(SELECT id FROM jobs WHERE completed_at IS NULL AND available_at<=now() AND (lease_expires_at IS NULL OR lease_expires_at<now()) AND (kind<>'MAIL' OR ($2 IN ('smtp','resend') AND payload->>'deliveryMode'=$2)) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,
       [lease, environment().MAIL_MODE],
     );
     if (!job) return false;

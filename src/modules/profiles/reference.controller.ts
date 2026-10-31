@@ -34,7 +34,7 @@ export class ReferenceController {
     return {
       items: await query(
         this.db,
-        `SELECT id,name,kind FROM food_reference_items WHERE name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3`,
+        `SELECT id,name,kind FROM available_food_references WHERE name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3`,
         ['%' + q.search + '%', q.limit, q.offset],
       ),
       limit: q.limit,

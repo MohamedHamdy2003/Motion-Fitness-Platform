@@ -79,10 +79,23 @@ export class AuthController {
     @Body() body: unknown,
     @Req() req: ApiRequest,
   ) {
-    await this.limit(req, 'verify');
-    return this.auth.verifyEmail(
-      parse(z.object({ token }).strict(), body).token,
+    const b = parse(
+      z.object({ email, code: z.string().regex(/^\d{6}$/) }).strict(),
+      body,
     );
+    await this.limit(req, 'verify', b.email);
+    return this.auth.verifyEmail(b.email, b.code);
+  }
+  @Post('verify-reset-code') @HttpCode(200) async verifyReset(
+    @Body() body: unknown,
+    @Req() req: ApiRequest,
+  ) {
+    const b = parse(
+      z.object({ email, code: z.string().regex(/^\d{6}$/) }).strict(),
+      body,
+    );
+    await this.limit(req, 'verify-reset', b.email);
+    return this.auth.verifyOtp(b.email, b.code, 'PASSWORD_RESET');
   }
   @Post('resend-verification') @HttpCode(202) async resend(
     @Body() body: unknown,

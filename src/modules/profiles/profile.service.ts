@@ -83,7 +83,7 @@ export class ProfileService {
     if (input.avatar_media_id) {
       const [asset] = await query(
         m,
-        `SELECT id FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND status='READY'`,
+        `SELECT id FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND status='READY' AND NOT library_asset`,
         [input.avatar_media_id, id],
       );
       if (!asset) throw new ApiError('INVALID_AVATAR');
@@ -267,7 +267,7 @@ export class ProfileService {
       if (all.length) {
         const rows = await query(
           m,
-          `SELECT id FROM food_reference_items WHERE id=ANY($1::uuid[])`,
+          `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
           [all],
         );
         if (rows.length !== all.length)
