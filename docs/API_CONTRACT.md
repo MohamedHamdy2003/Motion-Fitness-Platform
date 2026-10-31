@@ -150,3 +150,11 @@ Profile/settings/preferences/injury changes use expected revisions/versions. On 
 ## Foundation
 
 Public GET `/health` → `{status:"ok",version:"0.3.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.
+
+## F03 content library
+
+Administrative endpoints require ADMIN or CONTENT_EDITOR from current database roles. See [F03 walkthrough](F03_CONTENT_AR.md). GET lists use limit (1–100, default 30) and offset. Exercise and food creation accepts `{slug, content}`; PATCH replaces the full validated content using `{expectedRevision, content}`. POST `/:id/publish` and DELETE `/:id` accept `{expectedRevision}`. GET `/:id` includes all revisions. A published revision cannot be overwritten; editing creates a draft successor. Deletion archives the identity.
+
+Ingredient metadata uses `{slug, content}` on creation and `{expectedRevision, content}` on PATCH, where expectedRevision equals metadata_version. Verification status is UNKNOWN or VERIFIED; unknown nutrient values are null. Sources and reuse notes are required in exercise/food payloads. No automatically sourced or approved production content is included.
+
+Admin media upload/finalize/read endpoints live under `/admin/media`. JPEG/PNG/WebP/MP4 uploads are limited to 100 MiB, checked against object metadata and initial signature bytes, and copied to a separate final key. DELETE archives an unreferenced library asset; existing signed URLs expire within five minutes. These APIs require configured S3 storage and do not expose a public athlete content catalog.

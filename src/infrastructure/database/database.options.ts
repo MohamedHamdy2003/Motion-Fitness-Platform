@@ -1,3 +1,4 @@
+import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
 import { environment } from '../../config/environment';
 import { Initial1793318400000 } from './migrations/1793318400000-Initial';
@@ -22,6 +23,7 @@ export function databaseOptions(): DataSourceOptions {
       AvatarUploadKeys1793318401000,
       RemoveBodyFat1793404800000,
       CurrentProfileWeight1793404801000,
+      ContentLibrary1793448000000,
     ],
     synchronize: false,
     migrationsRun: false,

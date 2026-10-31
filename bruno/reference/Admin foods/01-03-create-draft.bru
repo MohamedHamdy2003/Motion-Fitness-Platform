@@ -1,0 +1,55 @@
+meta {
+  name: 03-create-draft
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/foods
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "slug": "replace-with-unique-slug",
+    "content": {
+      "title": "Draft food",
+      "preparation": "Required preparation description",
+      "preparationState": "RAW",
+      "prepMinutes": 0,
+      "energyKcal100g": null,
+      "proteinG100g": null,
+      "carbohydrateG100g": null,
+      "fatG100g": null,
+      "fiberG100g": null,
+      "nutrientSource": {
+        "title": "Required source",
+        "reference": "Required record",
+        "licenseNotes": "Required reuse notes"
+      },
+      "mediaId": null,
+      "ingredients": [
+        {
+          "ingredientId": "{{ingredientId}}",
+          "quantityG": 100
+        }
+      ]
+    }
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.3.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}

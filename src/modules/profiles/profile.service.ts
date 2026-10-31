@@ -83,7 +83,7 @@ export class ProfileService {
     if (input.avatar_media_id) {
       const [asset] = await query(
         m,
-        `SELECT id FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND status='READY'`,
+        `SELECT id FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND status='READY' AND NOT library_asset`,
         [input.avatar_media_id, id],
       );
       if (!asset) throw new ApiError('INVALID_AVATAR');

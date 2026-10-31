@@ -34,7 +34,7 @@ export class MediaService {
       },
     });
   }
-  async intent(id: string, mime: string, size: number) {
+  async intent(id: string, mime: string, size: number, library = false) {
     const client = this.client();
     const mediaId = randomUUID();
     const key = `uploads/avatars/${id}/${mediaId}`;
@@ -50,8 +50,8 @@ export class MediaService {
     );
     await query(
       this.db,
-      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,$3,$3,$4,$5,'PENDING')`,
-      [mediaId, id, key, mime, size],
+      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status,library_asset) VALUES($1,$2,$3,$3,$4,$5,'PENDING',$6)`,
+      [mediaId, id, key, mime, size, library],
     );
     return {
       id: mediaId,
@@ -61,12 +61,12 @@ export class MediaService {
       expiresIn: 300,
     };
   }
-  async finalize(userId: string, id: string) {
+  async finalize(userId: string, id: string, library = false) {
     const client = this.client();
     const [media] = await query(
       this.db,
-      `SELECT * FROM media_assets WHERE id=$1 AND owner_user_id=$2`,
-      [id, userId],
+      `SELECT * FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND library_asset=$3`,
+      [id, userId, library],
     );
     if (!media) throw new ApiError('NOT_FOUND', 404);
     if (media.status === 'READY') return { id, status: 'READY' };
@@ -104,12 +104,14 @@ export class MediaService {
     );
     const bytes = Buffer.from(await prefix.Body!.transformToByteArray());
     const valid =
-      media.mime === 'image/png'
-        ? bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
-        : media.mime === 'image/jpeg'
-          ? bytes.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'))
-          : bytes.subarray(0, 4).toString() === 'RIFF' &&
-            bytes.subarray(8, 12).toString() === 'WEBP';
+      media.mime === 'video/mp4'
+        ? bytes.subarray(4, 8).toString() === 'ftyp'
+        : media.mime === 'image/png'
+          ? bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
+          : media.mime === 'image/jpeg'
+            ? bytes.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'))
+            : bytes.subarray(0, 4).toString() === 'RIFF' &&
+              bytes.subarray(8, 12).toString() === 'WEBP';
     if (!valid) throw new ApiError('UPLOAD_CONTENT_TYPE_MISMATCH', 422);
     const finalKey = `avatars/${userId}/${id}/${randomUUID()}`;
     await client.send(
@@ -142,10 +144,10 @@ export class MediaService {
     await this.erase(media.upload_key);
     return { id, status: 'READY' };
   }
-  async get(userId: string, id: string) {
+  async get(userId: string | null, id: string) {
     const [m] = await query(
       this.db,
-      `SELECT id,mime,size,status,storage_key FROM media_assets WHERE id=$1 AND owner_user_id=$2`,
+      `SELECT id,mime,size,status,storage_key FROM media_assets WHERE id=$1 AND owner_user_id IS NOT DISTINCT FROM $2::uuid AND NOT library_archived`,
       [id, userId],
     );
     if (!m) throw new ApiError('NOT_FOUND', 404);
