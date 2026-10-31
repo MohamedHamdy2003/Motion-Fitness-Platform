@@ -53,19 +53,12 @@ export const profilePatch = z
   .refine((v) => Object.keys(v).length > 1);
 export const measurement = z
   .object({
-    weight_kg: z.number().positive().max(10000).optional(),
-    body_fat_percent: z.number().gt(0).lt(100).optional(),
-    body_fat_method: z.string().min(1).max(80).optional(),
+    weight_kg: z.number().positive().max(10000),
     measured_at: z.iso
       .datetime({ offset: true })
       .refine((v) => new Date(v) <= new Date()),
   })
-  .strict()
-  .refine((v) => v.weight_kg !== undefined || v.body_fat_percent !== undefined)
-  .refine(
-    (v) =>
-      (v.body_fat_percent === undefined) === (v.body_fat_method === undefined),
-  );
+  .strict();
 export const onboarding = z
   .object({
     name: profileFields.name,
@@ -77,7 +70,7 @@ export const onboarding = z
     locale: profileFields.locale,
     date_of_birth: date,
     expectedRevision: z.number().int().nonnegative(),
-    initialMeasurement: measurement.refine((v) => v.weight_kg !== undefined),
+    initialMeasurement: measurement,
   })
   .strict();
 export const injuryFields = {

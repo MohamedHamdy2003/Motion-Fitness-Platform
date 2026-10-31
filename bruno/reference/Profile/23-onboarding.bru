@@ -1,0 +1,48 @@
+meta {
+  name: Onboarding
+  type: http
+  seq: 23
+}
+
+put {
+  url: {{baseUrl}}/me/onboarding
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Idempotency-Key: {{idempotencyKey}}
+}
+
+body:json {
+  {
+    "expectedRevision": 0,
+    "name": "Motion Athlete",
+    "height_cm": 175,
+    "primary_goal": "FAT_LOSS",
+    "fitness_level": "BEGINNER",
+    "training_days_per_week": 3,
+    "timezone": "Africa/Cairo",
+    "locale": "ar",
+    "date_of_birth": "1998-03-14",
+    "initialMeasurement": {
+      "weight_kg": 80,
+      "measured_at": "{{measuredAt}}"
+    }
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.2.0.
+  Requires age strictly greater than 18. Measurements never expire. Use current profile revision. Matching remains PENDING until F05.
+  Never commit populated credentials or runtime tokens.
+}

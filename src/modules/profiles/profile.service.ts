@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ApiError } from '../../common/http';
 import { environment } from '../../config/environment';
 import * as dto from './profile.dto';
+import { assertAgeEligible } from './profile.policy';
 
 @Injectable()
 export class ProfileService {
@@ -47,11 +48,6 @@ export class ProfileService {
         `SELECT * FROM body_measurements WHERE user_id=$1 AND weight_kg IS NOT NULL ORDER BY measured_at DESC,created_at DESC,id DESC LIMIT 1`,
         [id],
       );
-      const [fat] = await query(
-        m,
-        `SELECT * FROM body_measurements WHERE user_id=$1 AND body_fat_percent IS NOT NULL ORDER BY measured_at DESC,created_at DESC,id DESC LIMIT 1`,
-        [id],
-      );
       const injuries = await query(
         m,
         `SELECT * FROM user_injuries WHERE user_id=$1 AND status='ACTIVE' ORDER BY confirmed_at,id`,
@@ -61,7 +57,6 @@ export class ProfileService {
         user: u,
         profile,
         latest_weight: weight || null,
-        latest_body_fat: fat || null,
         injuries,
         injury_revision: state.injury_revision,
         food_preferences: await this.getPreferences(id, m),
@@ -69,24 +64,9 @@ export class ProfileService {
           status: profile.onboarded_at ? 'PENDING' : 'NOT_STARTED',
           reason: 'F05_NOT_IMPLEMENTED',
         },
-        measurement_freshness_policy_days: environment()
-          .MEASUREMENT_MAX_AGE_DAYS
-          ? Number(environment().MEASUREMENT_MAX_AGE_DAYS)
-          : null,
+        measurement_freshness_policy_days: null,
       };
     });
-  }
-  validateMeasurement(input: z.infer<typeof dto.measurement>) {
-    if (input.body_fat_method) {
-      const allowed = environment()
-        .BODY_FAT_METHODS.split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (!allowed.length)
-        throw new ApiError('BODY_FAT_POLICY_NOT_CONFIGURED', 503);
-      if (!allowed.includes(input.body_fat_method))
-        throw new ApiError('INVALID_BODY_FAT_METHOD');
-    }
   }
   async updateProfile(
     m: EntityManager,
@@ -94,11 +74,19 @@ export class ProfileService {
     input: Record<string, unknown>,
     expected: number,
   ) {
-    if (input.date_of_birth && environment().MINIMUM_AGE)
-      this.assertAge(
-        String(input.date_of_birth),
-        Number(environment().MINIMUM_AGE),
+    if (input.date_of_birth || input.timezone) {
+      const [current] = await query(
+        m,
+        `SELECT date_of_birth::text,timezone FROM user_profiles WHERE user_id=$1`,
+        [id],
       );
+      const birth = input.date_of_birth || current.date_of_birth;
+      if (birth)
+        assertAgeEligible(
+          String(birth),
+          String(input.timezone || current.timezone),
+        );
+    }
     if (input.avatar_media_id) {
       const [asset] = await query(
         m,
@@ -132,16 +120,7 @@ export class ProfileService {
     input: z.infer<typeof dto.onboarding>,
     key: string,
   ) {
-    this.validateMeasurement(input.initialMeasurement);
-    const env = environment();
-    if (!env.MINIMUM_AGE || !env.MEASUREMENT_MAX_AGE_DAYS)
-      throw new ApiError('ONBOARDING_POLICY_NOT_CONFIGURED', 503);
-    this.assertAge(input.date_of_birth, Number(env.MINIMUM_AGE));
-    if (
-      Date.now() - new Date(input.initialMeasurement.measured_at).valueOf() >
-      Number(env.MEASUREMENT_MAX_AGE_DAYS) * 86400000
-    )
-      throw new ApiError('MEASUREMENT_TOO_OLD', 422);
+    assertAgeEligible(input.date_of_birth, input.timezone);
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const previous = await this.idempotency(m, id, 'onboarding', key, input);
@@ -178,18 +157,6 @@ export class ProfileService {
     return createHmac('sha256', environment().JWT_SECRET)
       .update(JSON.stringify(input))
       .digest('hex');
-  }
-  assertAge(birth: string, minimum: number) {
-    const dob = new Date(birth);
-    const now = new Date();
-    let age = now.getUTCFullYear() - dob.getUTCFullYear();
-    if (
-      now.getUTCMonth() < dob.getUTCMonth() ||
-      (now.getUTCMonth() === dob.getUTCMonth() &&
-        now.getUTCDate() < dob.getUTCDate())
-    )
-      age--;
-    if (age < minimum) throw new ApiError('AGE_NOT_ELIGIBLE', 422);
   }
   async idempotency(
     m: EntityManager,
@@ -230,15 +197,8 @@ export class ProfileService {
   ) {
     const [r] = await query(
       m,
-      `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg,body_fat_percent,body_fat_method) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [
-        randomUUID(),
-        id,
-        input.measured_at,
-        input.weight_kg ?? null,
-        input.body_fat_percent ?? null,
-        input.body_fat_method ?? null,
-      ],
+      `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg) VALUES($1,$2,$3,$4) RETURNING *`,
+      [randomUUID(), id, input.measured_at, input.weight_kg],
     );
     return r;
   }
@@ -247,7 +207,6 @@ export class ProfileService {
     input: z.infer<typeof dto.measurement>,
     key: string,
   ) {
-    this.validateMeasurement(input);
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const previous = await this.idempotency(m, id, 'measurement', key, input);

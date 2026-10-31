@@ -1,0 +1,40 @@
+meta {
+  name: Patch profile
+  type: http
+  seq: 22
+}
+
+patch {
+  url: {{baseUrl}}/me
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "expectedRevision": 0,
+    "name": "Motion Athlete",
+    "height_cm": 175,
+    "primary_goal": "STRENGTH_HYPERTROPHY",
+    "fitness_level": "BEGINNER",
+    "training_days_per_week": 3,
+    "timezone": "Africa/Cairo",
+    "locale": "ar",
+    "date_of_birth": "1998-03-14"
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.2.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}
