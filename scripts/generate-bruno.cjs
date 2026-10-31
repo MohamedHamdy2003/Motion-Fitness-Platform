@@ -30,6 +30,8 @@ const variables = {
   challengeId: '',
   injuryId: '',
   mediaId: '',
+  contentId: '',
+  ingredientId: '',
   profileRevision: '0',
   preferenceRevision: '0',
   injuryVersion: '1',
@@ -491,4 +493,119 @@ smoke(
 smoke('Session immediately revoked', 'GET', '/me', undefined, { status: 401 });
 process.stdout.write(
   `Generated ${n} reference requests and ${s} PostgreSQL smoke requests\n`,
+);
+
+// F03 administration: these requests require a current ADMIN or CONTENT_EDITOR role.
+const contentFixture = {
+  title: 'Draft exercise',
+  description: 'Replace with sourced editorial content',
+  instructions: ['Replace with reviewed movement instructions'],
+  muscleGroups: ['Replace'],
+  equipment: [],
+  source: {
+    title: 'Required source',
+    reference: 'Required source record or URL',
+    licenseNotes: 'Required reuse notes',
+  },
+  mediaId: null,
+};
+for (const kind of ['exercises', 'foods', 'ingredients']) {
+  const folder = 'reference/Admin ' + kind;
+  write(folder, '01-list', 'GET', '/admin/' + kind);
+  write(folder, '02-get', 'GET', '/admin/' + kind + '/{{contentId}}');
+  if (kind === 'exercises') {
+    write(
+      folder,
+      '03-create-draft',
+      'POST',
+      '/admin/exercises',
+      { slug: 'replace-with-unique-slug', content: contentFixture },
+      { status: 201 },
+    );
+    write(folder, '04-edit', 'PATCH', '/admin/exercises/{{contentId}}', {
+      expectedRevision: 1,
+      content: contentFixture,
+    });
+  }
+  if (kind !== 'ingredients')
+    write(
+      folder,
+      '05-publish',
+      'POST',
+      '/admin/' + kind + '/{{contentId}}/publish',
+      { expectedRevision: 1 },
+      { status: 201 },
+    );
+  write(folder, '06-archive', 'DELETE', '/admin/' + kind + '/{{contentId}}', {
+    expectedRevision: 1,
+  });
+}
+write(
+  'reference/Admin Media',
+  '01-upload-intent',
+  'POST',
+  '/admin/media/upload-intents',
+  { mime: 'video/mp4', size: 1024 },
+  { status: 201 },
+);
+write(
+  'reference/Admin Media',
+  '02-finalize',
+  'POST',
+  '/admin/media/{{mediaId}}/finalize',
+  {},
+  { status: 201 },
+);
+write('reference/Admin Media', '03-get', 'GET', '/admin/media/{{mediaId}}');
+
+const ingredientFixture = {
+  title: 'Draft ingredient',
+  dietaryTags: [],
+  allergenCodes: [],
+  verificationStatus: 'UNKNOWN',
+};
+const foodFixture = {
+  title: 'Draft food',
+  preparation: 'Required preparation description',
+  preparationState: 'RAW',
+  prepMinutes: 0,
+  energyKcal100g: null,
+  proteinG100g: null,
+  carbohydrateG100g: null,
+  fatG100g: null,
+  fiberG100g: null,
+  nutrientSource: {
+    title: 'Required source',
+    reference: 'Required record',
+    licenseNotes: 'Required reuse notes',
+  },
+  mediaId: null,
+  ingredients: [{ ingredientId: '{{ingredientId}}', quantityG: 100 }],
+};
+for (const [kind, content] of [
+  ['ingredients', ingredientFixture],
+  ['foods', foodFixture],
+]) {
+  write(
+    'reference/Admin ' + kind,
+    '03-create-draft',
+    'POST',
+    '/admin/' + kind,
+    { slug: 'replace-with-unique-slug', content },
+    { status: 201 },
+  );
+  write(
+    'reference/Admin ' + kind,
+    '04-edit',
+    'PATCH',
+    '/admin/' + kind + '/{{contentId}}',
+    { expectedRevision: 1, content },
+  );
+}
+write(
+  'reference/Admin Media',
+  '04-archive',
+  'DELETE',
+  '/admin/media/{{mediaId}}',
+  {},
 );

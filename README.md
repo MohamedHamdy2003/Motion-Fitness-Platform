@@ -2,6 +2,8 @@
 
 NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.3.0`. No Swagger/OpenAPI.
 
+[شرح F03 ومكتبة المحتوى والوسائط](docs/F03_CONTENT_AR.md).
+
 [شرح مبسط بالعربي لحالة المشروع والشغل المنفّذ](docs/PROJECT_PROGRESS_AR.md).
 
 [دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).

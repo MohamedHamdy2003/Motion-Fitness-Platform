@@ -1126,3 +1126,199 @@ describe('profiles, onboarding and injuries', () => {
     expect(upload.body.code).toBe('STORAGE_NOT_CONFIGURED');
   });
 });
+
+describe('F03 content library', () => {
+  it('denies athletes and preserves published revisions with optimistic concurrency', async () => {
+    const account = await register();
+    const headers = bearer(account.accessToken);
+    expect(
+      (await api.get(prefix + '/admin/exercises').set(headers)).status,
+    ).toBe(403);
+    const [user] = await db.query(
+      `SELECT id FROM users WHERE email_normalized='athlete@example.test'`,
+    );
+    await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+      user.id,
+    ]);
+    const content = {
+      title: 'Fixture exercise',
+      description: 'Synthetic test only',
+      instructions: ['Fixture instruction'],
+      muscleGroups: ['fixture'],
+      equipment: [],
+      source: {
+        title: 'Test fixture',
+        reference: 'test-only',
+        licenseNotes: 'Not production content',
+      },
+      mediaId: null,
+    };
+    const created = await api
+      .post(prefix + '/admin/exercises')
+      .set(headers)
+      .send({ slug: 'fixture-exercise', content });
+    expect(created.status, created.text).toBe(201);
+    const id = created.body.exercise_id;
+    const published = await api
+      .post(prefix + `/admin/exercises/${id}/publish`)
+      .set(headers)
+      .send({ expectedRevision: 1 });
+    expect(published.status, published.text).toBe(201);
+    expect(
+      (
+        await api
+          .patch(prefix + `/admin/exercises/${id}`)
+          .set(headers)
+          .send({ expectedRevision: 1, content })
+      ).status,
+    ).toBe(409);
+    const changed = await api
+      .patch(prefix + `/admin/exercises/${id}`)
+      .set(headers)
+      .send({
+        expectedRevision: 2,
+        content: { ...content, title: 'New fixture' },
+      });
+    expect(changed.status, changed.text).toBe(200);
+    const read = await api.get(prefix + `/admin/exercises/${id}`).set(headers);
+    expect(read.body.versions).toHaveLength(2);
+    expect(read.body.versions[1].content.title).toBe('Fixture exercise');
+    await expect(
+      db.query(`UPDATE exercise_revisions SET content='{}' WHERE id=$1`, [
+        created.body.id,
+      ]),
+    ).rejects.toThrow('Published content is immutable');
+    await db.query(
+      `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+      [user.id],
+    );
+    expect(
+      (await api.get(prefix + '/admin/exercises').set(headers)).status,
+    ).toBe(403);
+  });
+  it('validates ingredient references and keeps unknown nutrients unknown', async () => {
+    const account = await register();
+    const headers = bearer(account.accessToken);
+    const [user] = await db.query(
+      `SELECT id FROM users WHERE email_normalized='athlete@example.test'`,
+    );
+    await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.id]);
+    const ingredient = {
+      title: 'Fixture ingredient',
+      dietaryTags: [],
+      allergenCodes: [],
+      verificationStatus: 'UNKNOWN',
+    };
+    expect(
+      (
+        await api
+          .post(prefix + '/admin/ingredients')
+          .set(headers)
+          .send({
+            slug: 'invalid-fixture',
+            content: { ...ingredient, allergenCodes: ['NOT_REAL'] },
+          })
+      ).status,
+    ).toBe(422);
+    const added = await api
+      .post(prefix + '/admin/ingredients')
+      .set(headers)
+      .send({ slug: 'fixture-ingredient', content: ingredient });
+    expect(added.status, added.text).toBe(201);
+    const content = {
+      title: 'Fixture food',
+      preparation: 'Test only',
+      preparationState: 'RAW',
+      prepMinutes: 0,
+      energyKcal100g: null,
+      proteinG100g: null,
+      carbohydrateG100g: null,
+      fatG100g: null,
+      fiberG100g: null,
+      nutrientSource: {
+        title: 'Fixture',
+        reference: 'test-only',
+        licenseNotes: 'Test only',
+      },
+      mediaId: null,
+      ingredients: [{ ingredientId: added.body.id, quantityG: 100 }],
+    };
+    const food = await api
+      .post(prefix + '/admin/foods')
+      .set(headers)
+      .send({ slug: 'fixture-food', content });
+    expect(food.status, food.text).toBe(201);
+    expect(food.body.content.energyKcal100g).toBeNull();
+    expect(
+      (
+        await api
+          .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
+          .set(headers)
+          .send({ expectedRevision: 1 })
+      ).status,
+    ).toBe(201);
+  });
+});
+
+it('imports library drafts atomically and rejects changed seed versions', async () => {
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { importLibrary } =
+    await import('../../src/infrastructure/database/seeds/import-library.js');
+  const dir = await mkdtemp(join(tmpdir(), 'motion-library-'));
+  const path = join(dir, 'fixture.json');
+  const manifest = {
+    datasetId: 'test-fixture',
+    version: 1,
+    ingredients: [],
+    foods: [],
+    exercises: [
+      {
+        id: '799b670a-9afe-49aa-9ef7-63414d051ade',
+        slug: 'seed-fixture',
+        content: {
+          title: 'Fixture',
+          description: 'Test only',
+          instructions: ['Test only'],
+          muscleGroups: ['fixture'],
+          equipment: [],
+          source: {
+            title: 'Fixture',
+            reference: 'test-only',
+            licenseNotes: 'Test only',
+          },
+          mediaId: null,
+        },
+      },
+    ],
+  };
+  try {
+    await writeFile(path, JSON.stringify(manifest));
+    await importLibrary(db, path);
+    await importLibrary(db, path);
+    const rows = await db.query(
+      `SELECT status FROM exercise_revisions WHERE exercise_id=$1`,
+      [manifest.exercises[0].id],
+    );
+    expect(rows).toEqual([{ status: 'DRAFT' }]);
+    manifest.exercises[0].content.title = 'Changed';
+    await writeFile(path, JSON.stringify(manifest));
+    await expect(importLibrary(db, path)).rejects.toThrow('different content');
+    manifest.version = 2;
+    manifest.exercises.unshift({
+      ...manifest.exercises[0],
+      id: '89f7d4a8-209c-4ca3-9afa-dd1d8e75583d',
+      slug: 'rolled-back-fixture',
+    });
+    await writeFile(path, JSON.stringify(manifest));
+    await expect(importLibrary(db, path)).rejects.toThrow();
+    expect(
+      await db.query(
+        `SELECT id FROM exercises WHERE slug='rolled-back-fixture'`,
+      ),
+    ).toEqual([]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
