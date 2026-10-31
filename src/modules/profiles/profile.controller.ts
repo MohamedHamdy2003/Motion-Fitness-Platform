@@ -60,26 +60,6 @@ export class ProfileController {
       parse(dto.settings, b),
     );
   }
-  @Post('measurements') measurement(
-    @Req() req: ApiRequest,
-    @Body() b: unknown,
-    @Headers('idempotency-key') key: string,
-  ) {
-    return this.profiles.addMeasurement(
-      req.principal.userId,
-      parse(dto.measurement, b),
-      key || '',
-    );
-  }
-  @Get('measurements') measurements(
-    @Req() req: ApiRequest,
-    @Query() q: unknown,
-  ) {
-    return this.profiles.measurements(
-      req.principal.userId,
-      parse(dto.measurementQuery, q),
-    );
-  }
   @Get('food-preferences') preferences(@Req() req: ApiRequest) {
     return this.profiles.getPreferences(req.principal.userId);
   }

@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { parse, ApiError } from '../../src/common/http';
 import {
   profilePatch,
-  measurement,
   injury,
   timezone,
 } from '../../src/modules/profiles/profile.dto';
@@ -29,20 +28,22 @@ describe('mobile contracts', () => {
       }).success,
     ).toBe(false);
     expect(
-      measurement.safeParse({
+      profilePatch.safeParse({
+        expectedRevision: 0,
         weight_kg: 0,
-        measured_at: '2020-01-01T00:00:00Z',
       }).success,
     ).toBe(false);
   });
-  it('requires weight and rejects removed measurement fields', () => {
+  it('rejects empty edits and removed measurement fields', () => {
     expect(
-      measurement.safeParse({
+      profilePatch.safeParse({
+        expectedRevision: 0,
         measured_at: '2020-01-01T00:00:00Z',
       }).success,
     ).toBe(false);
     expect(
-      measurement.safeParse({
+      profilePatch.safeParse({
+        expectedRevision: 0,
         weight_kg: 80,
         body_fat_percent: 20,
         body_fat_method: 'BIA',
