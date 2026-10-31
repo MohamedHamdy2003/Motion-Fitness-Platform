@@ -1,7 +1,7 @@
 import { query } from '../../infrastructure/database/query';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomInt, createHmac } from 'node:crypto';
 import * as argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { ApiError, Principal } from '../../common/http';
@@ -66,7 +66,13 @@ export class AuthService {
     user: User,
     purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
   ) {
-    const value = randomToken();
+    const value = String(randomInt(0, 1000000)).padStart(6, '0');
+    const [recent] = await query(
+      m,
+      `SELECT id FROM verification_tokens WHERE user_id=$1 AND purpose=$2 AND is_otp AND expires_at>now()+interval '9 minutes' LIMIT 1`,
+      [user.id, purpose],
+    );
+    if (recent) return;
     await query(
       m,
       `UPDATE verification_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose=$2 AND consumed_at IS NULL`,
@@ -74,14 +80,8 @@ export class AuthService {
     );
     await query(
       m,
-      `INSERT INTO verification_tokens(id,user_id,purpose,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+($5*interval '1 minute'))`,
-      [
-        randomUUID(),
-        user.id,
-        purpose,
-        hash(value),
-        purpose === 'PASSWORD_RESET' ? 15 : 1440,
-      ],
+      `INSERT INTO verification_tokens(id,user_id,purpose,token_hash,expires_at,is_otp) VALUES($1,$2,$3,$4,now()+interval '10 minutes',true)`,
+      [randomUUID(), user.id, purpose, this.otpHash(user.id, purpose, value)],
     );
     await this.mail.enqueue(m, user.id, user.email_normalized!, purpose, value);
   }
@@ -221,37 +221,62 @@ export class AuthService {
       message: 'If the account is eligible, an email will be sent.',
     };
   }
-  async verifyEmail(value: string) {
-    await this.db.transaction(async (m) => {
-      const [candidate] = await query(
+  otpHash(userId: string, purpose: string, value: string) {
+    return createHmac('sha256', environment().MAIL_ENCRYPTION_KEY)
+      .update(`${userId}:${purpose}:${value}`)
+      .digest('hex');
+  }
+  async verifyOtp(
+    email: string,
+    value: string,
+    purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
+  ) {
+    const result = await this.db.transaction(async (m) => {
+      const [u] = await query(
         m,
-        `SELECT user_id FROM verification_tokens WHERE token_hash=$1 AND purpose='EMAIL_VERIFICATION'`,
-        [hash(value)],
+        `SELECT * FROM users WHERE email_normalized=$1 AND status='ACTIVE' FOR UPDATE`,
+        [email],
       );
-      if (!candidate) throw new ApiError('INVALID_VERIFICATION_TOKEN');
-      await query(m, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, [
-        candidate.user_id,
-      ]);
+      if (!u || (purpose === 'PASSWORD_RESET' && !u.password_hash)) return null;
       const [t] = await query(
         m,
-        `UPDATE verification_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='EMAIL_VERIFICATION' AND consumed_at IS NULL AND expires_at>now() RETURNING user_id`,
-        [hash(value)],
+        `SELECT * FROM verification_tokens WHERE user_id=$1 AND purpose=$2 AND is_otp AND consumed_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1 FOR UPDATE`,
+        [u.id, purpose],
       );
-      if (!t) throw new ApiError('INVALID_VERIFICATION_TOKEN');
+      if (!t || t.attempts >= 5) return null;
+      const valid = t.token_hash === this.otpHash(u.id, purpose, value);
       await query(
         m,
-        `UPDATE users SET verified_at=now() WHERE id=$1 AND status='ACTIVE'`,
-        [t.user_id],
+        `UPDATE verification_tokens SET attempts=attempts+1,consumed_at=CASE WHEN $2 OR attempts>=4 THEN now() ELSE consumed_at END WHERE id=$1`,
+        [t.id, valid],
       );
+      if (!valid) return null;
+      if (purpose === 'EMAIL_VERIFICATION') {
+        await query(m, `UPDATE users SET verified_at=now() WHERE id=$1`, [
+          u.id,
+        ]);
+        return { status: 'VERIFIED' };
+      }
+      const resetToken = randomToken();
+      await query(
+        m,
+        `INSERT INTO verification_tokens(id,user_id,purpose,token_hash,expires_at) VALUES($1,$2,'PASSWORD_RESET',$3,now()+interval '5 minutes')`,
+        [randomUUID(), u.id, hash(resetToken)],
+      );
+      return { status: 'OTP_VERIFIED', resetToken, expiresIn: 300 };
     });
-    return { status: 'VERIFIED' };
+    if (!result) throw new ApiError('INVALID_OR_EXPIRED_OTP');
+    return result;
+  }
+  async verifyEmail(email: string, code: string) {
+    return this.verifyOtp(email, code, 'EMAIL_VERIFICATION');
   }
   async resetPassword(value: string, newPassword: string) {
     const encoded = await argon2.hash(newPassword);
     await this.db.transaction(async (m) => {
       const [candidate] = await query(
         m,
-        `SELECT user_id FROM verification_tokens WHERE token_hash=$1 AND purpose='PASSWORD_RESET'`,
+        `SELECT user_id FROM verification_tokens WHERE token_hash=$1 AND purpose='PASSWORD_RESET' AND NOT is_otp`,
         [hash(value)],
       );
       if (!candidate) throw new ApiError('INVALID_RESET_TOKEN');
@@ -260,7 +285,7 @@ export class AuthService {
       ]);
       const [t] = await query(
         m,
-        `UPDATE verification_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='PASSWORD_RESET' AND consumed_at IS NULL AND expires_at>now() RETURNING user_id`,
+        `UPDATE verification_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='PASSWORD_RESET' AND NOT is_otp AND consumed_at IS NULL AND expires_at>now() RETURNING user_id`,
         [hash(value)],
       );
       if (!t || !u.password_hash || u.status !== 'ACTIVE')

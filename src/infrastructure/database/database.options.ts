@@ -1,3 +1,4 @@
+import { EmailOtp1793448001000 } from './migrations/1793448001000-EmailOtp';
 import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
 import { environment } from '../../config/environment';
@@ -24,6 +25,7 @@ export function databaseOptions(): DataSourceOptions {
       RemoveBodyFat1793404800000,
       CurrentProfileWeight1793404801000,
       ContentLibrary1793448000000,
+      EmailOtp1793448001000,
     ],
     synchronize: false,
     migrationsRun: false,

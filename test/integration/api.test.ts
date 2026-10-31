@@ -28,7 +28,7 @@ const register = async (email = 'athlete@example.test') => {
   return r.body;
 };
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
-async function capturedToken(email: string) {
+async function capturedToken(email: string, raw = false) {
   const [r] = await db.query(
     `SELECT j.payload FROM jobs j JOIN users u ON u.id=j.user_id WHERE u.email_normalized=$1 ORDER BY j.created_at DESC LIMIT 1`,
     [email],
@@ -36,7 +36,15 @@ async function capturedToken(email: string) {
   const mail = JSON.parse(
     decrypt(r.payload.encrypted, process.env.MAIL_ENCRYPTION_KEY!),
   );
-  return new URL(mail.text).searchParams.get('token')!;
+  const code = mail.text.match(/\b\d{6}\b/)![0];
+  if (!raw && mail.subject.includes('Reset')) {
+    const response = await api
+      .post(prefix + '/auth/verify-reset-code')
+      .send({ email, code });
+    expect(response.status, response.text).toBe(200);
+    return response.body.resetToken;
+  }
+  return code;
 }
 beforeAll(async () => {
   const url =
@@ -214,12 +222,18 @@ describe('authentication and account security', () => {
     expect(t.token_hash).toBe(hash(r.refreshToken));
     const value = await capturedToken('athlete@example.test');
     expect(
-      (await api.post(prefix + '/auth/verify-email').send({ token: value }))
-        .status,
+      (
+        await api
+          .post(prefix + '/auth/verify-email')
+          .send({ email: 'athlete@example.test', code: value })
+      ).status,
     ).toBe(200);
     expect(
-      (await api.post(prefix + '/auth/verify-email').send({ token: value }))
-        .status,
+      (
+        await api
+          .post(prefix + '/auth/verify-email')
+          .send({ email: 'athlete@example.test', code: value })
+      ).status,
     ).toBe(400);
   });
   it('rotates refresh and commits replay revocation before returning 401', async () => {
@@ -639,7 +653,6 @@ describe('social adapter orchestration with verified-provider fixtures', () => {
 });
 describe('external adapter boundaries with fixture transports', () => {
   it('sends queued mail through TLS SMTP and retries failures without persisting message contents in errors', async () => {
-    await register();
     const smtp = (await import('nodemailer')).default;
     const sendMail = vi.fn().mockResolvedValue({ messageId: 'fixture' });
     const create = vi
@@ -653,6 +666,7 @@ describe('external adapter boundaries with fixture transports', () => {
       RESET_LINK_BASE: 'https://client.example.test/reset',
       VERIFY_LINK_BASE: 'https://client.example.test/verify',
     });
+    await register();
     const { JobsService } =
       await import('../../src/infrastructure/jobs/jobs.service.js');
     const jobs = app.get(JobsService);
@@ -1321,4 +1335,88 @@ it('imports library drafts atomically and rejects changed seed versions', async 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it('limits OTP guesses, expires codes and invalidates older codes on resend', async () => {
+  await register();
+  const email = 'athlete@example.test';
+  const original = await capturedToken(email, true);
+  const wrong = original === '000000' ? '111111' : '000000';
+  for (let i = 0; i < 5; i++)
+    expect(
+      (
+        await api
+          .post(prefix + '/auth/verify-email')
+          .send({ email, code: wrong })
+      ).status,
+    ).toBe(400);
+  expect(
+    (
+      await api
+        .post(prefix + '/auth/verify-email')
+        .send({ email, code: original })
+    ).status,
+  ).toBe(400);
+  const [attempt] = await db.query(
+    `SELECT attempts,consumed_at FROM verification_tokens WHERE purpose='EMAIL_VERIFICATION'`,
+  );
+  expect(attempt.attempts).toBe(5);
+  expect(attempt.consumed_at).not.toBeNull();
+  await db.query('TRUNCATE rate_limits');
+  await db.query(
+    `UPDATE verification_tokens SET expires_at=now()+interval '8 minutes' WHERE is_otp`,
+  );
+  await api.post(prefix + '/auth/resend-verification').send({ email });
+  const fresh = await capturedToken(email, true);
+  await db.query(
+    `UPDATE verification_tokens SET expires_at=now()-interval '1 second' WHERE is_otp`,
+  );
+  expect(
+    (await api.post(prefix + '/auth/verify-email').send({ email, code: fresh }))
+      .status,
+  ).toBe(400);
+});
+it('keeps OTP purposes separate and consumes a reset code only once', async () => {
+  await register();
+  const email = 'athlete@example.test';
+  const verify = await capturedToken(email, true);
+  expect(
+    (
+      await api
+        .post(prefix + '/auth/verify-reset-code')
+        .send({ email, code: verify })
+    ).status,
+  ).toBe(400);
+  await api.post(prefix + '/auth/forgot-password').send({ email });
+  const code = await capturedToken(email, true);
+  const results = await Promise.all(
+    [1, 2].map(() =>
+      api.post(prefix + '/auth/verify-reset-code').send({ email, code }),
+    ),
+  );
+  expect(results.map((r) => r.status).sort()).toEqual([200, 400]);
+  expect(
+    (
+      await api
+        .post(prefix + '/auth/reset-password')
+        .send({ token: code, newPassword: password, confirmPassword: password })
+    ).status,
+  ).toBe(400);
+});
+
+it('does not send captured messages when switching to SMTP', async () => {
+  await register();
+  const smtp = (await import('nodemailer')).default;
+  const sendMail = vi.fn();
+  vi.spyOn(smtp, 'createTransport').mockReturnValue({ sendMail } as any);
+  Object.assign(process.env, {
+    MAIL_MODE: 'smtp',
+    SMTP_USER: 'sender@example.test',
+    SMTP_PASSWORD: 'fixture',
+    MAIL_FROM: 'sender@example.test',
+  });
+  const { JobsService } =
+    await import('../../src/infrastructure/jobs/jobs.service.js');
+  expect(await app.get(JobsService).processOne()).toBe(false);
+  expect(sendMail).not.toHaveBeenCalled();
 });

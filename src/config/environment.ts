@@ -17,8 +17,6 @@ const schema = z.object({
   MAIL_ENCRYPTION_KEY: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().default(''),
-  RESET_LINK_BASE: z.string().default(''),
-  VERIFY_LINK_BASE: z.string().default(''),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce
     .number()
@@ -65,21 +63,11 @@ export function environment(): Environment {
       throw new Error(`Invalid ${name}`);
   if (env.MAIL_MODE !== 'disabled' && !env.MAIL_ENCRYPTION_KEY)
     throw new Error('MAIL_ENCRYPTION_KEY required');
-  if (
-    env.MAIL_MODE === 'resend' &&
-    (!env.RESEND_API_KEY ||
-      !env.MAIL_FROM ||
-      !env.RESET_LINK_BASE ||
-      !env.VERIFY_LINK_BASE)
-  )
+  if (env.MAIL_MODE === 'resend' && (!env.RESEND_API_KEY || !env.MAIL_FROM))
     throw new Error('Mail delivery configuration incomplete');
   if (
     env.MAIL_MODE === 'smtp' &&
-    (!env.SMTP_USER ||
-      !env.SMTP_PASSWORD ||
-      !env.MAIL_FROM ||
-      !env.RESET_LINK_BASE ||
-      !env.VERIFY_LINK_BASE)
+    (!env.SMTP_USER || !env.SMTP_PASSWORD || !env.MAIL_FROM)
   )
     throw new Error('SMTP configuration incomplete');
   return env;

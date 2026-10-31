@@ -22,7 +22,7 @@ Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes
 | POST `/auth/register`               | `email`, `password`                                                                                             | 201, session plus `{user:{id,email,verified:false},emailDelivery:"QUEUED"}` |
 | POST `/auth/login`                  | `email`, `password`                                                                                             | 200, session                                                                |
 | POST `/auth/refresh`                | `refreshToken`                                                                                                  | 200, rotated session tokens                                                 |
-| POST `/auth/verify-email`           | `token`                                                                                                         | 200, `{status:"VERIFIED"}`                                                  |
+| POST `/auth/verify-email`           | `email`, `code`                                                                                                 | 200, `{status:"VERIFIED"}`                                                  |
 | POST `/auth/resend-verification`    | `email`                                                                                                         | 202, generic accepted response                                              |
 | POST `/auth/forgot-password`        | `email`                                                                                                         | 202, identical accepted response for eligible/unknown accounts              |
 | POST `/auth/reset-password`         | `token`, `newPassword`, `confirmPassword`                                                                       | 200, `{status:"PASSWORD_CHANGED",requiresLogin:true}`                       |
@@ -36,7 +36,7 @@ Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes
 | POST `/auth/identities/google/link` | `idToken`, `challengeId`, `reauthenticationToken`                                                               | Protected, 200, `{status:"LINKED",provider:"GOOGLE"}`                       |
 | POST `/auth/identities/apple/link`  | Same plus `authorizationCode`                                                                                   | Protected, 200 after Apple code exchange                                    |
 
-Passwords are 12–128 characters. Normalize email with trim/lowercase. Verification lasts 24 hours; reset tokens last 15 minutes. Reset/change revokes every session and outstanding proof/reset token. Social-only accounts return `PASSWORD_LOGIN_NOT_ENABLED` for password changes; forgot password does not create local credentials.
+Passwords are 12–128 characters. Normalize email with trim/lowercase. Email OTPs contain six digits, expire after 10 minutes, and allow five attempts. Resends have a 60-second cooldown and invalidate the old code. POST `/auth/verify-reset-code` accepts `{email,code}` and returns a single-use `resetToken` valid for five minutes; send it as `token` to `/auth/reset-password`. OTPs cannot be used directly as reset tokens. Reset/change revokes every session and outstanding proof/reset token. Social-only accounts return `PASSWORD_LOGIN_NOT_ENABLED` for password changes; forgot password does not create local credentials.
 
 Session example (opaque placeholders, not usable secrets):
 

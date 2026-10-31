@@ -21,7 +21,7 @@ const variables = {
   password: '',
   accessToken: '',
   refreshToken: '',
-  verificationToken: '',
+  otpCode: '',
   resetToken: '',
   reauthenticationToken: '',
   deletionToken: '',
@@ -50,7 +50,7 @@ for (const env of ['local', 'staging'])
             ? variables.baseUrl
             : 'https://configure-staging-host.invalid/api/v1',
       })
-        .map(([k, v]) => `  ${k}: ${v}`)
+        .map(([k, v]) => `  ${k}: ${v}`.trimEnd())
         .join('\n') +
       '\n}\n',
   );
@@ -76,7 +76,7 @@ function write(
     Object.keys(headers).length
       ? '\nheaders {\n' +
         Object.entries(headers)
-          .map(([k, v]) => `  ${k}: ${v}`)
+          .map(([k, v]) => `  ${k}: ${v}`.trimEnd())
           .join('\n') +
         '\n}\n'
       : ''
@@ -89,7 +89,7 @@ function write(
           .map((l) => '  ' + l)
           .join('\n') +
         '\n}\n'
-  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.3.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
+  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.4.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
   fs.writeFileSync(
     path.join(
       dir,
@@ -148,7 +148,7 @@ add(
   'Verify email',
   'POST',
   '/auth/verify-email',
-  { token: '{{verificationToken}}' },
+  { email: '{{email}}', code: '{{otpCode}}' },
   { auth: false },
 );
 add(
@@ -608,4 +608,13 @@ write(
   'DELETE',
   '/admin/media/{{mediaId}}',
   {},
+);
+
+write(
+  'reference/Auth',
+  'verify-reset-code',
+  'POST',
+  '/auth/verify-reset-code',
+  { email: '{{email}}', code: '{{otpCode}}' },
+  { status: 200 },
 );
