@@ -1420,3 +1420,226 @@ it('does not send captured messages when switching to SMTP', async () => {
   expect(await app.get(JobsService).processOne()).toBe(false);
   expect(sendMail).not.toHaveBeenCalled();
 });
+
+it('keeps food drafts private and serializes competing editorial writes', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+    user.user.id,
+  ]);
+  const ing = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({
+      slug: 'visibility-ingredient',
+      content: {
+        title: 'Visibility ingredient',
+        dietaryTags: [],
+        allergenCodes: [],
+        verificationStatus: 'UNKNOWN',
+      },
+    });
+  const content = {
+    title: 'Visibility draft',
+    preparation: 'Fixture only',
+    preparationState: 'RAW',
+    prepMinutes: 0,
+    energyKcal100g: null,
+    proteinG100g: null,
+    carbohydrateG100g: null,
+    fatG100g: null,
+    fiberG100g: null,
+    nutrientSource: {
+      title: 'Fixture',
+      reference: 'Test only',
+      licenseNotes: 'Test only',
+    },
+    mediaId: null,
+    ingredients: [{ ingredientId: ing.body.id, quantityG: 100 }],
+  };
+  const made = await api
+    .post(prefix + '/admin/foods')
+    .set(headers)
+    .send({ slug: 'visibility-food', content });
+  expect(made.status, made.text).toBe(201);
+  expect(
+    await db.query(`SELECT id FROM available_food_references WHERE id=$1`, [
+      made.body.food_id,
+    ]),
+  ).toEqual([]);
+  const edits = await Promise.all(
+    [1, 2].map(() =>
+      api
+        .patch(prefix + '/admin/foods/' + made.body.food_id)
+        .set(headers)
+        .send({
+          expectedRevision: 1,
+          content: { ...content, title: 'Published fixture' },
+        }),
+    ),
+  );
+  expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+  expect(
+    (
+      await api
+        .post(prefix + '/admin/foods/' + made.body.food_id + '/publish')
+        .set(headers)
+        .send({ expectedRevision: 2 })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await db.query(`SELECT name FROM available_food_references WHERE id=$1`, [
+        made.body.food_id,
+      ])
+    )[0].name,
+  ).toBe('Published fixture');
+  await expect(
+    db.query(`DELETE FROM food_ingredients WHERE food_version_id=$1`, [
+      made.body.id,
+    ]),
+  ).rejects.toThrow('Published recipe is immutable');
+  expect(
+    (
+      await api
+        .delete(prefix + '/admin/foods/' + made.body.food_id)
+        .set(headers)
+        .send({ expectedRevision: 3 })
+    ).status,
+  ).toBe(200);
+  expect(
+    await db.query(`SELECT id FROM available_food_references WHERE id=$1`, [
+      made.body.food_id,
+    ]),
+  ).toEqual([]);
+  expect(
+    (
+      await api
+        .patch(prefix + '/admin/foods/' + made.body.food_id)
+        .set(headers)
+        .send({ expectedRevision: 3, content })
+    ).body.code,
+  ).toBe('CONTENT_ARCHIVED');
+});
+it('finalizes shared video atomically, protects referenced media and blocks athlete access', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+    user.user.id,
+  ]);
+  const id = crypto.randomUUID();
+  await db.query(
+    `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status,library_asset) VALUES($1,$2,$3,$3,'video/mp4',16,'PENDING',true)`,
+    [id, user.user.id, 'uploads/library/' + id],
+  );
+  const { MediaService } =
+    await import('../../src/modules/media/media.service.js');
+  const media = app.get(MediaService);
+  const bytes = Buffer.from('000000186674797069736f6d00000000', 'hex');
+  const send = vi.fn(async (command: any) => {
+    if (command.constructor.name === 'HeadObjectCommand')
+      return { ContentLength: 16, ContentType: 'video/mp4', ETag: '"fixture"' };
+    if (command.constructor.name === 'GetObjectCommand')
+      return { Body: { transformToByteArray: async () => bytes } };
+    return {};
+  });
+  vi.spyOn(media, 'client').mockReturnValue({ send } as any);
+  expect(
+    (await api.get(prefix + '/admin/media/' + id).set(headers)).body.status,
+  ).toBe('PENDING');
+  expect(
+    (
+      await api
+        .post(prefix + '/media/' + id + '/finalize')
+        .set(headers)
+        .send({})
+    ).status,
+  ).toBe(404);
+  bytes.write('avif', 8);
+  expect(
+    (
+      await api
+        .post(prefix + '/admin/media/' + id + '/finalize')
+        .set(headers)
+        .send({})
+    ).body.code,
+  ).toBe('UPLOAD_CONTENT_TYPE_MISMATCH');
+  bytes.write('isom', 8);
+  const finalized = await Promise.all(
+    [1, 2].map(() =>
+      api
+        .post(prefix + '/admin/media/' + id + '/finalize')
+        .set(headers)
+        .send({}),
+    ),
+  );
+  expect(finalized.map((r) => r.status)).toEqual([201, 201]);
+  const [asset] = await db.query('SELECT * FROM media_assets WHERE id=$1', [
+    id,
+  ]);
+  expect(asset.owner_user_id).toBeNull();
+  expect(asset.storage_key.startsWith('library/')).toBe(true);
+  expect((await api.get(prefix + '/media/' + id).set(headers)).status).toBe(
+    404,
+  );
+  const content = {
+    title: 'Video fixture',
+    description: 'Test only',
+    instructions: ['Test only'],
+    muscleGroups: ['fixture'],
+    equipment: [],
+    source: {
+      title: 'Fixture',
+      reference: 'Test only',
+      licenseNotes: 'Test only',
+    },
+    mediaId: id,
+  };
+  const exercise = await api
+    .post(prefix + '/admin/exercises')
+    .set(headers)
+    .send({ slug: 'video-fixture', content });
+  expect(exercise.status, exercise.text).toBe(201);
+  expect(
+    (
+      await api
+        .delete(prefix + '/admin/media/' + id)
+        .set(headers)
+        .send({})
+    ).body.code,
+  ).toBe('MEDIA_IN_USE');
+  expect(
+    (
+      await api
+        .patch(prefix + '/admin/exercises/' + exercise.body.exercise_id)
+        .set(headers)
+        .send({ expectedRevision: 1, content: { ...content, mediaId: null } })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await api
+        .delete(prefix + '/admin/media/' + id)
+        .set(headers)
+        .send({})
+    ).status,
+  ).toBe(200);
+  expect(
+    (await api.get(prefix + '/admin/media/' + id).set(headers)).status,
+  ).toBe(404);
+  expect(
+    (
+      await api
+        .post(prefix + '/admin/media/' + id + '/finalize')
+        .set(headers)
+        .send({})
+    ).status,
+  ).toBe(404);
+  await db.query(
+    `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+    [user.user.id],
+  );
+  expect((await api.get(prefix + '/admin/media').set(headers)).status).toBe(
+    403,
+  );
+});

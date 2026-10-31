@@ -618,3 +618,4 @@ write(
   { email: '{{email}}', code: '{{otpCode}}' },
   { status: 200 },
 );
+write('reference/Admin Media', '05-list', 'GET', '/admin/media');

@@ -267,7 +267,7 @@ export class ProfileService {
       if (all.length) {
         const rows = await query(
           m,
-          `SELECT id FROM food_reference_items WHERE id=ANY($1::uuid[])`,
+          `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
           [all],
         );
         if (rows.length !== all.length)

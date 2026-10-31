@@ -1,3 +1,4 @@
+import { LibraryIntegrity1793448002000 } from './migrations/1793448002000-LibraryIntegrity';
 import { EmailOtp1793448001000 } from './migrations/1793448001000-EmailOtp';
 import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
@@ -26,6 +27,7 @@ export function databaseOptions(): DataSourceOptions {
       CurrentProfileWeight1793404801000,
       ContentLibrary1793448000000,
       EmailOtp1793448001000,
+      LibraryIntegrity1793448002000,
     ],
     synchronize: false,
     migrationsRun: false,

@@ -137,6 +137,12 @@ export class ContentService {
       if (publish) {
         if (v.status !== 'DRAFT') throw new ApiError('ALREADY_PUBLISHED', 409);
         await this.validateReferences(m, v.content, kind);
+        if (kind === 'foods')
+          await query(
+            m,
+            `UPDATE food_reference_items SET name=$2 WHERE id=$1`,
+            [id, v.content.title],
+          );
         return (
           await query(
             m,

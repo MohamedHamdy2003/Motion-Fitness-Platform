@@ -1,7 +1,9 @@
+import { page } from './content.dto';
 import {
   Body,
   Controller,
   Get,
+  Query,
   Delete,
   Inject,
   Param,
@@ -42,11 +44,6 @@ export class ContentMediaController {
       b.size,
       true,
     );
-    await query(
-      this.db,
-      `UPDATE media_assets SET library_asset=true WHERE id=$1`,
-      [result.id],
-    );
     return result;
   }
   @Post(':id/finalize') async finalize(
@@ -58,22 +55,32 @@ export class ContentMediaController {
     id = parse(uuid, id);
     const [asset] = await query(
       this.db,
-      `SELECT * FROM media_assets WHERE id=$1 AND library_asset=true`,
+      `SELECT * FROM media_assets WHERE id=$1 AND library_asset=true AND NOT library_archived`,
       [id],
     );
     if (!asset) throw new ApiError('NOT_FOUND', 404);
     if (asset.status === 'READY' && asset.owner_user_id === null)
       return { id, status: 'READY' };
     const result = await this.media.finalize(req.principal.userId, id, true);
-    await query(
-      this.db,
-      `UPDATE media_assets SET owner_user_id=NULL WHERE id=$1 AND library_asset=true AND status='READY'`,
-      [id],
-    );
     return result;
   }
-  @Get(':id') async get(@Param('id') id: string) {
-    return this.media.get(null, parse(uuid, id));
+  @Get() async list(@Req() req: ApiRequest, @Query() input: unknown) {
+    const p = parse(page, input);
+    return query(
+      this.db,
+      `SELECT id,mime,size,status,library_archived,created_at FROM media_assets WHERE library_asset AND (owner_user_id IS NULL OR owner_user_id=$1) ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`,
+      [req.principal.userId, p.limit, p.offset],
+    );
+  }
+  @Get(':id') async get(@Req() req: ApiRequest, @Param('id') id: string) {
+    id = parse(uuid, id);
+    const [asset] = await query(
+      this.db,
+      `SELECT id,mime,size,status FROM media_assets WHERE id=$1 AND library_asset AND NOT library_archived AND owner_user_id=$2`,
+      [id, req.principal.userId],
+    );
+    if (asset) return asset;
+    return this.media.get(null, id);
   }
 
   @Delete(':id') async archive(@Param('id') id: string, @Body() body: unknown) {

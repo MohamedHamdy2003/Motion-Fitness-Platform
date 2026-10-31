@@ -28,6 +28,7 @@ export class MediaService {
     return new S3Client({
       endpoint: e.S3_ENDPOINT,
       region: e.S3_REGION,
+      forcePathStyle: e.S3_FORCE_PATH_STYLE === 'true',
       credentials: {
         accessKeyId: e.S3_ACCESS_KEY_ID,
         secretAccessKey: e.S3_SECRET_ACCESS_KEY,
@@ -37,7 +38,7 @@ export class MediaService {
   async intent(id: string, mime: string, size: number, library = false) {
     const client = this.client();
     const mediaId = randomUUID();
-    const key = `uploads/avatars/${id}/${mediaId}`;
+    const key = `uploads/${library ? 'library' : 'avatars'}/${id}/${mediaId}`;
     const url = await getSignedUrl(
       client,
       new PutObjectCommand({
@@ -65,7 +66,7 @@ export class MediaService {
     const client = this.client();
     const [media] = await query(
       this.db,
-      `SELECT * FROM media_assets WHERE id=$1 AND owner_user_id=$2 AND library_asset=$3`,
+      `SELECT * FROM media_assets WHERE id=$1 AND (owner_user_id=$2 OR ($3 AND owner_user_id IS NULL AND status='READY')) AND library_asset=$3 AND NOT library_archived`,
       [id, userId, library],
     );
     if (!media) throw new ApiError('NOT_FOUND', 404);
@@ -105,7 +106,21 @@ export class MediaService {
     const bytes = Buffer.from(await prefix.Body!.transformToByteArray());
     const valid =
       media.mime === 'video/mp4'
-        ? bytes.subarray(4, 8).toString() === 'ftyp'
+        ? bytes.length >= 16 &&
+          bytes.subarray(4, 8).toString() === 'ftyp' &&
+          [
+            'isom',
+            'iso2',
+            'iso3',
+            'iso4',
+            'iso5',
+            'iso6',
+            'mp41',
+            'mp42',
+            'avc1',
+            'dash',
+            'M4V ',
+          ].includes(bytes.subarray(8, 12).toString())
         : media.mime === 'image/png'
           ? bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
           : media.mime === 'image/jpeg'
@@ -113,7 +128,7 @@ export class MediaService {
             : bytes.subarray(0, 4).toString() === 'RIFF' &&
               bytes.subarray(8, 12).toString() === 'WEBP';
     if (!valid) throw new ApiError('UPLOAD_CONTENT_TYPE_MISMATCH', 422);
-    const finalKey = `avatars/${userId}/${id}/${randomUUID()}`;
+    const finalKey = `${library ? 'library' : 'avatars'}/${userId}/${id}/${randomUUID()}`;
     await client.send(
       new CopyObjectCommand({
         Bucket: environment().S3_BUCKET,
@@ -129,14 +144,14 @@ export class MediaService {
     );
     const [updated] = await query(
       this.db,
-      `UPDATE media_assets SET status='READY',storage_key=$3 WHERE id=$1 AND owner_user_id=$2 AND status='PENDING' AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND status='ACTIVE') RETURNING id`,
+      `UPDATE media_assets SET status='READY',storage_key=$3,owner_user_id=CASE WHEN library_asset THEN NULL ELSE owner_user_id END WHERE id=$1 AND owner_user_id=$2 AND status='PENDING' AND NOT library_archived AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND status='ACTIVE') RETURNING id`,
       [id, userId, finalKey],
     );
     if (!updated) {
       await this.erase(finalKey);
       const [current] = await query(
         this.db,
-        `SELECT a.id FROM media_assets a JOIN users u ON u.id=a.owner_user_id WHERE a.id=$1 AND a.owner_user_id=$2 AND a.status='READY' AND u.status='ACTIVE'`,
+        `SELECT a.id FROM media_assets a WHERE a.id=$1 AND (a.owner_user_id=$2 OR (a.library_asset AND a.owner_user_id IS NULL)) AND a.status='READY' AND NOT a.library_archived`,
         [id, userId],
       );
       if (!current) throw new ApiError('ACCOUNT_UNAVAILABLE', 403);
@@ -147,7 +162,7 @@ export class MediaService {
   async get(userId: string | null, id: string) {
     const [m] = await query(
       this.db,
-      `SELECT id,mime,size,status,storage_key FROM media_assets WHERE id=$1 AND owner_user_id IS NOT DISTINCT FROM $2::uuid AND NOT library_archived`,
+      `SELECT id,mime,size,status,storage_key FROM media_assets WHERE id=$1 AND owner_user_id IS NOT DISTINCT FROM $2::uuid AND NOT library_archived AND library_asset=($2::uuid IS NULL)`,
       [id, userId],
     );
     if (!m) throw new ApiError('NOT_FOUND', 404);

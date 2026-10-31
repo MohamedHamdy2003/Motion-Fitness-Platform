@@ -38,6 +38,7 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default(''),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
   S3_ENDPOINT: z.string().default(''),
+  S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('false'),
   S3_REGION: z.string().default('auto'),
   S3_BUCKET: z.string().default(''),
   S3_ACCESS_KEY_ID: z.string().default(''),

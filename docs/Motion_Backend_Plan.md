@@ -1,6 +1,6 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.16 · **Updated:** 2026-10-31 · **Status:** F00–F02 implemented locally; external integrations and staging remain pending. Feature-specific decisions in Section 12 remain open.
+**Version:** 2.17 · **Updated:** 2026-10-31 · **Status:** F00–F03 backend implemented locally; external integrations and staging remain pending. Feature-specific decisions in Section 12 remain open.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
