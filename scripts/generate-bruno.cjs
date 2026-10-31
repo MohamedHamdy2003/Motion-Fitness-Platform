@@ -35,7 +35,6 @@ const variables = {
   injuryVersion: '1',
   settingsVersion: '0',
   idempotencyKey: '',
-  measuredAt: '',
   uploadUrl: '',
 };
 for (const env of ['local', 'staging'])
@@ -88,7 +87,7 @@ function write(
           .map((l) => '  ' + l)
           .join('\n') +
         '\n}\n'
-  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.2.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
+  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.3.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
   fs.writeFileSync(
     path.join(
       dir,
@@ -111,7 +110,6 @@ function referenceFolder(url) {
   if (route === '/me/account-deletion') return 'Account';
   if (route === '/me' || route === '/me/onboarding') return 'Profile';
   if (route === '/me/settings') return 'Settings';
-  if (route === '/me/measurements') return 'Measurements';
   if (route === '/me/food-preferences') return 'Food Preferences';
   if (route.startsWith('/me/injuries')) return 'Injuries';
   if (route.startsWith('/references/')) return 'References';
@@ -286,11 +284,11 @@ add(
     timezone: 'Africa/Cairo',
     locale: 'ar',
     date_of_birth: '1998-03-14',
-    initialMeasurement: { weight_kg: 80, measured_at: '{{measuredAt}}' },
+    weight_kg: 80,
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires age strictly greater than 18. Measurements never expire. Use current profile revision. Matching remains PENDING until F05.',
+    docs: 'Requires age strictly greater than 18. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -300,14 +298,6 @@ add('Patch settings', 'PATCH', '/me/settings', {
   theme: 'SYSTEM',
   quiet_hours: { start: '22:00', end: '07:00' },
 });
-add(
-  'Add measurement',
-  'POST',
-  '/me/measurements',
-  { weight_kg: 80, measured_at: '{{measuredAt}}' },
-  { status: 201, headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
-);
-add('Measurements', 'GET', '/me/measurements?limit=30&offset=0');
 add('Get food preferences', 'GET', '/me/food-preferences');
 add('Replace food preferences', 'PUT', '/me/food-preferences', {
   expectedRevision: 0,
@@ -403,7 +393,7 @@ smoke('Ready', 'GET', '/health/ready', undefined, { auth: false });
 smoke('Register ephemeral athlete', 'POST', '/auth/register', local, {
   auth: false,
   status: 201,
-  pre: '  bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");\n  bru.setVar("password", "Disposable-Bruno-Password-123");\n  bru.setVar("measuredAt", new Date().toISOString());',
+  pre: '  bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");\n  bru.setVar("password", "Disposable-Bruno-Password-123");',
   post: saveTokens,
 });
 smoke('Login', 'POST', '/auth/login', local, { auth: false, post: saveTokens });
@@ -418,14 +408,13 @@ smoke('Patch profile', 'PATCH', '/me', {
   timezone: 'Africa/Cairo',
   locale: 'en',
 });
-smoke(
-  'Add measurement',
-  'POST',
-  '/me/measurements',
-  { weight_kg: 80, measured_at: '{{measuredAt}}' },
-  { status: 201, headers: { 'Idempotency-Key': 'bruno-weight-001' } },
-);
-smoke('Measurement history', 'GET', '/me/measurements');
+smoke('Update current weight', 'PATCH', '/me', {
+  expectedRevision: 1,
+  weight_kg: 80,
+});
+smoke('Read current weight', 'GET', '/me', undefined, {
+  post: '  test("Current weight without measurement history",()=>{const b=res.getBody();expect(Number(b.profile.weight_kg)).to.equal(80);expect(b).not.to.have.property("latest_weight");expect(b.profile).not.to.have.property("measured_at");});',
+});
 smoke('Body areas', 'GET', '/references/body-areas');
 smoke('Allergens', 'GET', '/references/allergens');
 smoke(

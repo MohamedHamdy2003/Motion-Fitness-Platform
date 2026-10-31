@@ -1,11 +1,11 @@
 meta {
-  name: Add measurement
+  name: Update current weight
   type: http
-  seq: 26
+  seq: 6
 }
 
-post {
-  url: {{baseUrl}}/me/measurements
+patch {
+  url: {{baseUrl}}/me
   body: json
   auth: bearer
 }
@@ -14,24 +14,20 @@ auth:bearer {
   token: {{accessToken}}
 }
 
-headers {
-  Idempotency-Key: {{idempotencyKey}}
-}
-
 body:json {
   {
-    "weight_kg": 80,
-    "measured_at": "{{measuredAt}}"
+    "expectedRevision": 1,
+    "weight_kg": 80
   }
 }
 
 tests {
-  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

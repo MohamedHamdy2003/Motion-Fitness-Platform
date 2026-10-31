@@ -29,6 +29,7 @@ export const profileFields = {
     .regex(/^\+?[0-9 ()-]{6,30}$/)
     .nullable(),
   height_cm: z.number().positive().max(1000),
+  weight_kg: z.number().positive().max(10000),
   primary_goal: z.enum(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']),
   fitness_level: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
   training_days_per_week: z.union([
@@ -51,18 +52,11 @@ export const profilePatch = z
   .extend({ expectedRevision: z.number().int().nonnegative() })
   .strict()
   .refine((v) => Object.keys(v).length > 1);
-export const measurement = z
-  .object({
-    weight_kg: z.number().positive().max(10000),
-    measured_at: z.iso
-      .datetime({ offset: true })
-      .refine((v) => new Date(v) <= new Date()),
-  })
-  .strict();
 export const onboarding = z
   .object({
     name: profileFields.name,
     height_cm: profileFields.height_cm,
+    weight_kg: profileFields.weight_kg,
     primary_goal: profileFields.primary_goal,
     fitness_level: profileFields.fitness_level,
     training_days_per_week: profileFields.training_days_per_week,
@@ -70,7 +64,6 @@ export const onboarding = z
     locale: profileFields.locale,
     date_of_birth: date,
     expectedRevision: z.number().int().nonnegative(),
-    initialMeasurement: measurement,
   })
   .strict();
 export const injuryFields = {
@@ -117,16 +110,3 @@ export const listQuery = z
     offset: z.coerce.number().int().min(0).max(10000).default(0),
   })
   .strict();
-export const measurementQuery = listQuery
-  .extend({
-    from: z.iso.datetime({ offset: true }).optional(),
-    to: z.iso.datetime({ offset: true }).optional(),
-  })
-  .refine(
-    (v) =>
-      !v.from ||
-      !v.to ||
-      (new Date(v.to).valueOf() >= new Date(v.from).valueOf() &&
-        new Date(v.to).valueOf() - new Date(v.from).valueOf() <=
-          366 * 86400000),
-  );

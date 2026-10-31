@@ -1,11 +1,11 @@
 meta {
-  name: Measurements
+  name: List injuries
   type: http
-  seq: 27
+  seq: 28
 }
 
 get {
-  url: {{baseUrl}}/me/measurements?limit=30&offset=0
+  url: {{baseUrl}}/me/injuries?limit=30&offset=0
   body: none
   auth: bearer
 }
@@ -20,7 +20,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

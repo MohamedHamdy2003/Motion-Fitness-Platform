@@ -20,7 +20,6 @@ body:json {
 script:pre-request {
   bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");
   bru.setVar("password", "Disposable-Bruno-Password-123");
-  bru.setVar("measuredAt", new Date().toISOString());
 }
 
 script:post-response {
@@ -33,7 +32,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }

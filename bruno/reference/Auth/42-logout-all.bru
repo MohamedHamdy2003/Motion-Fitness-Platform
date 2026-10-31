@@ -1,17 +1,21 @@
 meta {
-  name: Matching status
+  name: Logout all
   type: http
-  seq: 39
+  seq: 42
 }
 
-get {
-  url: {{baseUrl}}/me/matching/status
-  body: none
+post {
+  url: {{baseUrl}}/auth/logout-all
+  body: json
   auth: bearer
 }
 
 auth:bearer {
   token: {{accessToken}}
+}
+
+body:json {
+  {}
 }
 
 tests {
@@ -20,7 +24,7 @@ tests {
 }
 
 docs {
-  Contract version: v1 / 0.2.0.
+  Contract version: v1 / 0.3.0.
   See docs/API_CONTRACT.md for response shapes and error codes.
   Never commit populated credentials or runtime tokens.
 }
