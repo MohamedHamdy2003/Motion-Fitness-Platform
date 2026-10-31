@@ -6,7 +6,7 @@ NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract 
 
 [دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
 
-The original [roadmap](Motion_Backend_Plan.md) and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
+The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.15, updated 2026-10-31) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
 
 ## Local setup
 
