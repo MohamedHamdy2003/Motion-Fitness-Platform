@@ -36,9 +36,6 @@ const schema = z.object({
   AI_REWRITE_URL: z.string().default(''),
   AI_SERVICE_TOKEN: z.string().default(''),
   AI_RETENTION_APPROVED: z.enum(['true', 'false']).default('false'),
-  MINIMUM_AGE: z.string().default(''),
-  BODY_FAT_METHODS: z.string().default(''),
-  MEASUREMENT_MAX_AGE_DAYS: z.string().default(''),
   DELETION_RETENTION_APPROVED: z.enum(['true', 'false']).default('false'),
   CORS_ORIGINS: z.string().default(''),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
@@ -85,8 +82,5 @@ export function environment(): Environment {
       !env.VERIFY_LINK_BASE)
   )
     throw new Error('SMTP configuration incomplete');
-  for (const name of ['MINIMUM_AGE', 'MEASUREMENT_MAX_AGE_DAYS'] as const)
-    if (env[name] && (!/^\d+$/.test(env[name]) || Number(env[name]) < 1))
-      throw new Error(`Invalid ${name}`);
   return env;
 }

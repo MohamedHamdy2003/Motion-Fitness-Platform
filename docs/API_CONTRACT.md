@@ -1,6 +1,6 @@
-# Motion API contract v1 / 0.1.0
+# Motion API contract v1 / 0.2.0
 
-All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height, weight and body fat; clients submit JSON numbers. UUIDs are server-generated. See [complete synthetic response/error examples](examples/responses.json).
+All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height and weight; clients submit JSON numbers. UUIDs are server-generated. See [complete synthetic response/error examples](examples/responses.json).
 
 Responses include `X-Request-Id` and `Cache-Control: no-store`. Client request IDs are not trusted. Error bodies are always:
 
@@ -71,28 +71,26 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 | PUT `/me/onboarding`      | `expectedRevision`, required profile fields below, `initialMeasurement` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
 | GET `/me/settings`        | —                                                                       | 200 `{reminders,theme,quiet_hours,version}`                                                          |
 | PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`         | 200 updated settings/version                                                                         |
-| POST `/me/measurements`   | `measured_at`, weight and/or body-fat fields                            | 201 measurement row                                                                                  |
+| POST `/me/measurements`   | required `weight_kg` and `measured_at`                                  | 201 measurement row                                                                                  |
 | GET `/me/measurements`    | `from`, `to` ISO timestamps; `limit`, `offset`                          | 200 `{items,limit,offset}`                                                                           |
 | GET `/me/matching/status` | —                                                                       | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
 
 All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `height_cm`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY.
 
-Onboarding requires name, height, primary goal, fitness level, training days, timezone, locale, date of birth and initial measurement containing weight. It updates the aggregate in one transaction. `503 ONBOARDING_POLICY_NOT_CONFIGURED` means minimum age/freshness approval is missing; no onboarding writes occur. Configured age/freshness failures return `422 AGE_NOT_ELIGIBLE` / `MEASUREMENT_TOO_OLD`. Values used by automated tests are fixtures only.
+Onboarding requires name, height, primary goal, fitness level, training days, timezone, locale, date of birth and initial measurement containing weight. It updates the aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Measurements never expire; backdated observations do not block onboarding. The former onboarding-policy configuration gate and MEASUREMENT_TOO_OLD rejection are removed.
 
 Measurement request:
 
 ```json
 {
   "weight_kg": 80.5,
-  "body_fat_percent": 21.4,
-  "body_fat_method": "BIA",
   "measured_at": "2026-10-30T10:00:00Z"
 }
 ```
 
-At least one value; body fat requires a method and vice versa. Weight and height positive; body fat strictly between 0 and 100; measurement cannot be in the future. Technical abuse bounds are 1000 cm and 10000 kg, not clinical acceptance ranges. Methods require approved configuration; unknown/unconfigured methods fail explicitly. Each accepted new measurement increments `profile_revision` and appends history. Backdated records are allowed; freshness checks apply at onboarding. History defaults to the last 366 days; a query cannot span more than 366 days. Pagination defaults 30, max 100, offset max 10000.
+Weight is required and positive; height is positive; measurement cannot be in the future. Technical abuse bounds are 1000 cm and 10000 kg, not clinical acceptance ranges. Each accepted new measurement increments `profile_revision` and appends history. Measurements have no expiry. History defaults to the last 366 days; this query window does not invalidate older records, which can be read in earlier bounded ranges. Pagination defaults 30, max 100, offset max 10000.
 
-`GET /me` returns `{user,profile,latest_weight,latest_body_fat,injuries,injury_revision,food_preferences,matching,measurement_freshness_policy_days}` under a repeatable-read snapshot. Latest non-null weight and body-fat are chosen **independently** by measurement date. Missing observations are null. `user` exposes id/email/verified_at only. Injuries/preferences remain separate tables. No BMI classifications, programs, billing entitlement or AI matching are fabricated.
+`GET /me` returns `{user,profile,latest_weight,injuries,injury_revision,food_preferences,matching,measurement_freshness_policy_days}` under a repeatable-read snapshot. Latest weight is chosen by measurement date; when no observation exists it is null. `user` exposes id/email/verified_at only. Injuries/preferences remain separate tables. No BMI classifications, programs, billing entitlement or AI matching are fabricated.
 
 Settings: `theme:SYSTEM|LIGHT|DARK`, reminders boolean, nullable `quiet_hours:{start:"22:00",end:"07:00"}`. These settings do not claim push delivery exists.
 
@@ -156,4 +154,4 @@ Profile/settings/preferences/injury changes use expected revisions/versions. On 
 
 ## Foundation
 
-Public GET `/health` → `{status:"ok",version:"0.1.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.
+Public GET `/health` → `{status:"ok",version:"0.2.0"}`; GET `/health/ready` checks DB and unapplied migrations. Ready does not imply external providers are connected: it separately reports `NOT_CONFIGURED`, `LOCAL_CAPTURE`, or `CONFIGURED_UNVERIFIED`. An outstanding DB migration/database failure returns 503 NOT_READY.

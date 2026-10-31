@@ -1,6 +1,10 @@
 # Motion API — F00–F02
 
-NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.1.0`. No Swagger/OpenAPI.
+NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.2.0`. No Swagger/OpenAPI.
+
+[شرح مبسط بالعربي لحالة المشروع والشغل المنفّذ](docs/PROJECT_PROGRESS_AR.md).
+
+[دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
 
 The original [roadmap](Motion_Backend_Plan.md) and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
 
@@ -27,7 +31,7 @@ npx tsx scripts/read-mail.ts athlete@example.test
 
 This command prints a private verification/reset link only to your local terminal. Never paste it into source control. `MAIL_MODE=disabled` returns `503 EMAIL_NOT_CONFIGURED` for delivery-dependent operations. Gmail SMTP and HTTPS Resend adapters are included; live delivery remains unverified until configured.
 
-No age cutoff or measurement policy is silently selected. Configure `MINIMUM_AGE`, `MEASUREMENT_MAX_AGE_DAYS` and `BODY_FAT_METHODS` only after approval. The test suite's values are fixtures, not product decisions. Profile drafts and injury entry can be tested independently; completed onboarding is gated until its policy is configured.
+Approved policy (2026-10-31): users must be strictly older than 18, checked using their birth date and timezone; with date-only birth data, eligibility starts the day after the 18th birthday. Measurements have no expiry and users add new observations themselves. `MINIMUM_AGE` and `MEASUREMENT_MAX_AGE_DAYS` are no longer configuration settings. Measurements currently collect weight only; height remains in the profile. See [latest decisions](docs/PRODUCT_DECISIONS_AR.md).
 
 ## Verification
 
@@ -58,6 +62,8 @@ AI tests use fixtures and make no paid model calls. Main CI checks both services
 ## Mobile integration
 
 Open `bruno/` in Bruno. `reference/` has every API operation, including configuration-blocked operations. `smoke/` is the automated local flow. Copy environment variables into a local-only environment; never commit tokens. Staging is intentionally an `.invalid` hostname until an actual deployment exists.
+
+Reference requests are grouped into `Auth`, `Profile`, `Settings`, `Measurements`, `Food Preferences`, `Injuries`, `References`, `Matching`, `Media`, `Account`, and `Health` folders. The `smoke/` requests retain their numbered order because later steps depend on earlier responses. `scripts/generate-bruno.cjs` preserves this layout when regenerating the collection.
 
 Read [API contracts and examples](docs/API_CONTRACT.md), [provider integration](docs/PROVIDER_INTEGRATION.md), and [free staging preparation](docs/STAGING.md). No client-developer messages have been sent.
 

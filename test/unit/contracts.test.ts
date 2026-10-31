@@ -35,20 +35,20 @@ describe('mobile contracts', () => {
       }).success,
     ).toBe(false);
   });
-  it('requires method with body fat, allows body fat independently', () => {
+  it('requires weight and rejects removed measurement fields', () => {
     expect(
       measurement.safeParse({
-        body_fat_percent: 20,
         measured_at: '2020-01-01T00:00:00Z',
       }).success,
     ).toBe(false);
     expect(
       measurement.safeParse({
+        weight_kg: 80,
         body_fat_percent: 20,
-        body_fat_method: 'SELF_REPORTED',
+        body_fat_method: 'BIA',
         measured_at: '2020-01-01T00:00:00Z',
       }).success,
-    ).toBe(true);
+    ).toBe(false);
   });
   it('requires explicit final injury confirmation', () => {
     expect(

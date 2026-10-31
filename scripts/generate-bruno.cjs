@@ -88,7 +88,7 @@ function write(
           .map((l) => '  ' + l)
           .join('\n') +
         '\n}\n'
-  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.1.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
+  }${pre ? '\nscript:pre-request {\n' + pre + '\n}\n' : ''}${post ? '\nscript:post-response {\n' + post + '\n}\n' : ''}\ntests {\n  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(${status}); });\n  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });\n${status >= 400 ? '  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });\n' : ''}}\n\ndocs {\n  Contract version: v1 / 0.2.0.\n  ${docs || 'See docs/API_CONTRACT.md for response shapes and error codes.'}\n  Never commit populated credentials or runtime tokens.\n}\n`;
   fs.writeFileSync(
     path.join(
       dir,
@@ -104,8 +104,26 @@ const saveTokens =
   '  const b = res.getBody(); if (b.accessToken) { bru.setVar("accessToken", b.accessToken); bru.setVar("refreshToken", b.refreshToken); }';
 const local = { email: '{{email}}', password: '{{password}}' };
 let n = 0;
+function referenceFolder(url) {
+  const route = url.split('?')[0];
+  if (route.startsWith('/health')) return 'Health';
+  if (route.startsWith('/auth/')) return 'Auth';
+  if (route === '/me/account-deletion') return 'Account';
+  if (route === '/me' || route === '/me/onboarding') return 'Profile';
+  if (route === '/me/settings') return 'Settings';
+  if (route === '/me/measurements') return 'Measurements';
+  if (route === '/me/food-preferences') return 'Food Preferences';
+  if (route.startsWith('/me/injuries')) return 'Injuries';
+  if (route.startsWith('/references/')) return 'References';
+  if (route.startsWith('/me/matching/')) return 'Matching';
+  if (route.startsWith('/media/')) return 'Media';
+  throw new Error(`Choose a Bruno reference folder for ${route}`);
+}
 const add = (name, method, url, body, opts = {}) =>
-  write('reference', name, method, url, body, { ...opts, seq: ++n });
+  write(`reference/${referenceFolder(url)}`, name, method, url, body, {
+    ...opts,
+    seq: ++n,
+  });
 add('Liveness', 'GET', '/health', undefined, { auth: false });
 add('Readiness', 'GET', '/health/ready', undefined, { auth: false });
 add('Register', 'POST', '/auth/register', local, {
@@ -272,7 +290,7 @@ add(
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires approved age/freshness policy. Use current profile revision. Matching remains PENDING until F05.',
+    docs: 'Requires age strictly greater than 18. Measurements never expire. Use current profile revision. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');

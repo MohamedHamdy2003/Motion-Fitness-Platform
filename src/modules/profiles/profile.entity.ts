@@ -25,9 +25,7 @@ export const MeasurementSchema = new EntitySchema({
     id: { type: 'uuid', primary: true },
     user_id: { type: 'uuid' },
     measured_at: { type: 'timestamptz' },
-    weight_kg: { type: 'numeric', nullable: true },
-    body_fat_percent: { type: 'numeric', nullable: true },
-    body_fat_method: { type: 'text', nullable: true },
+    weight_kg: { type: 'numeric' },
     created_at: { type: 'timestamptz' },
   },
 });
