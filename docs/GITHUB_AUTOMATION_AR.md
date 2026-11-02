@@ -22,7 +22,7 @@ git pull --ff-only origin main
 
 لو الملفات لم تظهر فورًا، أعد فتح المجموعة. يمكن استخدام Pull داخل Git UI في Bruno أيضًا. GitHub لا يدفع التغييرات تلقائيًا إلى تطبيق Bruno المفتوح؛ كل شخص يحتاج Pull.
 
-لإعداد السيرفر، انسخ `bruno/environments/staging.bru` إلى `bruno/environments/production.local.bru`، وعدل baseUrl إلى عنوان API الفعلي شامل `/api/v1`، ثم اختر هذه البيئة. اللاحقة `.local.bru` مستثناة من Git لحفظ إعداداتك والتوكنات محليًا. لا تحفظ أسرارًا في البيئة المشتركة ولا تستخدم force add لرفعها.
+`baseUrl` متغير على مستوى البيئة في كل طلبات المجموعة. اختار `local` للتشغيل المحلي أو `production` للسيرفر `https://13.49.114.20/api/v1`. بيئة `staging` تظل عنوانًا placeholder حتى تجهيز staging فعلي. قيم البريد والتوكنات في الملفات المشتركة فارغة؛ أدخل القيم محليًا أو أنشئ `production.local.bru`، واللاحقة `.local.bru` مستثناة من Git. لا تحفظ أسرارًا في البيئة المشتركة ولا تستخدم force add لرفعها.
 
 أي API جديدة لازم يتضاف لها request في Bruno مع نفس PR. أمر `npm run bruno:check` داخل CI يمنع الدمج لو أي route في controllers ليس له request. الفحص يغطي method/path؛ لا يولد أمثلة body تلقائيًا ولا يثبت صحة كل الحقول. ما زال CI يشغّل مجموعة smoke على قاعدة اختبار ورسائل capture. لا تشغّل smoke على الإنتاج.
 

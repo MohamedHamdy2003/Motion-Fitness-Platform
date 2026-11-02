@@ -39,7 +39,7 @@ const variables = {
   idempotencyKey: '',
   uploadUrl: '',
 };
-for (const env of ['local', 'staging'])
+for (const env of ['local', 'staging', 'production'])
   fs.writeFileSync(
     path.join(root, 'environments', env + '.bru'),
     'vars {\n' +
@@ -48,7 +48,9 @@ for (const env of ['local', 'staging'])
         baseUrl:
           env === 'local'
             ? variables.baseUrl
-            : 'https://configure-staging-host.invalid/api/v1',
+            : env === 'staging'
+              ? 'https://configure-staging-host.invalid/api/v1'
+              : 'https://13.49.114.20/api/v1',
       })
         .map(([k, v]) => `  ${k}: ${v}`.trimEnd())
         .join('\n') +
