@@ -1,4 +1,4 @@
-# Motion API contract v1 / 0.3.0
+# Motion API contract v1 / 0.4.0
 
 All routes below use `/api/v1`. JSON request objects reject unknown keys; no client-supplied user IDs or roles. All protected requests use `Authorization: Bearer <accessToken>`. Timestamps are ISO 8601 UTC; date of birth is `YYYY-MM-DD`. PostgreSQL decimal values in responses are **decimal strings**, including height and weight; clients submit JSON numbers. UUIDs are server-generated. See [complete synthetic response/error examples](examples/responses.json).
 
@@ -13,7 +13,7 @@ Responses include `X-Request-Id` and `Cache-Control: no-store`. Client request I
 }
 ```
 
-Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes in `details`; rejected values and raw provider errors are excluded. Common errors: `401 UNAUTHENTICATED`, `SESSION_REVOKED`, `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`; `403 FRESH_REAUTHENTICATION_REQUIRED`; `404 NOT_FOUND`; `409 CONFLICT`, `REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`; `429 RATE_LIMITED`; `503 *_NOT_CONFIGURED`. Internal failures return `500 INTERNAL_ERROR` without SQL, tokens or sensitive text.
+Validation errors return `400 VALIDATION_ERROR`, with paths and validation codes in `details`; rejected values and raw provider errors are excluded. Common errors: `401 UNAUTHENTICATED`, `SESSION_REVOKED`, `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`; `403 FRESH_REAUTHENTICATION_REQUIRED`; `404 NOT_FOUND`; `409 CONFLICT`, `EMAIL_ALREADY_REGISTERED` (`Email already registered` from `POST /auth/register`), `REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`; `429 RATE_LIMITED`; `503 *_NOT_CONFIGURED`. Internal failures return `500 INTERNAL_ERROR` without SQL, tokens or sensitive text.
 
 ## Authentication
 

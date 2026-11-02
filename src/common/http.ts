@@ -35,7 +35,7 @@ export class ErrorFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const req = http.getRequest<ApiRequest>();
     const res = http.getResponse<Response>();
-    const pg = error as { code?: string; type?: string };
+    const pg = error as { code?: string; type?: string; constraint?: string };
     const status =
       error instanceof HttpException
         ? error.getStatus()
@@ -50,19 +50,25 @@ export class ErrorFilter implements ExceptionFilter {
       code:
         error instanceof ApiError
           ? error.code
-          : pg.code === '23505'
-            ? 'CONFLICT'
-            : status === 404
-              ? 'NOT_FOUND'
-              : status === 500
-                ? 'INTERNAL_ERROR'
-                : 'REQUEST_REJECTED',
+          : pg.code === '23505' &&
+              pg.constraint === 'users_email_normalized_key'
+            ? 'EMAIL_ALREADY_REGISTERED'
+            : pg.code === '23505'
+              ? 'CONFLICT'
+              : status === 404
+                ? 'NOT_FOUND'
+                : status === 500
+                  ? 'INTERNAL_ERROR'
+                  : 'REQUEST_REJECTED',
       message:
         error instanceof ApiError
           ? error.message
-          : status === 500
-            ? 'Request could not be completed'
-            : 'Request rejected',
+          : pg.code === '23505' &&
+              pg.constraint === 'users_email_normalized_key'
+            ? 'Email already registered'
+            : status === 500
+              ? 'Request could not be completed'
+              : 'Request rejected',
       details: error instanceof ApiError ? error.details : null,
       requestId: req.requestId,
     });
