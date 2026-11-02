@@ -26,11 +26,11 @@ git pull --ff-only origin main
 
 أي API جديدة لازم يتضاف لها request في Bruno مع نفس PR. أمر `npm run bruno:check` داخل CI يمنع الدمج لو أي route في controllers ليس له request. الفحص يغطي method/path؛ لا يولد أمثلة body تلقائيًا ولا يثبت صحة كل الحقول. ما زال CI يشغّل مجموعة smoke على قاعدة اختبار ورسائل capture. لا تشغّل smoke على الإنتاج.
 
-## GitHub Actions إلى EC2 عبر SSM وOIDC
+## GitHub Actions إلى EC2 عبر SSM ومستخدم IAM مخصص
 
 بعد push إلى main، Green CI يشغل backend-checks وprivate-ai-checks. بعد نجاح الاثنين يبدأ Deploy EC2 لنفس commit. PR وdev لا ينشران. يتم تخطي commit قديم إذا تقدم main، ومنع تداخل عمليات النشر، وعدم إلغاء نشر جارٍ بسبب push جديد.
 
-GitHub يحصل على صلاحية مؤقتة عبر OIDC ثم يرسل أمر AWS Systems Manager. لا تحتاج SSH Secrets أو AWS Access Keys في GitHub، ويظل port 22 مقصورًا على My IP. المستخدم على EC2 هو ec2-user؛ السكربت يخفض صلاحيات SSM من root إلى هذا المستخدم قبل Git وDocker.
+حساب AWS الحالي يحجب Identity Providers خلف Advanced features، لذلك يستخدم GitHub مفاتيح مستخدم IAM مخصص لإرسال أمر AWS Systems Manager. تحفظ المفاتيح في Environment Secrets، ويظل port 22 مقصورًا على My IP. لا يحتاج هذا المسار إعداد OIDC أو ترقية الحساب من أجل Identity Providers. المستخدم على EC2 هو ec2-user؛ السكربت يخفض صلاحيات SSM من root إلى هذا المستخدم قبل Git وDocker.
 
 الإعداد المؤكد:
 
@@ -56,41 +56,37 @@ sudo journalctl -u amazon-ssm-agent --since "2 minutes ago" --no-pager -l
 
 افتح Systems Manager → Fleet Manager في eu-north-1 وتأكد من ظهور instance بحالة Online. إذا استمر الخطأ، راجع النص الكامل والصلاحيات ووجود اتصال HTTPS outbound على 443 إلى endpoints الخاصة بـssm وssmmessages في المنطقة. لا تحتاج فتح inbound جديد.
 
-### 2. تعريف GitHub داخل IAM
+### 2. مستخدم IAM خاص بالنشر
 
-IAM → Identity providers → Add provider:
+IAM → IAM users → Create user، الاسم: motion-github-deploy. لا تفعّل Console access ولا ترفق AdministratorAccess. أكمل الإنشاء بدون صلاحيات واسعة.
 
-- Provider type: OpenID Connect.
-- Provider URL: `https://token.actions.githubusercontent.com`.
-- Audience: `sts.amazonaws.com`.
+افتح المستخدم → Permissions → Add permissions → Create inline policy → JSON. الصق محتوى [سياسة SSM](../deployment/github-ssm-policy.json)، وسمّها MotionDeploySSM.
 
-لو provider موجود بالفعل، استخدمه ولا تنشئ نسخة ثانية.
+السياسة تسمح بإرسال AWS-RunShellScript إلى instance المشروع المحدد وقراءة نتيجة الأمر. المستخدم يستطيع تشغيل أوامر على هذا السيرفر، لذلك مفاتيحه أسرار نشر مهمة. GetCommandInvocation يستخدم Resource * لقراءة نتيجة الأوامر. لا تحتاج إنشاء MotionGitHubDeployRole أو Identity provider؛ ملف github-oidc-trust.json خاص بمسار OIDC المؤجل ولا يستخدمه workflow الحالي.
 
-### 3. Role خاص بـGitHub
+### 3. إنشاء مفتاح النشر
 
-هذا Role مختلف عن الـRole المرتبط بـEC2:
+داخل المستخدم → Security credentials → Access keys → Create access key. اختر Application running outside AWS إن ظهر، ثم أكمل الإقرار والوصف وأنشئ المفتاح.
 
-1. IAM → Roles → Create role → Custom trust policy.
-2. الصق محتوى `deployment/github-oidc-trust.json`.
-3. اسم الدور: `MotionGitHubDeployRole`، بدون إرفاق صلاحيات Administrator.
-4. افتح الدور → Permissions → Add permissions → Create inline policy → JSON.
-5. الصق محتوى `deployment/github-ssm-policy.json` وسمّ السياسة `MotionDeploySSM`.
-
-الـtrust يسمح للمستودع المحدد وبيئة production فقط. صلاحية SendCommand مقيدة بالـinstance الحالي وAWS-RunShellScript. GetCommandInvocation يستخدم Resource * لقراءة نتيجة الأمر؛ هذه العملية لا تدعم تقييد resource بنفس شكل SendCommand. هذا الدور يستطيع تشغيل أوامر على السيرفر المحدد، لذا يجب أن تبقى بيئة production مقصورة على main.
+انقل Access key ID وSecret access key مباشرة إلى GitHub Secrets في الخطوة التالية. لا ترسلهما في المحادثة أو تحفظهما في ملفات المشروع أو على EC2. Secret access key يظهر مرة واحدة؛ خزّن نسخة احتياطية في مدير كلمات مرور إذا احتجتها. لا تستخدم مفاتيح root.
 
 ### 4. إعدادات GitHub
 
 تم إنشاء بيئة production وضبط branch policy لتسمح بـmain فقط. متغيراتها:
 
-| الاسم               | القيمة                                                |
-| ------------------- | ----------------------------------------------------- |
-| AWS_REGION          | eu-north-1                                            |
-| EC2_INSTANCE_ID     | i-04f68383f87a22a33                                   |
-| AWS_DEPLOY_ROLE_ARN | arn:aws:iam::290181458132:role/MotionGitHubDeployRole |
-| EC2_USER            | ec2-user                                              |
-| EC2_PROJECT_PATH    | /home/ec2-user/Motion-Fitness-Platform                |
+| الاسم            | القيمة                                 |
+| ---------------- | -------------------------------------- |
+| AWS_REGION       | eu-north-1                             |
+| EC2_INSTANCE_ID  | i-04f68383f87a22a33                    |
+| EC2_USER         | ec2-user                               |
+| EC2_PROJECT_PATH | /home/ec2-user/Motion-Fitness-Platform |
 
-تسجيل ARN في GitHub لا ينشئ Role في AWS؛ لازم تنفذ الخطوة السابقة. EC2_HOST لم يعد مطلوبًا للنشر عبر SSM. مفاتيح SSH التي ذكرها الإصدار السابق من الدليل لم تعد مطلوبة.
+داخل Settings → Environments → production → Environment secrets أضف:
+
+- AWS_ACCESS_KEY_ID: قيمة Access key ID.
+- AWS_SECRET_ACCESS_KEY: قيمة Secret access key.
+
+متغير AWS_DEPLOY_ROLE_ARN القديم غير مستخدم، وكذلك EC2_HOST. لا تحتاج SSH Secrets. احتفظ بدور EC2 وصلاحيات S3 وSSM الحالية كما هي. عند تدوير المفتاح، أنشئ مفتاحًا بديلًا وحدّث الـSecrets واختبر النشر قبل تعطيل القديم؛ لا تترك مفاتيح غير مستخدمة فعّالة.
 
 ### 5. نقل تعديلات Caddy المحلية مرة واحدة
 
@@ -139,5 +135,5 @@ Actions يطبع command ID وحالته فقط. عند الفشل راجع Syst
 - [Bruno: مشاركة المجموعات وتحديثها عبر Git](https://blog.usebruno.com/share-bruno-collections).
 - [AWS: صلاحيات SSM للـinstance](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html).
 - [AWS: تشخيص اتصال SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-ssm-agent.html).
-- [GitHub: اتصال AWS عبر OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws).
+- [AWS: إدارة مفاتيح IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
 - [Caddy: إعداد TLS وACME](https://caddyserver.com/docs/caddyfile/directives/tls).

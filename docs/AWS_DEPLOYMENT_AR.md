@@ -1,6 +1,6 @@
 # نشر Motion على AWS EC2 + RDS + S3
 
-تحديث 2 نوفمبر 2026: المستخدم أكد نشر التطبيق وتشغيل EC2 وRDS وS3 وأرسل إعدادات Caddy لشهادة IP. أُدرجت في Caddy.aws وCompose. الربط التلقائي عبر SSM وOIDC موضح في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md)، ولم يتم التحقق من أول نشر عبر Actions بعد.
+تحديث 2 نوفمبر 2026: المستخدم أكد نشر التطبيق وتشغيل EC2 وRDS وS3 وأرسل إعدادات Caddy لشهادة IP. أُدرجت في Caddy.aws وCompose. الربط التلقائي عبر SSM ومستخدم IAM مخصص موضح في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md)، ولم يتم التحقق من أول نشر عبر Actions بعد.
 
 تحديث 1 نوفمبر 2026: المستخدم جهز الخدمات واختبر اتصال EC2 بـRDS وS3. الملفات هنا تجهز نشر التطبيق؛ لم يتم الدخول إلى السيرفر أو نشر Motion من هذه المحادثة. Oracle وNeon لم يعودا هدف النشر الحالي.
 
@@ -90,7 +90,7 @@ bash deployment/deploy-aws.sh "$(git rev-parse HEAD)"
 
 الترقية على حاوية واحدة قد تسبب انقطاعًا قصيرًا؛ ليست zero-downtime. الرجوع للصورة السابقة لا يرجع migrations؛ صمم تغييرات DB متوافقة مع الإصدار السابق واستخدم snapshot/backup قبل تغييرات مدمرة. على أول نشر، الفشل يوقف الحاوية غير الجاهزة.
 
-GitHub Actions ينشر main بعد نجاح اختبارات نفس SHA، عبر AWS SSM وOIDC، بدون SSH Keys. بيانات RDS وSMTP تظل في .env.aws على EC2. راجع دليل GitHub لإعداد IAM وSSM. لا تطبع env أو docker compose config دون --quiet. لا يعمل كود PR على سيرفر الإنتاج.
+GitHub Actions ينشر main بعد نجاح اختبارات نفس SHA، عبر AWS SSM ومستخدم IAM مخصص، بدون SSH Keys. بيانات RDS وSMTP تظل في .env.aws على EC2. راجع دليل GitHub لإعداد IAM وSSM. لا تطبع env أو docker compose config دون --quiet. لا يعمل كود PR على سيرفر الإنتاج.
 
 ## التحقق بعد النشر
 

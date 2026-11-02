@@ -95,18 +95,18 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: read
-      id-token: write
     concurrency:
       group: motion-production
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Authenticate to AWS with OIDC
+      - name: Authenticate with the dedicated deployment IAM user
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: motion-deploy-${{ github.run_id }}
+          allowed-account-ids: '290181458132'
       - name: Deploy the tested commit through SSM
         env:
           EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
