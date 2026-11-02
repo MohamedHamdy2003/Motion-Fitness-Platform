@@ -24,13 +24,14 @@ class DeploymentTest(unittest.TestCase):
     def test_payload_runs_exact_script_as_app_user(self):
         payload = deploy.command_payload()
         command = shlex.split(payload["Parameters"]["commands"][0])
-        self.assertEqual(command[:6], ["runuser", "-u", "ec2-user", "--", "bash", "-c"])
-        encoded = command[6].split("printf %s ", 1)[1].split(" |", 1)[0]
+        self.assertEqual(command[:7], ["setpriv", "--reuid", "ec2-user", "--regid", "ec2-user", "--init-groups", "bash"])
+        self.assertEqual(command[7], "-c")
+        encoded = command[8].split("printf %s ", 1)[1].split(" |", 1)[0]
         self.assertEqual(
             base64.b64decode(encoded),
             Path(__file__).with_name("update-aws.sh").read_bytes(),
         )
-        self.assertIn("bash -s -- " + ENV["GITHUB_SHA"], command[6])
+        self.assertIn("bash -s -- " + ENV["GITHUB_SHA"], command[8])
         self.assertEqual(payload["InstanceIds"], [ENV["EC2_INSTANCE_ID"]])
 
     @patch.dict("os.environ", {**ENV, "EC2_PROJECT_PATH": "/tmp/x;id"})
