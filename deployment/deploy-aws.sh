@@ -11,6 +11,8 @@ if [[ -n "${1:-}" && "$revision" != "$1" ]]; then echo 'Checkout does not match 
 export MOTION_IMAGE="motion-api:$revision"
 compose=(docker compose --project-name motion-aws --env-file .env.aws -f deployment/compose.aws.yaml)
 "${compose[@]}" config --quiet
+# Validate the proxy configuration before migrating or replacing the API.
+"${compose[@]}" run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 previous=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q api)" 2>/dev/null || true)
 docker build --tag "$MOTION_IMAGE" .
 # Migrate before replacing the running API. Schema changes must be backward-compatible.
@@ -25,5 +27,8 @@ if ! "${compose[@]}" up --detach --wait --wait-timeout 150 api; then
   fi
   exit 1
 fi
+"${compose[@]}" up --detach --wait --wait-timeout 60 caddy
+# A bind-mounted configuration can change without Compose recreating the container.
+"${compose[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 printf '%s\n' "$revision" > .local/aws-deployed-revision
 printf 'Deployment ready: %s\n' "$revision"
