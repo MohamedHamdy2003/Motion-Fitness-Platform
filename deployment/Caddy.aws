@@ -1,0 +1,16 @@
+{
+	default_sni {$API_DOMAIN:13.49.114.20}
+}
+
+{$API_DOMAIN:13.49.114.20} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+
+	reverse_proxy api:3100
+	header {
+		-Server
+	}
+}
