@@ -24,7 +24,7 @@ def command_payload():
     checkout = required("EC2_PROJECT_PATH", r"/[a-zA-Z0-9_./-]+")
     script = Path(__file__).with_name("update-aws.sh").read_bytes()
     encoded = base64.b64encode(script).decode("ascii")
-    # Run Command starts as root. Git/Docker and files must remain owned by ec2-user.
+    # Avoid a PAM systemd user session, which adds overhead on small EC2 instances.
     shell = (
         "set -Eeuo pipefail; "
         f"printf %s {shlex.quote(encoded)} | base64 --decode | "
@@ -34,11 +34,13 @@ def command_payload():
         "InstanceIds": [instance],
         "DocumentName": "AWS-RunShellScript",
         "Comment": f"Motion main {revision}",
-        "TimeoutSeconds": 120,
+        "TimeoutSeconds": 900,
         "Parameters": {
             "executionTimeout": ["1500"],
             "commands": [
-                "runuser -u " + shlex.quote(user) + " -- bash -c " + shlex.quote(shell)
+                "setpriv --reuid " + shlex.quote(user)
+                + " --regid " + shlex.quote(user)
+                + " --init-groups bash -c " + shlex.quote(shell)
             ],
         },
     }
