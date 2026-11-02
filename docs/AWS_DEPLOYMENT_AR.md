@@ -39,7 +39,7 @@ docker run --rm hello-world
 
 إصدار Compose مثبت حسب [تعليمات Docker الحالية](https://docs.docker.com/compose/install/linux/)؛ التثبيت اليدوي يحتاج تحديثًا يدويًا لاحقًا.
 
-لا يوجد Domain. المستخدم أضاف Caddy للـIP العام 13.49.114.20 باستخدام ACME profile shortlived؛ الإعداد محفوظ الآن في Caddy.aws. يجب بقاء IP ثابتًا والمنافذ 80/443 متاحة لإصدار الشهادة وتجديدها، مع الحفاظ على caddy_data. لم نتحقق من الشهادة الحية من هذه المحادثة. [توثيق Let's Encrypt لشهادات IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability).
+لا يوجد Domain. المستخدم أضاف Caddy للـIP العام 13.49.114.20 باستخدام ACME profile shortlived؛ الإعداد محفوظ الآن في Caddy.aws. يجب بقاء IP ثابتًا والمنافذ 80/443 متاحة لإصدار الشهادة وتجديدها، مع الحفاظ على caddy_data. تم اختبار رابط health/ready عبر HTTPS مع التحقق من الشهادة في 2 نوفمبر 2026، ونجح بحالة ready وdatabase CONNECTED؛ هذا لا يثبت SMTP أو OAuth. [توثيق Let's Encrypt لشهادات IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability).
 
 ## أول إعداد
 

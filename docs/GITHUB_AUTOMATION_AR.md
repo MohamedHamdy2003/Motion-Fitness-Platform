@@ -38,7 +38,7 @@ GitHub يحصل على صلاحية مؤقتة عبر OIDC ثم يرسل أمر 
 - Region: `eu-north-1`؛ `eu-north-1a` هي Availability Zone وليست Region.
 - Instance: `i-04f68383f87a22a33`.
 - Project: `/home/ec2-user/Motion-Fitness-Platform`.
-- Public API: `https://13.49.114.20/api/v1`؛ شهادة HTTPS تحتاج تحققًا فعليًا بعد الإعداد.
+- Public API: `https://13.49.114.20/api/v1`؛ تم اختبار health/ready عبر HTTPS مع التحقق من الشهادة في 2 نوفمبر 2026: ready وdatabase CONNECTED.
 - بيانات التطبيق في `.env.aws` وشهادة RDS في `.local/rds-ca.pem` على السيرفر فقط.
 
 ### 1. إصلاح اتصال SSM
