@@ -2,6 +2,8 @@
 
 [ربط Bruno بـGitHub وإعداد النشر التلقائي إلى EC2](docs/GITHUB_AUTOMATION_AR.md).
 
+[جدول APIs المنفّذة وما يلزم لاختبارها فعليًا](docs/APIS_ACTUAL_AR.md).
+
 [أوامر التشغيل لفريق الموبايل من main](docs/MOBILE_LOCAL_SETUP_AR.md).
 
 [تشغيل OTP والناقص لإعداد Google وApple](docs/OTP_OAUTH_SETUP_AR.md).
