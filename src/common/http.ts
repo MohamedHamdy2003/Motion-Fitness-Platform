@@ -35,7 +35,7 @@ export class ErrorFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const req = http.getRequest<ApiRequest>();
     const res = http.getResponse<Response>();
-    const pg = error as { code?: string; type?: string };
+    const pg = error as { code?: string; type?: string; constraint?: string };
     const status =
       error instanceof HttpException
         ? error.getStatus()
