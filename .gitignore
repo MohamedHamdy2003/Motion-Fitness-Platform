@@ -9,3 +9,4 @@ coverage/
 bruno/environments/*.local.bru
 ai-service/node_modules/
 ai-service/dist/
+__pycache__/

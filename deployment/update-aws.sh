@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Invoked over SSH by CI; parameters are validated before use.
+# Invoked as ec2-user through SSM by CI; parameters are validated before use.
 set -Eeuo pipefail
 revision=${1:?Expected commit SHA}
 checkout=${2:?Absolute checkout path}

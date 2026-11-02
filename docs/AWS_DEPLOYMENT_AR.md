@@ -1,6 +1,6 @@
 # نشر Motion على AWS EC2 + RDS + S3
 
-تحديث 2 نوفمبر 2026: المستخدم أكد نشر التطبيق وتشغيل EC2 وRDS وS3. إعداد الربط التلقائي التالي موضح في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md)، ولم يتم التحقق من أول نشر عبر Actions بعد.
+تحديث 2 نوفمبر 2026: المستخدم أكد نشر التطبيق وتشغيل EC2 وRDS وS3 وأرسل إعدادات Caddy لشهادة IP. أُدرجت في Caddy.aws وCompose. الربط التلقائي عبر SSM وOIDC موضح في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md)، ولم يتم التحقق من أول نشر عبر Actions بعد.
 
 تحديث 1 نوفمبر 2026: المستخدم جهز الخدمات واختبر اتصال EC2 بـRDS وS3. الملفات هنا تجهز نشر التطبيق؛ لم يتم الدخول إلى السيرفر أو نشر Motion من هذه المحادثة. Oracle وNeon لم يعودا هدف النشر الحالي.
 
@@ -39,7 +39,7 @@ docker run --rm hello-world
 
 إصدار Compose مثبت حسب [تعليمات Docker الحالية](https://docs.docker.com/compose/install/linux/)؛ التثبيت اليدوي يحتاج تحديثًا يدويًا لاحقًا.
 
-المستخدم أكد عدم وجود Domain أو HTTPS حتى الآن، ووجود Public IP ومنافذ 80/443 مفتوحة. فتح المنافذ لا ينشئ شهادة. يمكن إصدار شهادة IP موثوقة بدون شراء domain، لكن يجب إعداد ACME والتجديد الآلي وproxy والتحقق من ثبات IP؛ لم يتم تنفيذ ذلك على EC2 بعد. [توثيق Let's Encrypt لشهادات IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability).
+لا يوجد Domain. المستخدم أضاف Caddy للـIP العام 13.49.114.20 باستخدام ACME profile shortlived؛ الإعداد محفوظ الآن في Caddy.aws. يجب بقاء IP ثابتًا والمنافذ 80/443 متاحة لإصدار الشهادة وتجديدها، مع الحفاظ على caddy_data. لم نتحقق من الشهادة الحية من هذه المحادثة. [توثيق Let's Encrypt لشهادات IP](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability).
 
 ## أول إعداد
 
@@ -68,9 +68,9 @@ chmod 644 .local/rds-ca.pem
 
 ## الوصول والـHTTPS
 
-الافتراضي API_BIND_ADDRESS=127.0.0.1 وAPI_HOST_PORT=3100. هذا مناسب لـreverse proxy على نفس EC2؛ لا يجعل التطبيق متاحًا للموبايل من الإنترنت بمفرده. لو تختبر باستخدام IP مباشرة يمكن تغيير bind إلى 0.0.0.0 والسماح بمنفذ 3100 لمصادر الاختبار في Security Group؛ هذا HTTP فقط. HTTPS عام موثوق يحتاج إعدادًا منفصلًا حسب اختيارك (proxy أو load balancer وشهادة). لا يوجد ادعاء أن IP HTTPS أصبح جاهزًا.
+Compose يشغّل Caddy على 80 و443، ويمنع نشر port 3100 مباشرة على المضيف. API_DOMAIN يحدد IP العام المستخدم في Caddy.aws، والافتراضي 13.49.114.20. إعدادا API_BIND_ADDRESS وAPI_HOST_PORT القديمان لم يعودا مستخدمين في AWS Compose.
 
-TRUST_PROXY=false افتراضيًا. فعّله فقط عند ضبط proxy موثوق ومنع الوصول المباشر الذي يسمح بتزوير عنوان العميل.
+AWS Compose يفرض TRUST_PROXY=true لوجود Caddy كوسيط واحد وعدم نشر API مباشرة. لا تضف مسار وصول مباشر أو proxy إضافيًا دون مراجعة هذا الإعداد.
 
 ## أمر النشر الذي ستستدعيه GitHub Actions
 
@@ -86,16 +86,16 @@ bash deployment/deploy-aws.sh "$(git rev-parse HEAD)"
 2. يبني image باسم motion-api:COMMIT_SHA على EC2.
 3. يشغّل migrations وseed:lookups مرة واحدة تحت قفل قاعدة البيانات، قبل استبدال التطبيق.
 4. يشغّل الحاوية وينتظر health/ready. عند فشل الجاهزية يحاول إعادة الصورة السابقة ويخرج بكود فشل.
-5. يسجل آخر commit ناجح في .local/aws-deployed-revision. لا يحذف الصور القديمة تلقائيًا.
+5. يشغّل Caddy ويعيد تحميل إعداداته ثم يسجل آخر commit ناجح في .local/aws-deployed-revision. يتحقق من صحة Caddy config قبل البناء؛ فشل proxy لا يعيد قاعدة البيانات أو إعدادات Caddy القديمة تلقائيًا. لا يحذف الصور القديمة تلقائيًا.
 
 الترقية على حاوية واحدة قد تسبب انقطاعًا قصيرًا؛ ليست zero-downtime. الرجوع للصورة السابقة لا يرجع migrations؛ صمم تغييرات DB متوافقة مع الإصدار السابق واستخدم snapshot/backup قبل تغييرات مدمرة. على أول نشر، الفشل يوقف الحاوية غير الجاهزة.
 
-لـGitHub Actions التي تجهزها: استهدف main، انتظر نجاح Green CI على نفس SHA قبل النشر، استخدم concurrency للنشر، وتحقق من SSH host key. مفاتيح SSH إن استخدمتها تكون GitHub Secrets؛ بيانات RDS وSMTP تفضل محفوظة في .env.aws على EC2. لا تطبع env أو docker compose config دون --quiet. لا تجعل checkout غير موثوق من PR يعمل على سيرفر الإنتاج.
+GitHub Actions ينشر main بعد نجاح اختبارات نفس SHA، عبر AWS SSM وOIDC، بدون SSH Keys. بيانات RDS وSMTP تظل في .env.aws على EC2. راجع دليل GitHub لإعداد IAM وSSM. لا تطبع env أو docker compose config دون --quiet. لا يعمل كود PR على سيرفر الإنتاج.
 
 ## التحقق بعد النشر
 
 ```bash
-curl --fail http://127.0.0.1:3100/api/v1/health/ready
+curl --fail https://13.49.114.20/api/v1/health/ready
 MOTION_IMAGE="motion-api:$(cat .local/aws-deployed-revision)" docker compose --project-name motion-aws --env-file .env.aws -f deployment/compose.aws.yaml ps
 ```
 

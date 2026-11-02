@@ -26,86 +26,118 @@ git pull --ff-only origin main
 
 أي API جديدة لازم يتضاف لها request في Bruno مع نفس PR. أمر `npm run bruno:check` داخل CI يمنع الدمج لو أي route في controllers ليس له request. الفحص يغطي method/path؛ لا يولد أمثلة body تلقائيًا ولا يثبت صحة كل الحقول. ما زال CI يشغّل مجموعة smoke على قاعدة اختبار ورسائل capture. لا تشغّل smoke على الإنتاج.
 
-## GitHub Actions إلى EC2
+## GitHub Actions إلى EC2 عبر SSM وOIDC
 
 بعد push إلى main، Green CI يشغل backend-checks وprivate-ai-checks. بعد نجاح الاثنين يبدأ Deploy EC2 لنفس commit. PR وdev لا ينشران. يتم تخطي commit قديم إذا تقدم main، ومنع تداخل عمليات النشر، وعدم إلغاء نشر جارٍ بسبب push جديد.
 
-النشر الحالي يعتمد على Docker وملف `.env.aws` وشهادة `.local/rds-ca.pem` الموجودين بالفعل داخل مجلد المشروع على السيرفر. لو شغّلت التطبيق بطريقة مختلفة، طابقها أولًا قبل تفعيل هذا المسار. يتطلب checkout نظيفًا؛ لا يحذف تعديلاتك أو أسرار السيرفر.
+GitHub يحصل على صلاحية مؤقتة عبر OIDC ثم يرسل أمر AWS Systems Manager. لا تحتاج SSH Secrets أو AWS Access Keys في GitHub، ويظل port 22 مقصورًا على My IP. المستخدم على EC2 هو ec2-user؛ السكربت يخفض صلاحيات SSM من root إلى هذا المستخدم قبل Git وDocker.
 
-### 1. مفتاح خاص بالنشر
+الإعداد المؤكد:
 
-على جهازك الشخصي، أنشئ مفتاحًا جديدًا في مسار غير مستخدم، واترك passphrase فارغة حتى يعمل بدون إدخال تفاعلي:
+- AWS account: `290181458132`.
+- Region: `eu-north-1`؛ `eu-north-1a` هي Availability Zone وليست Region.
+- Instance: `i-04f68383f87a22a33`.
+- Project: `/home/ec2-user/Motion-Fitness-Platform`.
+- Public API: `https://13.49.114.20/api/v1`؛ شهادة HTTPS تحتاج تحققًا فعليًا بعد الإعداد.
+- بيانات التطبيق في `.env.aws` وشهادة RDS في `.local/rds-ca.pem` على السيرفر فقط.
 
-```bash
-ssh-keygen -t ed25519 -f motion-actions -C motion-github-actions
-```
+### 1. إصلاح اتصال SSM
 
-على EC2، افتح الملف التالي وأضف محتوى `motion-actions.pub` في سطر جديد:
+وجود agent running لا يعني أن السيرفر Online في Systems Manager. السجل المرسل يتضمن أخطاء EC2RoleProvider وUpdateInstanceInformation لكنه مختصر؛ لا يمكن الجزم بالسبب من النص وحده.
 
-```bash
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-nano ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-```
+من EC2 → Instances → اختر instance → Security → افتح IAM Role المرتبط به. داخل IAM → Permissions → Add permissions → Attach policies، أضف `AmazonSSMManagedInstanceCore` إذا لم تكن موجودة. حافظ على صلاحيات S3 الحالية ولا تستبدل الـRole.
 
-مستخدم ec2-user يحتاج صلاحية Docker والكتابة لمجلد المشروع. المفتاح الخاص `motion-actions` يوضع فقط في GitHub Secret المذكور لاحقًا، ولا يرفع داخل المشروع.
-
-### 2. التحقق من هوية السيرفر
-
-من جلسة EC2 الموثوقة شغّل:
+على EC2:
 
 ```bash
-sudo cat /etc/ssh/ssh_host_ed25519_key.pub
+sudo systemctl restart amazon-ssm-agent
+sudo journalctl -u amazon-ssm-agent --since "2 minutes ago" --no-pager -l
 ```
 
-كوّن سطر known_hosts باستخدام نفس الـIP أو hostname الذي ستضعه في EC2_HOST:
+افتح Systems Manager → Fleet Manager في eu-north-1 وتأكد من ظهور instance بحالة Online. إذا استمر الخطأ، راجع النص الكامل والصلاحيات ووجود اتصال HTTPS outbound على 443 إلى endpoints الخاصة بـssm وssmmessages في المنطقة. لا تحتاج فتح inbound جديد.
 
-```text
-YOUR_EC2_HOST ssh-ed25519 PUBLIC_HOST_KEY_FROM_SERVER
-```
+### 2. تعريف GitHub داخل IAM
 
-هذا مفتاح هوية السيرفر العام؛ مختلف عن مفتاح دخول النشر. نحفظه لتأكيد أن الاتصال يصل إلى السيرفر الصحيح. لا تستخدم StrictHostKeyChecking=no.
+IAM → Identity providers → Add provider:
 
-### 3. إعداد GitHub
+- Provider type: OpenID Connect.
+- Provider URL: `https://token.actions.githubusercontent.com`.
+- Audience: `sts.amazonaws.com`.
 
-داخل المستودع: Settings → Environments → New environment، الاسم `production`. لجعل النشر تلقائيًا، لا تضف required reviewers. لو تضيف قيود branches اسمح لـmain فقط.
+لو provider موجود بالفعل، استخدمه ولا تنشئ نسخة ثانية.
 
-أضف Environment variables:
+### 3. Role خاص بـGitHub
 
-| الاسم            | القيمة                                                      |
-| ---------------- | ----------------------------------------------------------- |
-| EC2_HOST         | Public IP أو hostname للسيرفر بدون http أو مسار             |
-| EC2_USER         | ec2-user                                                    |
-| EC2_PROJECT_PATH | المسار المطلق للمشروع، اعرفه بأمر pwd من داخله؛ بدون مسافات |
+هذا Role مختلف عن الـRole المرتبط بـEC2:
 
-أضف Environment secrets:
+1. IAM → Roles → Create role → Custom trust policy.
+2. الصق محتوى `deployment/github-oidc-trust.json`.
+3. اسم الدور: `MotionGitHubDeployRole`، بدون إرفاق صلاحيات Administrator.
+4. افتح الدور → Permissions → Add permissions → Create inline policy → JSON.
+5. الصق محتوى `deployment/github-ssm-policy.json` وسمّ السياسة `MotionDeploySSM`.
 
-| الاسم               | القيمة                                             |
-| ------------------- | -------------------------------------------------- |
-| EC2_SSH_PRIVATE_KEY | محتوى ملف motion-actions كاملًا مع سطري BEGIN وEND |
-| EC2_SSH_KNOWN_HOSTS | سطر هوية السيرفر الذي جهزته                        |
+الـtrust يسمح للمستودع المحدد وبيئة production فقط. صلاحية SendCommand مقيدة بالـinstance الحالي وAWS-RunShellScript. GetCommandInvocation يستخدم Resource * لقراءة نتيجة الأمر؛ هذه العملية لا تدعم تقييد resource بنفس شكل SendCommand. هذا الدور يستطيع تشغيل أوامر على السيرفر المحدد، لذا يجب أن تبقى بيئة production مقصورة على main.
 
-اترك بيانات DB وSMTP ومفتاح JWT داخل `.env.aws` على EC2. لا يحتاج هذا workflow مفاتيح AWS؛ التطبيق يستخدم IAM Role الموجود.
+### 4. إعدادات GitHub
 
-### 4. وصول SSH
+تم إنشاء بيئة production وضبط branch policy لتسمح بـmain فقط. متغيراتها:
 
-الـworkflow يستخدم GitHub-hosted Ubuntu runner واتصال SSH على port 22. فتح 80 و443 وحده لا يكفي. تأكد أن Security Group والشبكة يسمحان بوصول runner على 22. عنوان runner يتغير؛ لو الوصول مقصور على IP جهازك سيحدث timeout. لا توسع الوصول إلى الجميع لمجرد حل timeout؛ يمكن استخدام runner بعنوان ثابت أو الانتقال إلى AWS SSM إذا أردت عدم فتح SSH للـrunner.
+| الاسم               | القيمة                                                |
+| ------------------- | ----------------------------------------------------- |
+| AWS_REGION          | eu-north-1                                            |
+| EC2_INSTANCE_ID     | i-04f68383f87a22a33                                   |
+| AWS_DEPLOY_ROLE_ARN | arn:aws:iam::290181458132:role/MotionGitHubDeployRole |
+| EC2_USER            | ec2-user                                              |
+| EC2_PROJECT_PATH    | /home/ec2-user/Motion-Fitness-Platform                |
 
-### 5. أول تجربة
+تسجيل ARN في GitHub لا ينشئ Role في AWS؛ لازم تنفذ الخطوة السابقة. EC2_HOST لم يعد مطلوبًا للنشر عبر SSM. مفاتيح SSH التي ذكرها الإصدار السابق من الدليل لم تعد مطلوبة.
 
-بعد دمج الملفات في main، راقب Actions → Green CI → Deploy EC2. لو بدأت قبل إعداد المتغيرات ستفشل خطوة النشر برسالة واضحة دون تغيير السيرفر؛ أكمل الإعداد ثم Re-run failed jobs لنفس التشغيل، طالما ما زال آخر commit في main.
+### 5. نقل تعديلات Caddy المحلية مرة واحدة
 
-على EC2 بعد نجاح النشر:
+تم إدراج إعدادات Caddy التي أرسلها المستخدم في `deployment/Caddy.aws`، مع IP افتراضي وprofile shortlived. يمكن تغيير IP عبر API_DOMAIN في `.env.aws`. ملف Caddyfile القديم يظل لإعداد staging القديم؛ AWS يستخدم Caddy.aws. Compose يحتفظ بأسماء caddy_data وcaddy_config وباسم المشروع motion-aws للحفاظ على الشهادات. لا تستخدم docker compose down -v.
+
+ملف compose الجديد لا ينشر port 3100 على المضيف، ويضبط TRUST_PROXY=true لوجود Caddy كوسيط واحد. إذا كان API_DOMAIN في ملف السيرفر موجودًا بقيمة قديمة أو غير صحيحة، عدّله إلى `13.49.114.20` قبل النشر. لا يلزم إضافته إن كان غائبًا لأن القيمة الافتراضية هي هذا IP.
+
+**الأوامر التالية بعد دمج هذه التغييرات في main فقط، وتحت المتابعة لأول نشر.** لا تشغّل reset --hard. احفظ الملفات الحالية ثم stash محددًا للملفين اللذين عدّلتهما:
 
 ```bash
+cd /home/ec2-user/Motion-Fitness-Platform
+backup_dir=$(mktemp -d "$PWD/.local/pre-cicd.XXXXXX")
+cp deployment/Caddyfile deployment/compose.aws.yaml "$backup_dir/"
+git stash push -m "EC2 proxy configuration before managed deployment" -- deployment/Caddyfile deployment/compose.aws.yaml
+git status --short
+```
+
+النسخة الاحتياطية تحفظ المحتوى الحالي والـstash يحفظ الـdiff؛ لا تعمل stash pop بعد التحديث لأن إعداداتك أصبحت في النسخة الجديدة. ملفات .bak غير المتتبعة يمكن تركها. الأوامر لا توقف الحاويات، لكن لا تعيد إنشاء Caddy بالإعداد القديم في الفترة بين stash وأول نشر جديد.
+
+نشر Actions يحتاج tracked checkout نظيفًا وسيقف عند أي تعديلات أخرى. لا يحذف أو يعيد كتابة `.env.aws` أو شهادات RDS. لا تنفذ الخطوات قبل استعداد SSM وIAM ونسخة main الجديدة؛ تجهيزها لا يتطلب تعطيل التطبيق الحالي.
+
+### 6. أول نشر والتحقق
+
+بعد اكتمال IAM وظهور instance Online وتنظيف tracked checkout ودمج التغييرات، راقب Actions → Green CI → Deploy EC2. إذا بدأت العملية قبل إكمال الإعداد ستفشل؛ بعد الإصلاح استخدم Re-run failed jobs طالما commit لا يزال أحدث main.
+
+النشر يتحقق من Caddy config، يبني API، ويشغّل migrations ثم يفحص جاهزية API. عند فشل API يحاول إعادة الصورة السابقة؛ DB migrations لا يتم التراجع عنها تلقائيًا. بعد ذلك يشغّل Caddy ويعيد تحميل الإعدادات. يوجد انقطاع قصير، وليس zero-downtime. فشل تشغيل Caddy يفشل العملية ولا يعيد DB أو إعدادات proxy القديمة تلقائيًا.
+
+على EC2:
+
+```bash
+cd /home/ec2-user/Motion-Fitness-Platform
 cat .local/aws-deployed-revision
-curl --fail http://127.0.0.1:3100/api/v1/health/ready
+curl --fail https://13.49.114.20/api/v1/health/ready
 ```
 
-الـSHA يجب أن يطابق commit المنشور. اختبار الجاهزية يفحص DB؛ جرّب OTP ورفع ملف منفصلًا للتحقق من SMTP وS3. يوجد انقطاع قصير أثناء استبدال الحاوية. عند فشل الجاهزية يحاول السكربت إعادة image السابقة؛ migrations لا يتم التراجع عنها تلقائيًا. لا تلغِ workflow أثناء النشر؛ قد يظل الأمر البعيد يعمل.
+لا تستخدم -k؛ نريد التحقق من الشهادة. لو HTTPS لا يعمل بعد رغم جاهزية API، افحص Caddy logs وإصدار الشهادة والمنافذ 80/443 وثبات IP. بعد حذف host port لم يعد curl إلى 127.0.0.1:3100 صالحًا. لفحص الجاهزية داخل الحاوية:
+
+```bash
+MOTION_IMAGE="motion-api:$(git rev-parse HEAD)" docker compose --project-name motion-aws --env-file .env.aws -f deployment/compose.aws.yaml exec -T api node -e "fetch('http://127.0.0.1:3100/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+```
+
+Actions يطبع command ID وحالته فقط. عند الفشل راجع Systems Manager → Run Command → command ID → Output داخل حساب AWS، ولا تنشر logs فيها أسرار. انتهاء انتظار GitHub أو إلغاؤه لا يضمن توقف الأمر البعيد؛ افحص حالته قبل إعادة المحاولة. يوجد قفل على السيرفر يمنع تحديثين متزامنين.
 
 ## المصادر
 
 - [Bruno: مشاركة المجموعات وتحديثها عبر Git](https://blog.usebruno.com/share-bruno-collections).
-- [GitHub: التحكم في ترتيب jobs وشروطها](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax).
+- [AWS: صلاحيات SSM للـinstance](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html).
+- [AWS: تشخيص اتصال SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-ssm-agent.html).
+- [GitHub: اتصال AWS عبر OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws).
+- [Caddy: إعداد TLS وACME](https://caddyserver.com/docs/caddyfile/directives/tls).

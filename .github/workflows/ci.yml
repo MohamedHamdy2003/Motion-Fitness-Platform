@@ -49,9 +49,11 @@ jobs:
         run: |
           bash -n deployment/deploy-aws.sh
           bash -n deployment/update-aws.sh
+          python3 -B -m unittest discover -s deployment -p 'test_*.py'
           cp deployment/aws.env.example .env.aws
           MOTION_IMAGE=motion-api:ci docker compose --env-file .env.aws -f deployment/compose.aws.yaml config --quiet
           rm .env.aws
+          docker run --rm -v "$PWD/deployment/Caddy.aws:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Build and verify deployment image
         run: |
           docker build -t motion-api:ci .
@@ -90,33 +92,24 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 30
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
     concurrency:
       group: motion-production
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy the tested commit over verified SSH
-        shell: bash
+      - name: Authenticate to AWS with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: motion-deploy-${{ github.run_id }}
+      - name: Deploy the tested commit through SSM
         env:
-          EC2_HOST: ${{ vars.EC2_HOST }}
+          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
           EC2_USER: ${{ vars.EC2_USER }}
           EC2_PROJECT_PATH: ${{ vars.EC2_PROJECT_PATH }}
-          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$EC2_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'Set EC2_HOST'; exit 1; }
-          [[ "$EC2_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || { echo 'Set EC2_USER'; exit 1; }
-          [[ "$EC2_PROJECT_PATH" =~ ^/[a-zA-Z0-9_./-]+$ ]] || { echo 'Set absolute EC2_PROJECT_PATH without spaces'; exit 1; }
-          [[ -n "$EC2_SSH_PRIVATE_KEY" && -n "$EC2_SSH_KNOWN_HOSTS" ]] || { echo 'Configure SSH secrets in production'; exit 1; }
-          keydir=$(mktemp -d)
-          trap 'rm -rf "$keydir"' EXIT
-          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > "$keydir/key"
-          printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > "$keydir/known_hosts"
-          chmod 600 "$keydir/key" "$keydir/known_hosts"
-          ssh -i "$keydir/key" -o BatchMode=yes -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$keydir/known_hosts" \
-            -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
-            "$EC2_USER@$EC2_HOST" "bash -s -- '$GITHUB_SHA' '$EC2_PROJECT_PATH'" \
-            < deployment/update-aws.sh
+        run: python3 deployment/send-ssm.py
