@@ -7,7 +7,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       version: '1',
-      name: 'Motion API v1 — F00–F02',
+      name: 'Motion API v1 — F00–F03',
       type: 'collection',
       ignore: ['node_modules', '.git'],
     },

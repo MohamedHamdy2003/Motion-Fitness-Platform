@@ -1,5 +1,7 @@
 [النشر الحالي على AWS EC2 + RDS + S3](docs/AWS_DEPLOYMENT_AR.md).
 
+[ربط Bruno بـGitHub وإعداد النشر التلقائي إلى EC2](docs/GITHUB_AUTOMATION_AR.md).
+
 [أوامر التشغيل لفريق الموبايل من main](docs/MOBILE_LOCAL_SETUP_AR.md).
 
 [تشغيل OTP والناقص لإعداد Google وApple](docs/OTP_OAUTH_SETUP_AR.md).

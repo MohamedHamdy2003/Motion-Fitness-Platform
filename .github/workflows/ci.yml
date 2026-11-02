@@ -9,7 +9,7 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   backend-checks:
     name: backend-checks
@@ -42,11 +42,13 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run bruno:check
       - run: npm test
       - run: npm run build
       - name: Validate AWS deployment assets
         run: |
           bash -n deployment/deploy-aws.sh
+          bash -n deployment/update-aws.sh
           cp deployment/aws.env.example .env.aws
           MOTION_IMAGE=motion-api:ci docker compose --env-file .env.aws -f deployment/compose.aws.yaml config --quiet
           rm .env.aws
@@ -82,3 +84,39 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  deploy-production:
+    name: Deploy EC2
+    needs: [backend-checks, private-ai-checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    concurrency:
+      group: motion-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy the tested commit over verified SSH
+        shell: bash
+        env:
+          EC2_HOST: ${{ vars.EC2_HOST }}
+          EC2_USER: ${{ vars.EC2_USER }}
+          EC2_PROJECT_PATH: ${{ vars.EC2_PROJECT_PATH }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EC2_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || { echo 'Set EC2_HOST'; exit 1; }
+          [[ "$EC2_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || { echo 'Set EC2_USER'; exit 1; }
+          [[ "$EC2_PROJECT_PATH" =~ ^/[a-zA-Z0-9_./-]+$ ]] || { echo 'Set absolute EC2_PROJECT_PATH without spaces'; exit 1; }
+          [[ -n "$EC2_SSH_PRIVATE_KEY" && -n "$EC2_SSH_KNOWN_HOSTS" ]] || { echo 'Configure SSH secrets in production'; exit 1; }
+          keydir=$(mktemp -d)
+          trap 'rm -rf "$keydir"' EXIT
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > "$keydir/key"
+          printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > "$keydir/known_hosts"
+          chmod 600 "$keydir/key" "$keydir/known_hosts"
+          ssh -i "$keydir/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$keydir/known_hosts" \
+            -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            "$EC2_USER@$EC2_HOST" "bash -s -- '$GITHUB_SHA' '$EC2_PROJECT_PATH'" \
+            < deployment/update-aws.sh
