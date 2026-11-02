@@ -32,6 +32,22 @@ git pull --ff-only origin main
 
 حساب AWS الحالي يحجب Identity Providers خلف Advanced features، لذلك يستخدم GitHub مفاتيح مستخدم IAM مخصص لإرسال أمر AWS Systems Manager. تحفظ المفاتيح في Environment Secrets، ويظل port 22 مقصورًا على My IP. لا يحتاج هذا المسار إعداد OIDC أو ترقية الحساب من أجل Identity Providers. المستخدم على EC2 هو ec2-user؛ السكربت يخفض صلاحيات SSM من root إلى هذا المستخدم قبل Git وDocker.
 
+### ذاكرة EC2 قبل أول بناء
+
+بناء Docker للصورة على EC2 يحتاج ذاكرة إضافية. أول محاولة أثبتت أن instance يحتوي حوالي 913MiB RAM وبدون Swap؛ سجل kernel أكد نفاد الذاكرة أثناء بناء الصورة، ما أدى لتعطل Docker مؤقتًا. التطبيق رجع على الصورة القديمة، وملف SHA لم يتغير. قبل إعادة النشر أضف Swap بحجم 2GiB؛ فحص القرص أظهر مساحة كافية:
+
+```bash
+sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h
+swapon --show
+```
+
+لو `/swapfile` موجود بالفعل، افحصه بـ`swapon --show` ولا تعِد إنشاؤه. الـSwap يستخدم قرابة 2GiB من قرص EBS ويكون أبطأ من RAM. لا تعِد النشر إلا بعد ظهور swap في `free -h`.
+
 الإعداد المؤكد:
 
 - AWS account: `290181458132`.
