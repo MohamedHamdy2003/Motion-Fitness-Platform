@@ -22,10 +22,23 @@ let db: DataSource;
 let api: ReturnType<typeof request>;
 const password = 'Motion-test-password-123';
 const prefix = '/api/v1';
-const register = async (email = 'athlete@example.test') => {
+const registerUnverified = async (email = 'athlete@example.test') => {
   const r = await api.post(prefix + '/auth/register').send({ email, password });
   expect(r.status, r.text).toBe(201);
   return r.body;
+};
+const register = async (email = 'athlete@example.test') => {
+  const created = await registerUnverified(email);
+  const code = await capturedToken(email, true);
+  const verification = await api
+    .post(prefix + '/auth/verify-email')
+    .send({ email, code });
+  expect(verification.status, verification.text).toBe(200);
+  const login = await api
+    .post(prefix + '/auth/login')
+    .send({ email, password });
+  expect(login.status, login.text).toBe(200);
+  return { ...created, ...login.body };
 };
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 async function capturedToken(email: string, raw = false) {
@@ -213,14 +226,11 @@ describe('foundation against PostgreSQL', () => {
 });
 describe('authentication and account security', () => {
   it('stores password and opaque tokens as hashes; verifies email once', async () => {
-    const r = await register();
-    expect(r.tokenType).toBe('Bearer');
+    await registerUnverified();
     const [u] = await db.query('SELECT * FROM users');
     expect(u.password_hash).not.toContain(password);
     expect(u.password_hash).toContain('$argon2id$');
-    const [t] = await db.query('SELECT * FROM auth_refresh_tokens');
-    expect(t.token_hash).toBe(hash(r.refreshToken));
-    const value = await capturedToken('athlete@example.test');
+    const value = await capturedToken('athlete@example.test', true);
     expect(
       (
         await api
@@ -228,6 +238,13 @@ describe('authentication and account security', () => {
           .send({ email: 'athlete@example.test', code: value })
       ).status,
     ).toBe(200);
+    const login = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'athlete@example.test', password });
+    expect(login.status).toBe(200);
+    expect(login.body.tokenType).toBe('Bearer');
+    const [t] = await db.query('SELECT * FROM auth_refresh_tokens');
+    expect(t.token_hash).toBe(hash(login.body.refreshToken));
     expect(
       (
         await api
@@ -1338,7 +1355,7 @@ it('imports library drafts atomically and rejects changed seed versions', async 
 });
 
 it('limits OTP guesses, expires codes and invalidates older codes on resend', async () => {
-  await register();
+  await registerUnverified();
   const email = 'athlete@example.test';
   const original = await capturedToken(email, true);
   const wrong = original === '000000' ? '111111' : '000000';
@@ -1377,7 +1394,7 @@ it('limits OTP guesses, expires codes and invalidates older codes on resend', as
   ).toBe(400);
 });
 it('keeps OTP purposes separate and consumes a reset code only once', async () => {
-  await register();
+  await registerUnverified();
   const email = 'athlete@example.test';
   const verify = await capturedToken(email, true);
   expect(

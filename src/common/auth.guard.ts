@@ -41,10 +41,11 @@ export class AuthGuard implements CanActivate {
     }
     const [session] = await query(
       this.db,
-      `SELECT s.id FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='ACTIVE'`,
+      `SELECT s.id,u.verified_at FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='ACTIVE'`,
       [claims.sid, claims.sub],
     );
     if (!session) throw new ApiError('SESSION_REVOKED', 401);
+    if (!session.verified_at) throw new ApiError('EMAIL_NOT_VERIFIED', 403);
     req.principal = { userId: claims.sub!, sessionId: claims.sid };
     return true;
   }
