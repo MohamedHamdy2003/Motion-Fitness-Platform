@@ -116,7 +116,11 @@ export class AuthService {
           password,
         );
     if (!valid || !candidate || candidate.status !== 'ACTIVE')
-      throw new ApiError('INVALID_CREDENTIALS', 401);
+      throw new ApiError(
+        'INVALID_CREDENTIALS',
+        401,
+        'Email or password is incorrect.',
+      );
     return this.db.transaction(async (m) => {
       const [user] = await query(
         m,
@@ -127,7 +131,11 @@ export class AuthService {
         user.status !== 'ACTIVE' ||
         user.password_hash !== candidate.password_hash
       )
-        throw new ApiError('INVALID_CREDENTIALS', 401);
+        throw new ApiError(
+          'INVALID_CREDENTIALS',
+          401,
+          'Email or password is incorrect.',
+        );
       return this.session(m, user.id);
     });
   }
@@ -315,7 +323,11 @@ export class AuthService {
       await this.activeSession(m, p);
       if (!u.password_hash) throw new ApiError('PASSWORD_LOGIN_NOT_ENABLED');
       if (!(await argon2.verify(u.password_hash, current)))
-        throw new ApiError('INVALID_CREDENTIALS', 401);
+        throw new ApiError(
+          'CURRENT_PASSWORD_INCORRECT',
+          401,
+          'Current password is incorrect.',
+        );
       await this.replacePassword(m, p.userId, encoded);
     });
     return { status: 'PASSWORD_CHANGED', requiresLogin: true };
@@ -333,7 +345,11 @@ export class AuthService {
       );
       if (!u?.password_hash) throw new ApiError('PASSWORD_LOGIN_NOT_ENABLED');
       if (!(await argon2.verify(u.password_hash, password)))
-        throw new ApiError('INVALID_CREDENTIALS', 401);
+        throw new ApiError(
+          'CURRENT_PASSWORD_INCORRECT',
+          401,
+          'Current password is incorrect.',
+        );
       return this.proof(m, p, purpose);
     });
   }
