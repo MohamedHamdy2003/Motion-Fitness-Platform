@@ -17,15 +17,6 @@ body:json {
   }
 }
 
-script:pre-request {
-  bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");
-  bru.setVar("password", "Disposable-Bruno-Password-123");
-}
-
-script:post-response {
-  const b = res.getBody(); if (b.accessToken) { bru.setVar("accessToken", b.accessToken); bru.setVar("refreshToken", b.refreshToken); }
-}
-
 tests {
   test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });

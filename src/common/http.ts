@@ -18,6 +18,7 @@ export class ApiError extends HttpException {
 }
 const apiErrorMessages: Record<string, string> = {
   UNAUTHENTICATED: 'Please sign in to continue.',
+  EMAIL_NOT_VERIFIED: 'Please verify your email before accessing Motion.',
   SESSION_REVOKED: 'This session is no longer active. Please sign in again.',
   INVALID_REFRESH_TOKEN: 'Refresh token is invalid or expired.',
   INVALID_OR_EXPIRED_OTP: 'Verification code is invalid or expired.',
