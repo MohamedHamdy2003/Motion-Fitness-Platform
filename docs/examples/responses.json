@@ -74,14 +74,21 @@
   },
   "validationError": {
     "code": "VALIDATION_ERROR",
-    "message": "Request validation failed",
+    "message": "Password must be at least 8 characters.",
     "details": [
       {
-        "path": "confirmed",
-        "code": "invalid_value"
+        "path": "password",
+        "code": "too_small",
+        "message": "Password must be at least 8 characters."
       }
     ],
     "requestId": "40000000-0000-4000-8000-000000000001"
+  },
+  "invalidCredentials": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Email or password is incorrect.",
+    "details": null,
+    "requestId": "40000000-0000-4000-8000-000000000003"
   },
   "revisionError": {
     "code": "REVISION_CONFLICT",

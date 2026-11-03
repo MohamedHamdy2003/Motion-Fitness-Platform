@@ -10,20 +10,52 @@ export class ApiError extends HttpException {
   constructor(
     public code: string,
     status = 400,
-    message = code,
+    message = apiErrorMessages[code] || code,
     public details: unknown = null,
   ) {
     super(message, status);
   }
 }
+const apiErrorMessages: Record<string, string> = {
+  UNAUTHENTICATED: 'Please sign in to continue.',
+  SESSION_REVOKED: 'This session is no longer active. Please sign in again.',
+  INVALID_REFRESH_TOKEN: 'Refresh token is invalid or expired.',
+  INVALID_OR_EXPIRED_OTP: 'Verification code is invalid or expired.',
+  INVALID_RESET_TOKEN: 'Password reset token is invalid or expired.',
+  PASSWORD_LOGIN_NOT_ENABLED:
+    'Password sign-in is not enabled for this account.',
+  PASSWORDS_DO_NOT_MATCH: 'New password and confirmation do not match.',
+  FRESH_REAUTHENTICATION_REQUIRED:
+    'Please verify your identity again to continue.',
+  INVALID_PROVIDER_TOKEN: 'The identity provider token is invalid or expired.',
+  INVALID_OR_REUSED_CHALLENGE:
+    'The sign-in challenge is invalid, expired, or already used.',
+  GOOGLE_NOT_CONFIGURED: 'Google sign-in is not configured on this server.',
+  APPLE_NOT_CONFIGURED: 'Apple sign-in is not configured on this server.',
+  PROVIDER_UNAVAILABLE:
+    'The sign-in provider is temporarily unavailable. Please try again later.',
+  APPLE_CODE_EXCHANGE_FAILED:
+    'Unable to verify the Apple sign-in authorization code.',
+  ACCOUNT_UNAVAILABLE: 'This account is not available.',
+  ACCOUNT_LINK_REQUIRED:
+    'An account already uses this email. Sign in to it and link the provider.',
+  IDENTITY_NOT_LINKED: 'This identity is not linked to your account.',
+  APPLE_REVOCATION_FAILED:
+    'The Apple authorization could not be revoked. Please try again later.',
+  RATE_LIMITED: 'Too many requests. Please try again later.',
+};
 export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const r = schema.safeParse(value);
   if (!r.success)
     throw new ApiError(
       'VALIDATION_ERROR',
       400,
-      'Request validation failed',
-      r.error.issues.map((i) => ({ path: i.path.join('.'), code: i.code })),
+      r.error.issues[0]?.message || 'Please check the request fields.',
+      r.error.issues.map((i) => ({
+        path: i.path.join('.'),
+        code: i.code,
+        message: i.message,
+      })),
     );
   return r.data;
 }
@@ -76,7 +108,20 @@ export class ErrorFilter implements ExceptionFilter {
 }
 export const uuid = z.string().uuid();
 export const token = z.string().min(20).max(2048);
-export const password = z.string().min(12).max(128);
+// Existing passwords remain accepted for sign-in. New/changed passwords use
+// the stronger policy below.
+export const password = z
+  .string({ error: 'Password is required.' })
+  .min(1, { error: 'Password is required.' })
+  .max(128, { error: 'Password must be 128 characters or fewer.' });
+export const newPassword = z
+  .string({ error: 'Password is required.' })
+  .min(8, { error: 'Password must be at least 8 characters.' })
+  .max(128, { error: 'Password must be 128 characters or fewer.' })
+  .regex(/[0-9]/, { error: 'Password must include at least one number.' })
+  .regex(/[^\p{L}\p{N}\s]/u, {
+    error: 'Password must include at least one symbol.',
+  });
 export const email = z
   .string()
   .trim()
