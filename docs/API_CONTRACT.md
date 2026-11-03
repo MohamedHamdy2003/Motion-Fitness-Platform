@@ -64,14 +64,14 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 
 ## Profile and onboarding
 
-| Method/route              | Request                                                                 | Response                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| GET `/me`                 | —                                                                       | 200 aggregate described below                                                                        |
-| PATCH `/me`               | `expectedRevision` and one or more profile fields                       | 200 full profile with incremented `profile_revision`                                                 |
-| PUT `/me/onboarding`      | `expectedRevision`, required profile fields below, `initialMeasurement` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
-| GET `/me/settings`        | —                                                                       | 200 `{reminders,theme,quiet_hours,version}`                                                          |
-| PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`         | 200 updated settings/version                                                                         |
-| GET `/me/matching/status` | —                                                                       | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
+| Method/route              | Request                                                                                                                                                | Response                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| GET `/me`                 | —                                                                                                                                                      | 200 aggregate described below                                                                        |
+| PATCH `/me`               | `expectedRevision` and one or more profile fields                                                                                                      | 200 full profile with incremented `profile_revision`                                                 |
+| PUT `/me/onboarding`      | `expectedRevision`, `name`, `height_cm`, `weight_kg`, `primary_goal`, `fitness_level`, `training_days_per_week`, `timezone`, `locale`, `date_of_birth` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
+| GET `/me/settings`        | —                                                                                                                                                      | 200 `{reminders,theme,quiet_hours,version}`                                                          |
+| PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`                                                                                        | 200 updated settings/version                                                                         |
+| GET `/me/matching/status` | —                                                                                                                                                      | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
 
 All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY.
 
