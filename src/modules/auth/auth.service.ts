@@ -98,9 +98,9 @@ export class AuthService {
       await this.initializeUser(m, id);
       await this.verification(m, user, 'EMAIL_VERIFICATION');
       return {
-        ...(await this.session(m, id)),
         user: { id, email, verified: false },
         emailDelivery: 'QUEUED',
+        nextStep: 'VERIFY_EMAIL',
       };
     });
   }
@@ -136,6 +136,7 @@ export class AuthService {
           401,
           'Email or password is incorrect.',
         );
+      if (!user.verified_at) throw new ApiError('EMAIL_NOT_VERIFIED', 403);
       return this.session(m, user.id);
     });
   }
@@ -149,7 +150,7 @@ export class AuthService {
       if (!candidate) return null;
       const [s] = await query(
         m,
-        `SELECT s.*,u.status FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 FOR UPDATE OF s`,
+        `SELECT s.*,u.status,u.verified_at FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 FOR UPDATE OF s`,
         [candidate.session_id],
       );
       const [t] = await query(
@@ -170,6 +171,7 @@ export class AuthService {
         );
         return null;
       }
+      if (!s.verified_at) throw new ApiError('EMAIL_NOT_VERIFIED', 403);
       if (
         t.revoked_at ||
         s.revoked_at ||

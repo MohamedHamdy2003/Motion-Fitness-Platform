@@ -3,7 +3,8 @@
 ## البريد
 
 - التسجيل وإعادة إرسال التأكيد يرسلان كودًا من 6 أرقام صالحًا 10 دقائق.
-- تأكيد البريد: POST /auth/verify-email مع email وcode كنص للحفاظ على الأصفار في البداية.
+- استجابة التسجيل لا تتضمن access/refresh tokens. أكّد البريد عبر POST /auth/verify-email مع email وcode كنص للحفاظ على الأصفار في البداية، ثم استخدم POST /auth/login.
+- تسجيل الدخول قبل تأكيد البريد يرجع 403 EMAIL_NOT_VERIFIED. كل المسارات المحمية ترفض الحساب غير المؤكد، حتى لو كان لديه token قديم. تظل مسارات التأكيد وإعادة الإرسال وتسجيل الدخول متاحة لإكمال التحقق.
 - نسيان الباسورد: POST /auth/forgot-password مع email.
 - تحقق من الكود عبر POST /auth/verify-reset-code مع email وcode. الاستجابة تتضمن resetToken صالحًا خمس دقائق ولمرة واحدة.
 - غيّر الباسورد عبر POST /auth/reset-password مع token (قيمة resetToken) وnewPassword وconfirmPassword.

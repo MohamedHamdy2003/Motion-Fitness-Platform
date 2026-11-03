@@ -90,6 +90,12 @@
     "details": null,
     "requestId": "40000000-0000-4000-8000-000000000003"
   },
+  "emailNotVerified": {
+    "code": "EMAIL_NOT_VERIFIED",
+    "message": "Please verify your email before accessing Motion.",
+    "details": null,
+    "requestId": "40000000-0000-4000-8000-000000000004"
+  },
   "revisionError": {
     "code": "REVISION_CONFLICT",
     "message": "REVISION_CONFLICT",
