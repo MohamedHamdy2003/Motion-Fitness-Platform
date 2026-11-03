@@ -28,7 +28,7 @@
 في تيرمنال ثانٍ داخل المشروع:
 
 ```powershell
-# اختبارات API آلية؛ السيرفر يعمل وMAIL_MODE=capture
+# اختبارات API آلية؛ السيرفر يعمل وMAIL_MODE=capture مع DATABASE_URL وMAIL_ENCRYPTION_KEY في .env
 npm run bruno
 # قراءة OTP محلي لحساب مسجل
 npx tsx scripts/read-mail.ts athlete@example.test
