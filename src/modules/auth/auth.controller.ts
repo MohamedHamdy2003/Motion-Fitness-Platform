@@ -18,6 +18,7 @@ import {
   ApiRequest,
   email,
   password,
+  newPassword as newPasswordPolicy,
   token,
   uuid,
   parse,
@@ -26,7 +27,11 @@ import {
 import { AuthGuard } from '../../common/auth.guard';
 import { RateLimit } from '../../common/rate-limit';
 const local = z.object({ email, password }).strict();
-const newPassword = { newPassword: password, confirmPassword: password };
+const registration = z.object({ email, password: newPasswordPolicy }).strict();
+const newPasswordFields = {
+  newPassword: newPasswordPolicy,
+  confirmPassword: newPasswordPolicy,
+};
 const social = z
   .object({
     idToken: z.string().min(20).max(10000),
@@ -55,7 +60,7 @@ export class AuthController {
     @Body() body: unknown,
     @Req() req: ApiRequest,
   ) {
-    const b = parse(local, body);
+    const b = parse(registration, body);
     await this.limit(req, 'register', b.email);
     return this.auth.register(b.email, b.password);
   }
@@ -117,7 +122,7 @@ export class AuthController {
     @Body() body: unknown,
     @Req() req: ApiRequest,
   ) {
-    const b = parse(z.object({ token, ...newPassword }).strict(), body);
+    const b = parse(z.object({ token, ...newPasswordFields }).strict(), body);
     matching(b);
     await this.limit(req, 'reset');
     return this.auth.resetPassword(b.token, b.newPassword);
@@ -127,7 +132,7 @@ export class AuthController {
     @Req() req: ApiRequest,
   ) {
     const b = parse(
-      z.object({ currentPassword: password, ...newPassword }).strict(),
+      z.object({ currentPassword: password, ...newPasswordFields }).strict(),
       body,
     );
     matching(b);
