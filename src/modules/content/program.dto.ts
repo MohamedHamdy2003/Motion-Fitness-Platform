@@ -65,7 +65,7 @@ const month = z
   .object({ title: text.max(160), weeks: z.array(week).length(4) })
   .strict();
 
-export const programAggregate = z
+const programFields = z
   .object({
     slug,
     title: text.max(160),
@@ -85,27 +85,52 @@ export const programAggregate = z
     intendedAudience: z.string().trim().max(500).nullable(),
     months: z.array(month).min(1).max(12),
   })
-  .strict()
-  .refine(
-    (v) => v.supportedLevels.includes(v.idealLevel),
-    'supportedLevels must include idealLevel',
-  )
-  .refine(
-    (v) => v.supportedGoals.includes(v.primaryGoal),
-    'supportedGoals must include primaryGoal',
-  )
-  .refine(
-    (v) => new Set(v.supportedGoals).size === v.supportedGoals.length,
-    'supportedGoals must not contain duplicates',
-  )
-  .refine(
-    (v) => new Set(v.supportedLevels).size === v.supportedLevels.length,
-    'supportedLevels must not contain duplicates',
-  );
+  .strict();
 
-export const aggregateEdit = programAggregate
-  .omit({ slug: true })
-  .extend({ expectedVersion: z.number().int().positive() });
+function programChecks<T extends z.ZodObject>(schema: T) {
+  return schema
+    .refine((raw) => {
+      const v = raw as unknown as {
+        supportedLevels: z.infer<typeof level>[];
+        idealLevel: z.infer<typeof level>;
+        supportedGoals: z.infer<typeof goal>[];
+        primaryGoal: z.infer<typeof goal>;
+      };
+      return v.supportedLevels.includes(v.idealLevel);
+    }, 'supportedLevels must include idealLevel')
+    .refine((raw) => {
+      const v = raw as unknown as {
+        supportedLevels: z.infer<typeof level>[];
+        idealLevel: z.infer<typeof level>;
+        supportedGoals: z.infer<typeof goal>[];
+        primaryGoal: z.infer<typeof goal>;
+      };
+      return v.supportedGoals.includes(v.primaryGoal);
+    }, 'supportedGoals must include primaryGoal')
+    .refine((raw) => {
+      const supportedGoals = (
+        raw as unknown as {
+          supportedGoals: z.infer<typeof goal>[];
+        }
+      ).supportedGoals;
+      return new Set(supportedGoals).size === supportedGoals.length;
+    }, 'supportedGoals must not contain duplicates')
+    .refine((raw) => {
+      const supportedLevels = (
+        raw as unknown as {
+          supportedLevels: z.infer<typeof level>[];
+        }
+      ).supportedLevels;
+      return new Set(supportedLevels).size === supportedLevels.length;
+    }, 'supportedLevels must not contain duplicates');
+}
+
+export const programAggregate = programChecks(programFields);
+export const aggregateEdit = programChecks(
+  programFields.omit({ slug: true }).extend({
+    expectedVersion: z.number().int().positive(),
+  }),
+);
 export const expectedVersion = z
   .object({ expectedVersion: z.number().int().positive() })
   .strict();
