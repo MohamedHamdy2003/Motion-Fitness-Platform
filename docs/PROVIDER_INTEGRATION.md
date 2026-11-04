@@ -4,13 +4,13 @@
 
 `MAIL_MODE=smtp` supports Gmail SMTP (`smtp.gmail.com`, 587 with mandatory STARTTLS, or 465 with TLS). Set SMTP_USER, SMTP_PASSWORD, MAIL_FROM, MAIL_ENCRYPTION_KEY using local ignored files or provider secrets. A Google app password requires 2-Step Verification and may be unavailable under some account policies; do not use the Google account password. [Google account instructions](https://support.google.com/accounts/answer/185833).
 
-No Google account/app password or real recipient has been configured or tested. The user authorizes no outgoing test email until a recipient is specified. The SMTP adapter uses no debug logging. A crash after SMTP accepts a message can cause duplicate delivery; challenge tokens remain single-use. HTTPS Resend is an optional adapter, not a configured integration.
+Gmail SMTP was configured and accepted a real verification/recovery OTP email in an earlier test. This confirms that test only; it does not guarantee future delivery. The SMTP adapter uses no debug logging. A crash after SMTP accepts a message can cause duplicate delivery; challenge tokens remain single-use. HTTPS Resend is an optional adapter, not a configured integration.
 
-Set deep-link bases to the client's approved URLs. Backend appends `?token=<opaque-token>` (or adds the parameter to existing query parameters). Android App Links/iOS Universal Links association files and domains require the mobile team/domain owner. Do not ship `motion-local://` capture links. Reset screen submits token/newPassword/confirmPassword to the reset endpoint and requires a fresh login afterward.
+Verification and password recovery use six-digit OTP codes; the backend does not require verification or reset deep-link base URLs. The app submits email/code, exchanges a recovery code for a short-lived single-use reset token, then requires a fresh login after changing the password. See [OTP and OAuth setup](OTP_OAUTH_SETUP_AR.md).
 
 ## Google / Apple
 
-Provide actual Android/iOS/web client audiences as comma-separated GOOGLE_CLIENT_IDS and APPLE_CLIENT_IDS. Google signing keys come only from Google's JWKS; Apple keys only from Apple's JWKS. Verify RS256 signature, allowed issuer/audience, expiry/issued-at/subject/nonce; Google authorized-party claims, when present, must be allowed. Subject identifies the account, never matching email.
+Google Android and Web OAuth client IDs are configured locally. Google signing keys come only from Google's JWKS; Apple keys only from Apple's JWKS. Verify RS256 signature, allowed issuer/audience, expiry/issued-at/subject/nonce; Google authorized-party claims, when present, must be allowed. Subject identifies the account, never matching email. Challenge issuance works; a real Android sign-in still requires the mobile app to send a valid ID token and challenge/nonce. Apple sign-in is deferred by user request.
 
 1. Call challenges with SIGN_IN. The response nonce must be included **exactly** in the provider's OIDC request; do not silently switch between raw and SHA-256 nonce conventions. If the chosen mobile SDK hashes its nonce automatically, align that SDK integration before live testing.
 2. Submit the resulting ID token and challenge ID. Apple also needs its authorization code for server-side exchange.
@@ -33,7 +33,7 @@ Preview timeout is 12 seconds in NestJS and model timeout 10 seconds; there are 
 
 ## Storage and deletion
 
-S3-compatible bucket/endpoint/region and scoped credentials must be supplied separately. No live storage exists. Only owner-scoped avatar intents/finalization/metadata are in this delivery; the full F03 content library is deferred. Configure a private bucket and CORS for the native/upload clients as appropriate. Require a bucket lifecycle rule expiring the `uploads/` prefix after one day; short-lived signed upload URLs can otherwise recreate an abandoned temporary object after finalization or deletion. Final avatar keys use a different prefix and conditional immutable copy.
+The user reports the EC2 IAM Role and private S3 bucket are connected. Health checks do not verify uploads; validate a real upload-intent, PUT, finalize and read flow before relying on a particular bucket configuration. The implementation supports owner-scoped avatar and admin-library media. Configure a private bucket and CORS for native/upload clients as appropriate. Require a bucket lifecycle rule expiring the `uploads/` prefix after one day; short-lived signed upload URLs can otherwise recreate an abandoned temporary object after finalization or deletion. Final avatar keys use a different prefix and conditional immutable copy.
 
 Deletion never means automatic store-subscription cancellation. Retention remains pending approval. Until then, account status and sessions are revoked immediately and deletion jobs report a policy blocker. After approval, the job removes owned files and relational data, retries Apple revocation, and retains only expiring anonymous tracking state. Unresolved provider revocation is reported explicitly after five attempts instead of indefinitely retaining user data.
 

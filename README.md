@@ -18,7 +18,7 @@ NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract 
 
 [دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
 
-The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.18, updated 2026-11-01) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
+The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.19, updated 2026-11-04) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
 
 ## Local setup
 
@@ -41,7 +41,7 @@ Base URL: `http://localhost:3100/api/v1`. PostgreSQL binds to `127.0.0.1:55432` 
 npx tsx scripts/read-mail.ts athlete@example.test
 ```
 
-This command prints a private verification/reset link only to your local terminal. Never paste it into source control. `MAIL_MODE=disabled` returns `503 EMAIL_NOT_CONFIGURED` for delivery-dependent operations. Gmail SMTP and HTTPS Resend adapters are included; live delivery remains unverified until configured.
+This command prints the encrypted local captured email, including its OTP, only to your terminal. Never paste it into source control. `MAIL_MODE=disabled` returns `503 EMAIL_NOT_CONFIGURED` for delivery-dependent operations. Gmail SMTP and HTTPS Resend adapters are included. Gmail SMTP was configured and a real OTP delivery was accepted; check current service settings before relying on delivery.
 
 Approved policy (2026-10-31): users must be strictly older than 18, checked using their birth date and timezone; with date-only birth data, eligibility starts the day after the 18th birthday. The profile holds one current weight, edited by the user without a measurement date or history. `MINIMUM_AGE` and `MEASUREMENT_MAX_AGE_DAYS` are no longer configuration settings. Weight and height are profile fields; historical tracking is deferred. See [latest decisions](docs/PRODUCT_DECISIONS_AR.md).
 
@@ -73,11 +73,11 @@ AI tests use fixtures and make no paid model calls. Main CI checks both services
 
 ## Mobile integration
 
-Open `bruno/` in Bruno. `reference/` has every API operation, including configuration-blocked operations. `smoke/` is the automated local flow. Copy environment variables into a local-only environment; never commit tokens. Staging is intentionally an `.invalid` hostname until an actual deployment exists.
+Open `bruno/` in Bruno. `reference/` has every API operation, including configuration-blocked operations. `smoke/` is the automated local flow. Copy environment variables into a local-only environment; never commit tokens. Production runs on AWS; the separate staging environment intentionally remains an `.invalid` placeholder until it is provisioned.
 
 Reference requests are grouped into `Auth`, `Profile`, `Settings`, `Food Preferences`, `Injuries`, `References`, `Matching`, `Media`, `Account`, and `Health` folders. The `smoke/` requests retain their numbered order because later steps depend on earlier responses. `scripts/generate-bruno.cjs` preserves this layout when regenerating the collection.
 
-Read [API contracts and examples](docs/API_CONTRACT.md), [provider integration](docs/PROVIDER_INTEGRATION.md), and [free staging preparation](docs/STAGING.md). No client-developer messages have been sent.
+Read [API contracts and examples](docs/API_CONTRACT.md), [provider integration](docs/PROVIDER_INTEGRATION.md), and [staging status](docs/STAGING.md). No client-developer messages have been sent.
 
 ## Database and jobs
 
@@ -85,6 +85,6 @@ The application and CLI share one DataSource configuration. `synchronize` and `m
 
 `seed:lookups` is transactional/idempotent. `seed:content` checks lookup dependencies and clearly reports no approved content dataset supplied. No scientific foods, programs, meals or demo users are invented.
 
-PostgreSQL mail/deletion jobs run from the API process, using `SKIP LOCKED`, leases and fencing tokens. A separate `npm run worker` process is available on infrastructure that supports it. Sleeping free web services delay background work until they wake; the outbox survives in PostgreSQL. SMTP may redeliver after a crash; email links remain single-use. Failed jobs retain error codes only and retry with bounded backoff. Cleanup runs hourly while the process is awake.
+PostgreSQL mail/deletion jobs run from the API process, using `SKIP LOCKED`, leases and fencing tokens. A separate `npm run worker` process is available on infrastructure that supports it. Sleeping free web services delay background work until they wake; the outbox survives in PostgreSQL. SMTP may redeliver after a crash; OTP challenges remain single-use. Failed jobs retain error codes only and retry with bounded backoff. Cleanup runs hourly while the process is awake.
 
 Deletion immediately blocks the account and revokes sessions. Actual data/file cleanup waits for approved retention policy. Apple revocation retries five times before data deletion can proceed with an explicit provider-warning status. Store-subscription cancellation belongs to F11/F14.
