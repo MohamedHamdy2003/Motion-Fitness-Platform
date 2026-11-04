@@ -15,7 +15,11 @@ void db
     ),
   )
   .finally(() => (db.isInitialized ? db.destroy() : undefined))
-  .catch(() => {
-    process.stderr.write('Content seed failed\n');
+  .catch((error: unknown) => {
+    const detail =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error);
+    process.stderr.write(`Content seed failed: ${detail}\n`);
     process.exitCode = 1;
   });
