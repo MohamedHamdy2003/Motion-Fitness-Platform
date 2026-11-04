@@ -851,11 +851,11 @@ describe('profiles, onboarding and injuries', () => {
     const r = await register();
     const input = {
       name: 'Athlete',
-      gender: 'PREFER_NOT_TO_SAY',
+      gender: 'FEMALE',
       height_cm: 175,
       primary_goal: 'FAT_LOSS',
       fitness_level: 'BEGINNER',
-      training_days_per_week: 3,
+      training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
       timezone: 'Africa/Cairo',
       locale: 'ar',
       date_of_birth: '1998-03-14',
@@ -883,7 +883,7 @@ describe('profiles, onboarding and injuries', () => {
       [r.user.id],
     );
     expect(Number(saved.weight_kg)).toBe(80);
-    expect(saved.gender).toBe('PREFER_NOT_TO_SAY');
+    expect(saved.gender).toBe('FEMALE');
     expect(saved.profile_revision).toBe(1);
   });
   it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
@@ -970,8 +970,6 @@ describe('profiles, onboarding and injuries', () => {
     expect(refs.body.genders).toEqual([
       'FEMALE',
       'MALE',
-      'NON_BINARY',
-      'PREFER_NOT_TO_SAY',
     ]);
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
@@ -1115,7 +1113,7 @@ describe('profiles, onboarding and injuries', () => {
           .set(bearer(r.accessToken))
           .send({ ...input, allergen_codes: ['INVENTED'] })
       ).status,
-    ).toBe(400);
+    ).toBe(422);
     const saved = await api
       .put(prefix + '/me/food-preferences')
       .set(bearer(r.accessToken))

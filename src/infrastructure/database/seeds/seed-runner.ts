@@ -2,6 +2,12 @@ import { query } from '../query';
 import { DataSource } from 'typeorm';
 export async function seedLookups(db: DataSource) {
   await db.transaction(async (m) => {
+    for (const gender of ['MALE', 'FEMALE'])
+      await query(
+        m,
+        `INSERT INTO genders(code) VALUES($1) ON CONFLICT DO NOTHING`,
+        [gender],
+      );
     for (const role of [
       'ATHLETE',
       'CONTENT_EDITOR',

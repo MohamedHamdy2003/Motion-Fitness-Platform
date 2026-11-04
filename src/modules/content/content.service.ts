@@ -215,8 +215,15 @@ export class ContentService {
         `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
         [codes],
       );
-      if (known.length !== codes.length)
-        throw new ApiError('UNKNOWN_ALLERGEN', 422);
+      const knownCodes = new Set(known.map((row: { code: string }) => row.code));
+      const unknown = codes.find((code) => !knownCodes.has(code));
+      if (unknown)
+        throw new ApiError(
+          'ALLERGEN_CODE_NOT_FOUND',
+          422,
+          `Allergen code "${unknown}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+          { allergen_code: unknown },
+        );
       if (id) {
         const [row] = await query(
           m,

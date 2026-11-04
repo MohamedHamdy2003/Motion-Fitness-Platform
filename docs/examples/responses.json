@@ -19,7 +19,7 @@
       "height_cm": "175",
       "primary_goal": "FAT_LOSS",
       "fitness_level": "BEGINNER",
-      "training_days_per_week": 3,
+      "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
       "timezone": "Africa/Cairo",
       "locale": "ar",
       "avatar_media_id": null,

@@ -11,6 +11,15 @@ import { assertAgeEligible } from './profile.policy';
 @Injectable()
 export class ProfileService {
   constructor(@Inject(DataSource) public db: DataSource) {}
+  private profileResponse(row: Record<string, any>) {
+    const { training_weekdays, ...profile } = row;
+    return {
+      ...profile,
+      // The integer column is retained internally for compatibility with existing records;
+      // clients receive the user's actual chosen weekdays, never an inferred schedule.
+      training_days_per_week: training_weekdays ?? null,
+    };
+  }
   async lock(m: EntityManager, id: string) {
     const [u] = await query(
       m,
@@ -33,11 +42,12 @@ export class ProfileService {
         `SELECT id,email_normalized AS email,verified_at FROM users WHERE id=$1`,
         [id],
       );
-      const [profile] = await query(
+      const [profileRow] = await query(
         m,
         `SELECT * FROM user_profiles WHERE user_id=$1`,
         [id],
       );
+      const profile = this.profileResponse(profileRow);
       const [state] = await query(
         m,
         `SELECT injury_revision FROM user_restriction_states WHERE user_id=$1`,
@@ -89,9 +99,16 @@ export class ProfileService {
       if (!asset) throw new ApiError('INVALID_AVATAR');
     }
     const allowed = Object.keys(dto.profileFields);
-    const pairs = Object.entries(input).filter(([key]) =>
-      allowed.includes(key),
-    );
+    const pairs: [string, unknown][] = [];
+    for (const [key, value] of Object.entries(input)) {
+      if (!allowed.includes(key)) continue;
+      if (key === 'training_days_per_week') {
+        pairs.push(['training_weekdays', value]);
+        pairs.push(['training_days_per_week', (value as string[]).length]);
+      } else {
+        pairs.push([key, value]);
+      }
+    }
     const values = pairs.map(([, v]) => v);
     const [p] = await query(
       m,
@@ -100,7 +117,7 @@ export class ProfileService {
     );
     if (!p) throw new ApiError('REVISION_CONFLICT', 409);
     await this.event(m, id, 'PROFILE_UPDATED', p.profile_revision);
-    return p;
+    return this.profileResponse(p);
   }
   async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
     return this.db.transaction(async (m) => {
@@ -259,7 +276,13 @@ export class ProfileService {
         const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
           code,
         ]);
-        if (!a) throw new ApiError('INVALID_ALLERGEN');
+        if (!a)
+          throw new ApiError(
+            'ALLERGEN_CODE_NOT_FOUND',
+            422,
+            `Allergen code "${code}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+            { allergen_code: code },
+          );
       }
       const all = [
         ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),

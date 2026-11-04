@@ -12,6 +12,7 @@ export const ProfileSchema = new EntitySchema({
     primary_goal: { type: 'text', nullable: true },
     fitness_level: { type: 'text', nullable: true },
     training_days_per_week: { type: 'integer', nullable: true },
+    training_weekdays: { type: 'text', array: true, nullable: true },
     timezone: { type: 'text' },
     locale: { type: 'text' },
     date_of_birth: { type: 'date', nullable: true },

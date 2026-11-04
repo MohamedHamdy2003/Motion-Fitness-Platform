@@ -18,7 +18,7 @@ body:json {
 }
 
 script:post-response {
-  const b=res.getBody(); if(b.challengeId) bru.setVar("challengeId",b.challengeId);
+  const b=res.getBody(); if(b.challengeId) bru.setVar("signInChallengeId",b.challengeId);
 }
 
 tests {
@@ -28,6 +28,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Request: {"provider":"GOOGLE","purpose":"SIGN_IN"}. Response: {"challengeId":"<uuid>","nonce":"<random-string>","expiresIn":300}. The mobile app passes nonce to Google Sign-In and then sends the resulting idToken plus this challengeId to Google sign-in. Bruno does not mint Google tokens.
+  First step of signing into Motion with Google. The app requests a short-lived, one-use challenge without a Bearer token: {"provider":"GOOGLE","purpose":"SIGN_IN"}. The response has challengeId, nonce and expiresIn=300 seconds. Bruno stores this ID as signInChallengeId. The app passes nonce into native Google Sign-In, then sends Google's idToken and challengeId to POST /auth/google. That endpoint validates the token and issues Motion session tokens. Bruno cannot create a real Google idToken.
   Never commit populated credentials or runtime tokens.
 }

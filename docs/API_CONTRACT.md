@@ -73,9 +73,9 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 | PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`                                                                                                  | 200 updated settings/version                                                                         |
 | GET `/me/matching/status` | —                                                                                                                                                                | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
 
-All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender:FEMALE|MALE|NON_BINARY|PREFER_NOT_TO_SAY`; `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. Existing profiles may have `gender:null` until updated.
+All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender:MALE|FEMALE` (FK to the seeded `genders` lookup); `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED` (a fixed application enum); `training_days_per_week`, an array of 2–5 unique weekday codes from `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. Existing profiles may have `gender:null` until updated.
 
-Onboarding requires name, gender, height, primary goal, fitness level, training-day count, timezone, locale, date of birth and a flat current `weight_kg` field. `training_days_per_week` is only the number of days (2–5); it does not choose named weekdays. It updates the aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Current weight has no measurement date or expiry. Historical tracking is deferred; no target-weight field exists.
+Onboarding requires name, gender, height, primary goal, fitness level, 2–5 fixed training weekdays, timezone, locale, date of birth and a flat current `weight_kg` field. The count is derived from the selected weekday array. Day values are saved exactly as selected; no weekday is inferred for existing accounts. Program templates continue to store a count and seven day positions, so future program assignment must map selected weekdays onto that program week. It updates the profile aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Current weight has no measurement date or expiry. Historical tracking is deferred; no target-weight field exists.
 
 Example request:
 
@@ -83,12 +83,12 @@ Example request:
 {
   "expectedRevision": 0,
   "name": "Motion Athlete",
-  "gender": "PREFER_NOT_TO_SAY",
+  "gender": "FEMALE",
   "height_cm": 175,
   "weight_kg": 80,
   "primary_goal": "FAT_LOSS",
   "fitness_level": "BEGINNER",
-  "training_days_per_week": 3,
+  "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
   "timezone": "Africa/Cairo",
   "locale": "ar",
   "date_of_birth": "1998-03-14"
@@ -147,9 +147,9 @@ Protected `GET /me/food-preferences` and `PUT /me/food-preferences`. PUT replace
 }
 ```
 
-Success returns `{revision:1,allergen_codes:["MILK"],disliked_food_ids:[],excluded_food_ids:[]}`. Invalid lookup IDs fail and roll back; stale revisions return 409. Food preference revision is independent of injury revision. No nutrition AI calls.
+Success returns `{revision:1,allergen_codes:["MILK"],disliked_food_ids:[],excluded_food_ids:[]}`. A code absent from `allergens` fails with 422 `ALLERGEN_CODE_NOT_FOUND`, names that code in `message` and `details.allergen_code`, and rolls back the update. Fetch current values from GET `/references/allergens`. Invalid food lookup IDs also fail and roll back; stale revisions return 409. Food preference revision is independent of injury revision. No nutrition AI calls.
 
-Protected reference routes: GET `/references/body-areas` → `{items:[{code,parent_code}]}`; `/references/allergens` → `{items:[{code,label}]}`; `/references/foods?search=&limit=30&offset=0` → `{items:[{id,name,kind}],limit,offset,contentStatus:"CATALOG_NOT_SEEDED"|"READY"}`; `/references/onboarding` → allowed enums plus configured policy fields/null and policy status. Options are primary goals `FAT_LOSS|STRENGTH_HYPERTROPHY`, genders `FEMALE|MALE|NON_BINARY|PREFER_NOT_TO_SAY`, fitness levels `BEGINNER|INTERMEDIATE|ADVANCED`, and training-day counts `[2,3,4,5]`. Food preferences are a separate endpoint, not part of onboarding. Current allergen lookup codes are `MILK`, `EGG`, `PEANUT`, `TREE_NUT`, `SOY`, `WHEAT`, `FISH`, `CRUSTACEAN`, and `SESAME`. These are rows in a lookup table (`allergens.code` primary key), not an enum or an approved global allergen safety catalog.
+Protected reference routes: GET `/references/body-areas` → `{items:[{code,parent_code}]}`; `/references/allergens` → `{items:[{code,label}]}`; `/references/foods?search=&limit=30&offset=0` → `{items:[{id,name,kind}],limit,offset,contentStatus:"CATALOG_NOT_SEEDED"|"READY"}`; `/references/onboarding` → allowed enums plus configured policy fields/null and policy status. Options are primary goals `FAT_LOSS|STRENGTH_HYPERTROPHY`, genders `MALE|FEMALE` from the seeded lookup, fitness levels `BEGINNER|INTERMEDIATE|ADVANCED`, weekday codes `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`, and counts `[2,3,4,5]` under `training_days_per_week_count`. Food preferences are a separate endpoint, not part of onboarding. Current allergen lookup codes are `MILK`, `EGG`, `PEANUT`, `TREE_NUT`, `SOY`, `WHEAT`, `FISH`, `CRUSTACEAN`, and `SESAME`. These are rows in a lookup table (`allergens.code` primary key), not an enum or an approved global allergen safety catalog.
 
 ## Media and account deletion
 
