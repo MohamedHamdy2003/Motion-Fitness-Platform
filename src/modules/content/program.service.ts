@@ -79,40 +79,62 @@ export class ProgramService {
       `SELECT * FROM program_hint_versions WHERE program_version_id=$1 ORDER BY version`,
       [program.version_id],
     );
-    const months = await query(
-      this.db,
-      `SELECT id,position,title FROM monthly_plans WHERE program_version_id=$1 ORDER BY position`,
-      [program.version_id],
-    );
-    for (const month of months) {
-      month.weeks = await query(
+    const [schedule, exercises, meals] = await Promise.all([
+      query(
         this.db,
-        `SELECT id,position FROM plan_weeks WHERE monthly_plan_id=$1 ORDER BY position`,
-        [month.id],
-      );
-      for (const week of month.weeks) {
-        week.days = await query(
-          this.db,
-          `SELECT d.id,d.position,d.kind,d.workout_revision_id,d.nutrition_template_day_id,wr.title AS workout_title,wr.description AS workout_description FROM plan_days d LEFT JOIN workout_revisions wr ON wr.id=d.workout_revision_id WHERE d.week_id=$1 ORDER BY d.position`,
-          [week.id],
-        );
-        for (const day of week.days) {
-          day.exercises = day.workout_revision_id
-            ? await query(
-                this.db,
-                `SELECT we.id,we.exercise_revision_id,we.position,we.set_count,we.reps_min,we.reps_max,we.duration_seconds,we.rest_seconds,er.content FROM workout_exercises we JOIN exercise_revisions er ON er.id=we.exercise_revision_id WHERE we.workout_revision_id=$1 ORDER BY we.position`,
-                [day.workout_revision_id],
-              )
-            : [];
-          day.meals = await query(
-            this.db,
-            `SELECT ms.id,ms.position,ms.meal_type,ms.local_time,ms.default_meal_version_id,mv.meal_id,mv.version,mv.title,mv.status FROM meal_slots ms JOIN meal_versions mv ON mv.id=ms.default_meal_version_id WHERE ms.template_day_id=$1 ORDER BY ms.position`,
-            [day.nutrition_template_day_id],
-          );
-        }
+        `SELECT mp.id AS month_id,mp.position AS month_position,mp.title AS month_title,w.id AS week_id,w.position AS week_position,d.id AS day_id,d.position AS day_position,d.kind,d.workout_revision_id,d.nutrition_template_day_id,wr.title AS workout_title,wr.description AS workout_description FROM monthly_plans mp LEFT JOIN plan_weeks w ON w.monthly_plan_id=mp.id LEFT JOIN plan_days d ON d.week_id=w.id LEFT JOIN workout_revisions wr ON wr.id=d.workout_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position`,
+        [program.version_id],
+      ),
+      query(
+        this.db,
+        `SELECT d.id AS day_id,we.id,we.exercise_revision_id,we.position,we.set_count,we.reps_min,we.reps_max,we.duration_seconds,we.rest_seconds,er.content FROM plan_days d JOIN plan_weeks w ON w.id=d.week_id JOIN monthly_plans mp ON mp.id=w.monthly_plan_id JOIN workout_exercises we ON we.workout_revision_id=d.workout_revision_id JOIN exercise_revisions er ON er.id=we.exercise_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position,we.position`,
+        [program.version_id],
+      ),
+      query(
+        this.db,
+        `SELECT nt.id AS day_id,ms.id,ms.position,ms.meal_type,ms.local_time,ms.default_meal_version_id,mv.meal_id,mv.version,mv.title,mv.status FROM nutrition_template_days nt JOIN meal_slots ms ON ms.template_day_id=nt.id JOIN meal_versions mv ON mv.id=ms.default_meal_version_id WHERE nt.nutrition_plan_version_id=$1 ORDER BY nt.day_position,ms.position`,
+        [program.nutrition_plan_version_id],
+      ),
+    ]);
+    const monthMap = new Map<string, Record<string, any>>();
+    const weekMap = new Map<string, Record<string, any>>();
+    const dayMap = new Map<string, Record<string, any>>();
+    for (const row of schedule) {
+      let month = monthMap.get(row.month_id);
+      if (!month) {
+        month = {
+          id: row.month_id,
+          position: row.month_position,
+          title: row.month_title,
+          weeks: [],
+        };
+        monthMap.set(row.month_id, month);
       }
+      if (!row.week_id) continue;
+      let week = weekMap.get(row.week_id);
+      if (!week) {
+        week = { id: row.week_id, position: row.week_position, days: [] };
+        weekMap.set(row.week_id, week);
+        month.weeks.push(week);
+      }
+      if (!row.day_id) continue;
+      const day = {
+        id: row.day_id,
+        position: row.day_position,
+        kind: row.kind,
+        workout_revision_id: row.workout_revision_id,
+        nutrition_template_day_id: row.nutrition_template_day_id,
+        workout_title: row.workout_title,
+        workout_description: row.workout_description,
+        exercises: [],
+        meals: [],
+      };
+      dayMap.set(row.day_id, day);
+      week.days.push(day);
     }
-    program.months = months;
+    for (const row of exercises) dayMap.get(row.day_id)?.exercises.push(row);
+    for (const row of meals) dayMap.get(row.day_id)?.meals.push(row);
+    program.months = [...monthMap.values()];
     return program;
   }
 

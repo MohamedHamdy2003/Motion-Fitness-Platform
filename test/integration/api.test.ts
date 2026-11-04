@@ -1729,11 +1729,30 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
     ),
   ).toHaveLength(28);
   expect(created.body.status).toBe('DRAFT');
+  const hint = await api
+    .post(prefix + `/admin/programs/${created.body.id}/hints`)
+    .set(headers)
+    .set('Idempotency-Key', 'f04-hint-create-001')
+    .send({
+      expectedVersion: 1,
+      originalText: 'Test-only guidance for the fixture program.',
+      structuredHints: { suitabilityNotes: ['Test only'] },
+    });
+  expect(hint.status, hint.text).toBe(201);
+  const approvedHint = await api
+    .post(
+      prefix +
+        `/admin/programs/${created.body.id}/hints/${hint.body.id}/approve`,
+    )
+    .set(headers)
+    .set('Idempotency-Key', 'f04-hint-approve-01')
+    .send({ expectedVersion: 2 });
+  expect(approvedHint.status, approvedHint.text).toBe(201);
   const published = await api
     .post(prefix + `/admin/programs/${created.body.id}/publish`)
     .set(headers)
     .set('Idempotency-Key', 'f04-publish-key-001')
-    .send({ expectedVersion: 1 });
+    .send({ expectedVersion: 3 });
   expect(published.status, published.text).toBe(201);
   expect(published.body.status).toBe('PUBLISHED');
   const [pair] = await db.query(
@@ -1753,7 +1772,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
       ...Object.fromEntries(
         Object.entries(aggregate).filter(([key]) => key !== 'slug'),
       ),
-      expectedVersion: 2,
+      expectedVersion: 4,
       title: 'Edited F04 fixture',
     });
   expect(nextDraft.status, nextDraft.text).toBe(200);

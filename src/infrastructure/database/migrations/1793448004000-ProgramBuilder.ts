@@ -187,7 +187,7 @@ export class ProgramBuilder1793448004000 implements MigrationInterface {
 
   async down(q: QueryRunner): Promise<void> {
     await q.query(`
-      DROP TABLE plan_days,plan_weeks,monthly_plans,program_hint_versions,workout_exercises,workout_revisions,workouts,program_versions,meal_slots,nutrition_template_days,nutrition_plan_versions,nutrition_plans CASCADE;
+      DROP TABLE plan_days,plan_weeks,monthly_plans,program_hint_versions,workout_exercises,workout_revisions,workouts,program_versions,meal_slots,nutrition_template_days,nutrition_plan_versions,nutrition_plans,programs CASCADE;
       DROP FUNCTION protect_approved_program_hint();
       DROP FUNCTION protect_published_program_children();
       DROP FUNCTION protect_published_workout_revision();
