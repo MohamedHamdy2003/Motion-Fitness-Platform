@@ -52,6 +52,7 @@ export class ReferenceController {
   @Get('onboarding') options() {
     return {
       primary_goals: ['FAT_LOSS', 'STRENGTH_HYPERTROPHY'],
+      genders: ['FEMALE', 'MALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY'],
       fitness_levels: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'],
       training_days_per_week: [2, 3, 4, 5],
       minimum_age: minimumAge,

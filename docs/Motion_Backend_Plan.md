@@ -1,6 +1,6 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.21 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. The F08 reusable food/meal library is merged into `dev`; F04 admin program building is in progress on a draft PR to `dev`. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
+**Version:** 2.22 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; the next roadmap feature is F05 matching. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
@@ -87,7 +87,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 
 | Input or Metric | Implementation |
 |---|---|
-| Goal and fitness level | Required primary_goal: FAT_LOSS or STRENGTH_HYPERTROPHY; fitness_level: BEGINNER, INTERMEDIATE or ADVANCED. Use the same codes in profile DTOs, content metadata and matching queries |
+| Goal, gender and fitness level | Required primary_goal: FAT_LOSS or STRENGTH_HYPERTROPHY; self-reported gender: FEMALE, MALE, NON_BINARY or PREFER_NOT_TO_SAY; fitness_level: BEGINNER, INTERMEDIATE or ADVANCED. Gender is not used to infer health, eligibility or calorie requirements. |
 | Age | Store `date_of_birth`; calculate age at assessment and include it in the matching snapshot |
 | Height and weight | `height_cm` and `weight_kg`, from the current profile revision in the request snapshot; `tall` is not a separate input |
 | Training availability | Required training-day count in {2, 3, 4, 5}; include equipment/time constraints only after the corresponding onboarding fields exist |
@@ -201,7 +201,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Accounts | `users`: email_normalized (nullable when unavailable from a social provider), password_hash (nullable for social-only accounts), status, verified_at; local registration requires email and password; `roles`, `user_roles` |
 | Social identities | `auth_identities`: user_id, provider GOOGLE/APPLE, provider_subject, provider_email nullable, provider_refresh_token_encrypted nullable for Apple revocation; identify accounts by subject, not email |
 | Authentication challenges | `auth_challenges`: user_id nullable before login, purpose, provider, nonce_hash, expires_at, consumed_at; short-lived and single-use |
-| Profiles | `user_profiles`: user_id, name, phone, **height_cm**, current **weight_kg**, primary_goal, fitness_level, training_days_per_week, timezone, locale, avatar_media_id, date_of_birth, profile_revision |
+| Profiles | `user_profiles`: user_id, name, phone, self-reported nullable `gender` for legacy profiles, **height_cm**, current **weight_kg**, primary_goal, fitness_level, training_days_per_week, timezone, locale, avatar_media_id, date_of_birth, profile_revision |
 | Profile weight and settings | Current positive **weight_kg** on `user_profiles`, without measurement dates/history; `user_settings`: user_id, reminders, theme, quiet_hours |
 | Sessions and verification | `auth_sessions`: user_id, family_id, expires_at, revoked_at; `auth_refresh_tokens`: session_id, token_hash UNIQUE, parent_token_id nullable, expires_at, consumed_at, revoked_at; retain consumed hashes until expiry for replay detection; `verification_tokens`: user_id, purpose EMAIL_VERIFICATION/PASSWORD_RESET, token_hash, expires_at, consumed_at |
 | Programs | `programs`: slug; `program_versions`: program_id, version, status, primary_goal, supported_goals, ideal_level, supported_levels, training_days_per_week, editorial_priority, description, required_equipment, intended_audience, nutrition_plan_version_id NOT NULL UNIQUE (paired version created atomically), approved_hint_version_id nullable |
@@ -707,14 +707,14 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- F08 reusable food/meal library is implemented on `dev`. Delivery priority is now F04 admin program building, followed by F05 matching. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
+- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F05 matching. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
 - Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
 - F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 
 
 `F00 → F01 → F16 → F02/F03 → F08 food/meal library → F04 → F05 → F06 + F08 enrollment integration → F17 → F07 → F08 swaps/completion → F09 → F18 → F10 → F11 → F12 → F13/F14 → F15`
 
-- F08 food/meal library follows F02/F03 and is merged to `dev`. F04 builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
+- F08 food/meal library follows F02/F03 and F04 is merged to `dev`. F04 builds program and nutrition schedules together through the aggregate service. A F04 cycle is four 7-day weeks (28 days), not a Gregorian month; the API stores training-day count only, not fixed weekdays. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
 
 - F16 initially supplies service contracts and rewriting; Matcher/Fitter behavior is implemented in F05/F17, not as an implicit prerequisite for F02. Food/meal library content is reusable; program creation commits both schedules together, publication validates completeness, and enrollment assignment applies both together in a separate transaction.
 - Feature numbers remain stable identifiers, not execution order. Complete daily fitting and completion guards before exposing workout execution to users. AI service and admin dashboard each receive lint/typecheck/build and relevant tests in Green CI.

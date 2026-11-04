@@ -5,6 +5,7 @@ export const ProfileSchema = new EntitySchema({
   columns: {
     user_id: { type: 'uuid', primary: true },
     name: { type: 'text', nullable: true },
+    gender: { type: 'text', nullable: true },
     phone: { type: 'text', nullable: true },
     height_cm: { type: 'numeric', nullable: true },
     weight_kg: { type: 'numeric', nullable: true },

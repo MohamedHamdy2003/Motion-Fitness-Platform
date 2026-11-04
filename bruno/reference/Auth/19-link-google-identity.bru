@@ -29,6 +29,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: {"idToken":"<Google ID token issued using the LINK nonce>","challengeId":"<LINK challengeId>","reauthenticationToken":"<proof for purpose LINK>"}; current user Bearer token is also required. Success: {"status":"LINKED","provider":"GOOGLE"}. A provider identity already linked to another account is rejected.
   Never commit populated credentials or runtime tokens.
 }

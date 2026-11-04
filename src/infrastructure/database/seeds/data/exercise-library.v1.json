@@ -1,0 +1,410 @@
+{
+  "datasetId": "motion-exercise-library",
+  "version": 1,
+  "ingredients": [],
+  "exercises": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "slug": "bodyweight-squat",
+      "content": {
+        "title": "Bodyweight Squat",
+        "description": "A lower-body squat performed without external load.",
+        "instructions": [
+          "Stand with feet about shoulder-width apart.",
+          "Bend at the hips and knees while keeping the whole foot grounded and knees tracking in the same direction as the toes.",
+          "Lower only as far as you can control, then press through the feet to stand tall."
+        ],
+        "muscleGroups": ["QUADRICEPS", "GLUTES"],
+        "equipment": [],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "slug": "goblet-squat",
+      "content": {
+        "title": "Goblet Squat",
+        "description": "A squat variation holding one dumbbell close to the chest.",
+        "instructions": [
+          "Hold one dumbbell vertically against the chest with both hands.",
+          "Stand with feet around shoulder-width apart and brace the trunk.",
+          "Sit the hips down between the legs while keeping the dumbbell close, then press through the feet to return to standing."
+        ],
+        "muscleGroups": ["QUADRICEPS", "GLUTES", "CORE"],
+        "equipment": ["DUMBBELL"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "slug": "dumbbell-romanian-deadlift",
+      "content": {
+        "title": "Dumbbell Romanian Deadlift",
+        "description": "A hip-hinge exercise using dumbbells to train the posterior chain.",
+        "instructions": [
+          "Stand tall holding dumbbells in front of the thighs, with knees softly bent.",
+          "Push the hips back and lower the weights close to the legs while keeping the spine neutral.",
+          "Stop when hamstring flexibility allows without rounding the back, then drive the hips forward to stand."
+        ],
+        "muscleGroups": ["HAMSTRINGS", "GLUTES", "BACK"],
+        "equipment": ["DUMBBELL"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "slug": "reverse-lunge",
+      "content": {
+        "title": "Reverse Lunge",
+        "description": "A split-stance lower-body exercise stepping backward into a lunge.",
+        "instructions": [
+          "Stand upright with feet hip-width apart.",
+          "Step one foot backward and bend both knees only as far as you can keep balance and control.",
+          "Press through the front foot to return, then repeat on the other side."
+        ],
+        "muscleGroups": ["QUADRICEPS", "GLUTES", "HAMSTRINGS"],
+        "equipment": [],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "slug": "glute-bridge",
+      "content": {
+        "title": "Glute Bridge",
+        "description": "A floor-based hip-extension exercise using bodyweight.",
+        "instructions": [
+          "Lie on your back with knees bent and feet flat about hip-width apart.",
+          "Brace gently and lift the hips by pressing through the feet, keeping the ribs relaxed.",
+          "Pause briefly at a comfortable height, then lower the hips with control."
+        ],
+        "muscleGroups": ["GLUTES", "HAMSTRINGS", "CORE"],
+        "equipment": ["MAT"],
+        "source": {
+          "title": "NHS Strength and Flexibility Exercises",
+          "reference": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+          "licenseNotes": "Exercise concept reference only. Motion-authored instructions; no NHS text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "slug": "standing-calf-raise",
+      "content": {
+        "title": "Standing Calf Raise",
+        "description": "A standing plantar-flexion exercise that can be performed with support for balance.",
+        "instructions": [
+          "Stand tall near a stable support and place your hands on it lightly if needed.",
+          "Rise onto the balls of both feet without rolling the ankles outward.",
+          "Lower the heels slowly until the feet are flat, then repeat."
+        ],
+        "muscleGroups": ["CALVES"],
+        "equipment": ["CHAIR_OPTIONAL"],
+        "source": {
+          "title": "NHS Strength Exercises",
+          "reference": "https://www.nhs.uk/live-well/exercise/strength-exercises/",
+          "licenseNotes": "Exercise concept reference only. Motion-authored instructions; no NHS text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "slug": "push-up",
+      "content": {
+        "title": "Push-Up",
+        "description": "A horizontal pushing exercise using bodyweight.",
+        "instructions": [
+          "Place hands slightly wider than shoulder-width and extend the legs behind you, or use a knee-supported position.",
+          "Keep the body in a straight line and bend the elbows to lower the chest under control.",
+          "Press the floor away to return without letting the hips sag."
+        ],
+        "muscleGroups": ["CHEST", "TRICEPS", "SHOULDERS", "CORE"],
+        "equipment": [],
+        "source": {
+          "title": "NHS Strength and Flexibility Exercises",
+          "reference": "https://www.nhs.uk/live-well/exercise/how-to-improve-strength-flexibility/",
+          "licenseNotes": "Exercise concept reference only. Motion-authored instructions; no NHS text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "slug": "incline-push-up",
+      "content": {
+        "title": "Incline Push-Up",
+        "description": "A horizontal pushing variation with the hands elevated on a fixed surface.",
+        "instructions": [
+          "Place both hands on a stable bench or counter and step back until the body forms a straight line.",
+          "Bend the elbows to bring the chest toward the surface while keeping the trunk steady.",
+          "Press through the hands to return to the start position."
+        ],
+        "muscleGroups": ["CHEST", "TRICEPS", "SHOULDERS", "CORE"],
+        "equipment": ["BENCH_OR_COUNTER"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "slug": "dumbbell-floor-press",
+      "content": {
+        "title": "Dumbbell Floor Press",
+        "description": "A horizontal chest press performed lying on the floor with dumbbells.",
+        "instructions": [
+          "Lie on your back with knees bent and hold a dumbbell in each hand above the chest.",
+          "Lower the weights until the upper arms gently touch the floor, keeping wrists stacked over elbows.",
+          "Press the dumbbells upward without bouncing the arms off the floor."
+        ],
+        "muscleGroups": ["CHEST", "TRICEPS", "SHOULDERS"],
+        "equipment": ["DUMBBELL", "MAT"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "slug": "one-arm-dumbbell-row",
+      "content": {
+        "title": "One-Arm Dumbbell Row",
+        "description": "A single-arm horizontal pulling exercise supported by a bench or stable surface.",
+        "instructions": [
+          "Support one hand on a stable bench and hinge forward with a neutral back.",
+          "Hold a dumbbell in the other hand and pull it toward the lower ribs without twisting the trunk.",
+          "Lower the weight slowly, complete the repetitions, then switch sides."
+        ],
+        "muscleGroups": ["BACK", "BICEPS", "REAR_SHOULDERS"],
+        "equipment": ["DUMBBELL", "BENCH"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "slug": "resistance-band-row",
+      "content": {
+        "title": "Resistance-Band Row",
+        "description": "A horizontal pulling exercise using a securely anchored resistance band.",
+        "instructions": [
+          "Anchor the band securely at about chest height and hold one end in each hand.",
+          "Stand or sit tall with arms extended and shoulders relaxed.",
+          "Pull the hands toward the ribs while drawing the shoulder blades gently back, then return slowly."
+        ],
+        "muscleGroups": ["BACK", "BICEPS", "REAR_SHOULDERS"],
+        "equipment": ["RESISTANCE_BAND", "SECURE_ANCHOR"],
+        "source": {
+          "title": "ACSM Resistance Training for Health",
+          "reference": "https://www.acsm.org/docs/default-source/files-for-resource-library/resistance-training-for-health.pdf",
+          "licenseNotes": "Supports resistance-band exercise selection. Motion-authored instructions; no ACSM text, figures or video copied. Review anchor safety before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "slug": "dumbbell-overhead-press",
+      "content": {
+        "title": "Dumbbell Overhead Press",
+        "description": "A vertical pushing exercise pressing dumbbells overhead from shoulder level.",
+        "instructions": [
+          "Stand or sit tall with dumbbells at shoulder height and wrists straight.",
+          "Brace the trunk and press the weights overhead in a controlled path.",
+          "Lower the weights to shoulder height without arching the lower back."
+        ],
+        "muscleGroups": ["SHOULDERS", "TRICEPS", "CORE"],
+        "equipment": ["DUMBBELL"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "slug": "dumbbell-biceps-curl",
+      "content": {
+        "title": "Dumbbell Biceps Curl",
+        "description": "An elbow-flexion exercise holding dumbbells at the sides.",
+        "instructions": [
+          "Stand with a dumbbell in each hand, arms by your sides and palms facing forward or slightly inward.",
+          "Bend the elbows to curl the weights while keeping the upper arms close to the torso.",
+          "Lower the weights slowly until the arms are nearly straight."
+        ],
+        "muscleGroups": ["BICEPS", "FOREARMS"],
+        "equipment": ["DUMBBELL"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "slug": "dumbbell-overhead-triceps-extension",
+      "content": {
+        "title": "Dumbbell Overhead Triceps Extension",
+        "description": "An elbow-extension exercise holding one dumbbell overhead.",
+        "instructions": [
+          "Hold one dumbbell securely with both hands and raise it overhead.",
+          "Keep the upper arms near the head as you bend the elbows to lower the weight behind you within a comfortable range.",
+          "Straighten the elbows to return the weight overhead without flaring the ribs."
+        ],
+        "muscleGroups": ["TRICEPS"],
+        "equipment": ["DUMBBELL"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "slug": "dead-bug",
+      "content": {
+        "title": "Dead Bug",
+        "description": "A supine trunk-control exercise moving opposite arm and leg while maintaining a comfortable neutral spine.",
+        "instructions": [
+          "Lie on your back with arms above the shoulders and hips and knees bent.",
+          "Brace gently and lower one arm and the opposite leg only as far as you can keep the trunk steady.",
+          "Return to the start and alternate sides; reduce the range if the back arches."
+        ],
+        "muscleGroups": ["CORE"],
+        "equipment": ["MAT"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000016",
+      "slug": "front-plank",
+      "content": {
+        "title": "Front Plank",
+        "description": "An isometric trunk exercise supported on forearms and toes or knees.",
+        "instructions": [
+          "Place forearms on the floor with elbows under the shoulders; extend the legs or keep knees down for an easier variation.",
+          "Align the head, trunk and hips and breathe steadily while bracing gently.",
+          "End the hold when you can no longer maintain the position without discomfort."
+        ],
+        "muscleGroups": ["CORE", "SHOULDERS"],
+        "equipment": ["MAT"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000017",
+      "slug": "side-plank",
+      "content": {
+        "title": "Side Plank",
+        "description": "An isometric lateral trunk exercise supported on one forearm and the side of the feet or knees.",
+        "instructions": [
+          "Lie on one side with the forearm under the shoulder; bend the knees for a supported variation.",
+          "Lift the hips until the shoulder, hips and knees or ankles form a line.",
+          "Hold while breathing steadily, lower with control, then switch sides."
+        ],
+        "muscleGroups": ["CORE", "SHOULDERS", "GLUTES"],
+        "equipment": ["MAT"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000018",
+      "slug": "bird-dog",
+      "content": {
+        "title": "Bird Dog",
+        "description": "A quadruped stability exercise extending the opposite arm and leg.",
+        "instructions": [
+          "Start on hands and knees with hands under shoulders and knees under hips.",
+          "Extend one arm and the opposite leg while keeping the trunk steady and hips facing the floor.",
+          "Return slowly and alternate sides; use a shorter reach if balance is difficult."
+        ],
+        "muscleGroups": ["CORE", "BACK", "GLUTES"],
+        "equipment": ["MAT"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000019",
+      "slug": "lat-pulldown",
+      "content": {
+        "title": "Lat Pulldown",
+        "description": "A vertical pulling exercise using a cable machine and overhead bar attachment.",
+        "instructions": [
+          "Sit securely at the machine and hold the bar with a comfortable, even grip.",
+          "Draw the shoulders down and pull the bar toward the upper chest without leaning far backward.",
+          "Return the bar overhead slowly until the arms are extended comfortably."
+        ],
+        "muscleGroups": ["BACK", "BICEPS", "REAR_SHOULDERS"],
+        "equipment": ["CABLE_MACHINE", "LAT_BAR"],
+        "source": {
+          "title": "ACE Exercise Library",
+          "reference": "https://www.acefitness.org/resources/everyone/exercise-library/",
+          "licenseNotes": "Movement name and category reference only. Motion-authored instructions; no ACE text, images or video copied. Review before publication."
+        },
+        "mediaId": null
+      }
+    }
+  ],
+  "foods": [],
+  "foodSections": [],
+  "mealSections": [],
+  "meals": []
+}

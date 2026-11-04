@@ -32,6 +32,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  This API is separate from PUT /me/onboarding. It replaces the whole preference selection after onboarding. Request: expectedRevision plus allergen_codes, disliked_food_ids and excluded_food_ids arrays. Success: {"revision":1,"allergen_codes":["MILK"],"disliked_food_ids":[],"excluded_food_ids":[]}. Read the current revision first with GET /me/food-preferences.
   Never commit populated credentials or runtime tokens.
 }

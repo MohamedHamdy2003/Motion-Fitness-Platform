@@ -59,7 +59,7 @@ jobs:
           docker build -t motion-api:ci .
           docker run --rm motion-api:ci node -e "require('argon2'); require('@aws-sdk/client-s3'); require('pg'); console.log('Deployment runtime dependencies ready')"
       - run: npm run migration:run
-      - run: npm run seed:lookups && npm run seed:lookups && npm run seed:content
+      - run: npm run seed:lookups && npm run seed:lookups && npm run seed:content && npm run seed:exercises && npm run seed:exercises
       - run: npm run test:integration
       - name: Run Bruno against the real API
         run: |
