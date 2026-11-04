@@ -1,0 +1,485 @@
+meta {
+  name: 02-program-create-draft
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/programs
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Idempotency-Key: {{idempotencyKey}}
+}
+
+body:json {
+  {
+    "slug": "replace-with-unique-program-slug",
+    "title": "Draft program title",
+    "primaryGoal": "STRENGTH_HYPERTROPHY",
+    "supportedGoals": [
+      "STRENGTH_HYPERTROPHY"
+    ],
+    "idealLevel": "BEGINNER",
+    "supportedLevels": [
+      "BEGINNER"
+    ],
+    "trainingDaysPerWeek": 2,
+    "editorialPriority": 0,
+    "description": "Replace with accurate program description.",
+    "requiredEquipment": [],
+    "intendedAudience": null,
+    "months": [
+      {
+        "title": "Month 1",
+        "weeks": [
+          {
+            "days": [
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "days": [
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "days": [
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "days": [
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "TRAINING",
+                "workout": {
+                  "title": "Draft workout",
+                  "description": "Replace with reviewed workout notes.",
+                  "exercises": [
+                    {
+                      "exerciseRevisionId": "{{exerciseRevisionId}}",
+                      "prescription": {
+                        "mode": "REPS",
+                        "setCount": 3,
+                        "repsMin": 8,
+                        "repsMax": 12,
+                        "restSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              },
+              {
+                "kind": "REST",
+                "meals": [
+                  {
+                    "mealType": "LUNCH",
+                    "localTime": "12:00",
+                    "mealVersionId": "{{mealVersionId}}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+script:post-response {
+  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.4.0.
+  The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.
+  Never commit populated credentials or runtime tokens.
+}

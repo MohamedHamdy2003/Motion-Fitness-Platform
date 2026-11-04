@@ -1,0 +1,36 @@
+meta {
+  name: 05-program-publish
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/programs/{{programId}}/publish
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Idempotency-Key: {{idempotencyKey}}
+}
+
+body:json {
+  {
+    "expectedVersion": 1
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.4.0.
+  This sample expects an untouched draft at revision 1. Use the current numeric revision returned by GET. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.
+  Never commit populated credentials or runtime tokens.
+}

@@ -24,7 +24,7 @@ export async function createApp() {
     },
   );
   app.use(helmet());
-  app.use(express.json({ limit: '32kb' }));
+  app.use(express.json({ limit: '1mb' }));
   app.useGlobalFilters(new ErrorFilter());
   app.setGlobalPrefix('api/v1');
   const origins = e.CORS_ORIGINS.split(',').filter(Boolean);

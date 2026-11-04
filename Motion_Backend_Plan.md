@@ -1,6 +1,6 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.20 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library is in progress on a non-main branch. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
+**Version:** 2.21 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. The F08 reusable food/meal library is merged into `dev`; F04 admin program building is in progress on a draft PR to `dev`. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
@@ -707,14 +707,14 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- Delivery priority has advanced from F00–F02 to the F08 reusable food/meal library. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
+- F08 reusable food/meal library is implemented on `dev`. Delivery priority is now F04 admin program building, followed by F05 matching. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
 - Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
 - F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 
 
 `F00 → F01 → F16 → F02/F03 → F08 food/meal library → F04 → F05 → F06 + F08 enrollment integration → F17 → F07 → F08 swaps/completion → F09 → F18 → F10 → F11 → F12 → F13/F14 → F15`
 
-- F08 food/meal library is being implemented after F02/F03. F04 then builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
+- F08 food/meal library follows F02/F03 and is merged to `dev`. F04 builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
 
 - F16 initially supplies service contracts and rewriting; Matcher/Fitter behavior is implemented in F05/F17, not as an implicit prerequisite for F02. Food/meal library content is reusable; program creation commits both schedules together, publication validates completeness, and enrollment assignment applies both together in a separate transaction.
 - Feature numbers remain stable identifiers, not execution order. Complete daily fitting and completion guards before exposing workout execution to users. AI service and admin dashboard each receive lint/typecheck/build and relevant tests in Green CI.
