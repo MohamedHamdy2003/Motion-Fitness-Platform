@@ -28,7 +28,7 @@ git pull --ff-only origin main
 
 ## GitHub Actions إلى EC2 عبر SSM ومستخدم IAM مخصص
 
-بعد push إلى main، Green CI يشغل backend-checks وprivate-ai-checks. بعد نجاح الاثنين يبدأ Deploy EC2 لنفس commit. PR وdev لا ينشران. يتم تخطي commit قديم إذا تقدم main، ومنع تداخل عمليات النشر، وعدم إلغاء نشر جارٍ بسبب push جديد.
+بعد push إلى `dev`، Green CI يشغّل الفحوصات فقط ولا ينشر على EC2. بعد push إلى `main`، وبعد نجاح backend-checks وprivate-ai-checks، يبدأ Deploy EC2 لنفس commit. وفق قرار المستخدم الحالي لن ندمج إلى `main` قبل اكتمال الميزات والحصول على طلب صريح؛ لذلك التعديلات الحالية على `dev` لن تشغّل نشر الإنتاج. يتم تخطي commit قديم إذا تقدم `main`، ومنع تداخل عمليات النشر، وعدم إلغاء نشر جارٍ بسبب push جديد.
 
 حساب AWS الحالي يحجب Identity Providers خلف Advanced features، لذلك يستخدم GitHub مفاتيح مستخدم IAM مخصص لإرسال أمر AWS Systems Manager. تحفظ المفاتيح في Environment Secrets، ويظل port 22 مقصورًا على My IP. لا يحتاج هذا المسار إعداد OIDC أو ترقية الحساب من أجل Identity Providers. المستخدم على EC2 هو ec2-user؛ السكربت يخفض صلاحيات SSM من root إلى هذا المستخدم قبل Git وDocker.
 
@@ -104,29 +104,15 @@ IAM → IAM users → Create user، الاسم: motion-github-deploy. لا تف�
 
 متغير AWS_DEPLOY_ROLE_ARN القديم غير مستخدم، وكذلك EC2_HOST. لا تحتاج SSH Secrets. احتفظ بدور EC2 وصلاحيات S3 وSSM الحالية كما هي. عند تدوير المفتاح، أنشئ مفتاحًا بديلًا وحدّث الـSecrets واختبر النشر قبل تعطيل القديم؛ لا تترك مفاتيح غير مستخدمة فعّالة.
 
-### 5. نقل تعديلات Caddy المحلية مرة واحدة
+### 5. إعداد HTTPS والنشر على EC2
 
-تم إدراج إعدادات Caddy التي أرسلها المستخدم في `deployment/Caddy.aws`، مع IP افتراضي وprofile shortlived. يمكن تغيير IP عبر API_DOMAIN في `.env.aws`. ملف Caddyfile القديم يظل لإعداد staging القديم؛ AWS يستخدم Caddy.aws. Compose يحتفظ بأسماء caddy_data وcaddy_config وباسم المشروع motion-aws للحفاظ على الشهادات. لا تستخدم docker compose down -v.
+إعداد Caddy الحالي موجود في `deployment/Caddy.aws`، مع عنوان IP وprofile shortlived. يمكن تغيير IP عبر `API_DOMAIN` في `.env.aws`. Compose لا ينشر port 3100 على المضيف، ويضبط `TRUST_PROXY=true` لوجود Caddy كوسيط واحد. أسماء وحدات التخزين `caddy_data` و`caddy_config` واسم المشروع `motion-aws` ثابتة للحفاظ على الشهادات. لا تستخدم `docker compose down -v`.
 
-ملف compose الجديد لا ينشر port 3100 على المضيف، ويضبط TRUST_PROXY=true لوجود Caddy كوسيط واحد. إذا كان API_DOMAIN في ملف السيرفر موجودًا بقيمة قديمة أو غير صحيحة، عدّله إلى `13.49.114.20` قبل النشر. لا يلزم إضافته إن كان غائبًا لأن القيمة الافتراضية هي هذا IP.
+على EC2، يحتفظ النشر بملفي `.env.aws` وشهادة RDS. Actions يشغّل migrations ثم seeder المكتبة الإصدارية، ويضيف المحتوى كمسودات قبل استبدال API. push إلى `dev` يشغّل CI فقط.
 
-**الأوامر التالية بعد دمج هذه التغييرات في main فقط، وتحت المتابعة لأول نشر.** لا تشغّل reset --hard. احفظ الملفات الحالية ثم stash محددًا للملفين اللذين عدّلتهما:
+### 6. التحقق من النشر
 
-```bash
-cd /home/ec2-user/Motion-Fitness-Platform
-backup_dir=$(mktemp -d "$PWD/.local/pre-cicd.XXXXXX")
-cp deployment/Caddyfile deployment/compose.aws.yaml "$backup_dir/"
-git stash push -m "EC2 proxy configuration before managed deployment" -- deployment/Caddyfile deployment/compose.aws.yaml
-git status --short
-```
-
-النسخة الاحتياطية تحفظ المحتوى الحالي والـstash يحفظ الـdiff؛ لا تعمل stash pop بعد التحديث لأن إعداداتك أصبحت في النسخة الجديدة. ملفات .bak غير المتتبعة يمكن تركها. الأوامر لا توقف الحاويات، لكن لا تعيد إنشاء Caddy بالإعداد القديم في الفترة بين stash وأول نشر جديد.
-
-نشر Actions يحتاج tracked checkout نظيفًا وسيقف عند أي تعديلات أخرى. لا يحذف أو يعيد كتابة `.env.aws` أو شهادات RDS. لا تنفذ الخطوات قبل استعداد SSM وIAM ونسخة main الجديدة؛ تجهيزها لا يتطلب تعطيل التطبيق الحالي.
-
-### 6. أول نشر والتحقق
-
-بعد اكتمال IAM وظهور instance Online وتنظيف tracked checkout ودمج التغييرات، راقب Actions → Green CI → Deploy EC2. إذا بدأت العملية قبل إكمال الإعداد ستفشل؛ بعد الإصلاح استخدم Re-run failed jobs طالما commit لا يزال أحدث main.
+بعد push مصرح به إلى `main`، راقب Actions → Green CI → Deploy EC2. وفق سياسة المستخدم الحالية، تبقى الميزات الجديدة على `dev` حتى يطلب الإصدار صراحةً.
 
 النشر يتحقق من Caddy config، يبني API، ويشغّل migrations ثم يفحص جاهزية API. عند فشل API يحاول إعادة الصورة السابقة؛ DB migrations لا يتم التراجع عنها تلقائيًا. بعد ذلك يشغّل Caddy ويعيد تحميل الإعدادات. يوجد انقطاع قصير، وليس zero-downtime. فشل تشغيل Caddy يفشل العملية ولا يعيد DB أو إعدادات proxy القديمة تلقائيًا.
 

@@ -17,7 +17,7 @@
  npm run migration:run
 # إضافة الأدوار ومناطق الجسم والحساسية
  npm run seed:lookups
-# التحقق من متطلبات المحتوى؛ لا يضيف محتوى بدون dataset
+# استيراد الأطعمة والوجبات كمسودات قابلة للمراجعة
  npm run seed:content
 # تشغيل السيرفر للتطوير
  npm run dev
@@ -54,6 +54,6 @@ npm run dev:grant-editor -- athlete@example.test
 
 عنوان Android Emulator: http://10.0.2.2:3100/api/v1. الموبايل الحقيقي على نفس الشبكة: http://COMPUTER_IP:3100/api/v1. اسمح بمنفذ 3100 للشبكة الخاصة وHTTP في نسخة Android التجريبية. لا تفتح PostgreSQL للموبايل.
 
-S3 مطلوب فقط للرفع والتحميل الحقيقي للملفات، وGmail مطلوب للبريد الحقيقي. Apple مؤجل وMastra غير مطلوب لاختبار F03 وGoogle. لا توجد حسابات أو مكتبة محتوى إنتاجية مزروعة تلقائيًا.
+البيانات الغذائية تُضاف محليًا كمسودات من USDA FoodData Central. S3 مطلوب فقط للرفع والتحميل الحقيقي للملفات، وGmail مطلوب للبريد الحقيقي. Apple مؤجل وMastra غير مطلوب لاختبار F03 وGoogle. انظر [شرح مكتبة F08 ومصادرها](F08_FOOD_MEAL_LIBRARY_AR.md).
 
 للتشغيل اليومي: docker compose up -d --wait postgres ثم npm run dev. أوقف السيرفر بـCtrl+C. البديل المبني: npm run build ثم npm start (بعد إيقاف dev). لإيقاف قاعدة البيانات دون حذف بياناتها: docker compose stop postgres.

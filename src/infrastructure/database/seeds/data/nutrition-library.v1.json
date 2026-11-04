@@ -1,0 +1,916 @@
+{
+  "datasetId": "motion-usda-nutrition-library",
+  "version": 1,
+  "ingredients": [
+    {
+      "id": "1e38aee8-a1ba-5e71-8ff4-ece25de7a5ef",
+      "slug": "chicken",
+      "content": {
+        "title": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+        "dietaryTags": ["LEAN_PROTEIN"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "e817a90f-150d-58cf-a6f3-91f92a491a74",
+      "slug": "tuna",
+      "content": {
+        "title": "Fish, tuna, light, canned in water, without salt, drained solids",
+        "dietaryTags": ["LEAN_PROTEIN"],
+        "allergenCodes": ["FISH"],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "c61c6a51-9984-55c1-b59d-d271c5b39dee",
+      "slug": "egg",
+      "content": {
+        "title": "Egg, whole, cooked, hard-boiled",
+        "dietaryTags": ["PROTEIN"],
+        "allergenCodes": ["EGG"],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "4b70ee7c-1fbb-53d2-963f-2c6afb28b87c",
+      "slug": "greek-yogurt",
+      "content": {
+        "title": "Yogurt, Greek, plain, nonfat (Includes foods for USDA's Food Distribution Program)",
+        "dietaryTags": ["LEAN_PROTEIN"],
+        "allergenCodes": ["MILK"],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "ce67c119-4b38-54bc-91ba-9766f9517d3e",
+      "slug": "tofu",
+      "content": {
+        "title": "Tofu, firm, prepared with calcium sulfate and magnesium chloride (nigari)",
+        "dietaryTags": ["PLANT_PROTEIN"],
+        "allergenCodes": ["SOY"],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "8ac7d5d9-2004-5dc8-9f0f-bdcc50c73ffc",
+      "slug": "salmon",
+      "content": {
+        "title": "Fish, salmon, Atlantic, wild, cooked, dry heat",
+        "dietaryTags": ["PROTEIN"],
+        "allergenCodes": ["FISH"],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "ea8d080c-4f5b-5c7b-9ffd-07ca3abfcc17",
+      "slug": "brown-rice",
+      "content": {
+        "title": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "4e6e5ef7-6609-550f-a8fa-da5ec9501e6f",
+      "slug": "quinoa",
+      "content": {
+        "title": "Quinoa, cooked",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "b78dca8b-70dd-5850-921a-fa9952bbcc84",
+      "slug": "oats",
+      "content": {
+        "title": "Cereals, oats, regular and quick, not fortified, dry",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "edaaad93-74c6-55c2-bb97-f609a79efb05",
+      "slug": "sweet-potato",
+      "content": {
+        "title": "Sweet potato, cooked, baked in skin, flesh, with salt",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "8db85e70-d886-5b5f-9cc9-ebc1c168570a",
+      "slug": "potato",
+      "content": {
+        "title": "Potatoes, baked, flesh and skin, without salt",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "cc77d959-aa0b-5e03-835d-a24f8758e42d",
+      "slug": "banana",
+      "content": {
+        "title": "Bananas, raw",
+        "dietaryTags": ["CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "f2f4ad10-4f45-57a6-b049-1dc93908ab4e",
+      "slug": "lentils",
+      "content": {
+        "title": "Lentils, mature seeds, cooked, boiled, without salt",
+        "dietaryTags": ["PROTEIN", "CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "7c3fb5c4-aa81-5439-a077-691e8c577855",
+      "slug": "black-beans",
+      "content": {
+        "title": "Beans, black, mature seeds, cooked, boiled, without salt",
+        "dietaryTags": ["PROTEIN", "CARBOHYDRATE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "51504294-d82f-5bef-8036-2c6350f16103",
+      "slug": "broccoli",
+      "content": {
+        "title": "Broccoli, cooked, boiled, drained, without salt",
+        "dietaryTags": ["VEGETABLE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "f0202520-98bb-58c9-a48c-0eae9f2a326b",
+      "slug": "spinach",
+      "content": {
+        "title": "Spinach, cooked, boiled, drained, without salt",
+        "dietaryTags": ["VEGETABLE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    },
+    {
+      "id": "b1c07307-10e2-5da9-985d-8c0c7bfd0213",
+      "slug": "carrots",
+      "content": {
+        "title": "Carrots, cooked, boiled, drained, without salt",
+        "dietaryTags": ["VEGETABLE"],
+        "allergenCodes": [],
+        "verificationStatus": "UNKNOWN"
+      }
+    }
+  ],
+  "exercises": [],
+  "foods": [
+    {
+      "id": "89fb3cbe-1ee0-586d-a1b3-efd277f870f5",
+      "slug": "chicken-breast-roasted",
+      "content": {
+        "title": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+        "preparation": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 165,
+        "proteinG100g": 31.0,
+        "carbohydrateG100g": 0.0,
+        "fatG100g": 3.57,
+        "fiberG100g": 0.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/171477/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "1e38aee8-a1ba-5e71-8ff4-ece25de7a5ef",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "324b6bf4-4781-5a40-9631-dc7a7922dfd7",
+      "slug": "canned-light-tuna",
+      "content": {
+        "title": "Fish, tuna, light, canned in water, without salt, drained solids",
+        "preparation": "Fish, tuna, light, canned in water, without salt, drained solids",
+        "preparationState": "READY_TO_EAT",
+        "prepMinutes": 0,
+        "energyKcal100g": 116,
+        "proteinG100g": 25.5,
+        "carbohydrateG100g": 0.0,
+        "fatG100g": 0.82,
+        "fiberG100g": 0.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/171986/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "e817a90f-150d-58cf-a6f3-91f92a491a74",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "a1ba2e9f-d4ac-5494-8840-d3224185bf04",
+      "slug": "hard-boiled-egg",
+      "content": {
+        "title": "Egg, whole, cooked, hard-boiled",
+        "preparation": "Egg, whole, cooked, hard-boiled",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 155,
+        "proteinG100g": 12.6,
+        "carbohydrateG100g": 1.12,
+        "fatG100g": 10.6,
+        "fiberG100g": 0.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/173424/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "c61c6a51-9984-55c1-b59d-d271c5b39dee",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "666c6a69-f8c6-5084-99d0-17979f3dc24f",
+      "slug": "plain-nonfat-greek-yogurt",
+      "content": {
+        "title": "Yogurt, Greek, plain, nonfat (Includes foods for USDA's Food Distribution Program)",
+        "preparation": "Yogurt, Greek, plain, nonfat (Includes foods for USDA's Food Distribution Program)",
+        "preparationState": "READY_TO_EAT",
+        "prepMinutes": 0,
+        "energyKcal100g": 59.0,
+        "proteinG100g": 10.2,
+        "carbohydrateG100g": 3.6,
+        "fatG100g": 0.39,
+        "fiberG100g": 0.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/170894/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "4b70ee7c-1fbb-53d2-963f-2c6afb28b87c",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "b8d2f2dc-bcfa-542f-8b6d-0195eaf2176b",
+      "slug": "firm-tofu",
+      "content": {
+        "title": "Tofu, firm, prepared with calcium sulfate and magnesium chloride (nigari)",
+        "preparation": "Tofu, firm, prepared with calcium sulfate and magnesium chloride (nigari)",
+        "preparationState": "READY_TO_EAT",
+        "prepMinutes": 0,
+        "energyKcal100g": 78.0,
+        "proteinG100g": 9.04,
+        "carbohydrateG100g": 2.85,
+        "fatG100g": 4.17,
+        "fiberG100g": 0.9,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/172448/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "ce67c119-4b38-54bc-91ba-9766f9517d3e",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "1546593a-04a8-5ad7-b451-94305ccaef57",
+      "slug": "wild-atlantic-salmon-cooked",
+      "content": {
+        "title": "Fish, salmon, Atlantic, wild, cooked, dry heat",
+        "preparation": "Fish, salmon, Atlantic, wild, cooked, dry heat",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 182,
+        "proteinG100g": 25.4,
+        "carbohydrateG100g": 0.0,
+        "fatG100g": 8.13,
+        "fiberG100g": 0.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/171998/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "8ac7d5d9-2004-5dc8-9f0f-bdcc50c73ffc",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "9a946491-5451-5d4b-b48e-e9008df2a9bc",
+      "slug": "brown-rice-cooked",
+      "content": {
+        "title": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",
+        "preparation": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 123,
+        "proteinG100g": 2.74,
+        "carbohydrateG100g": 25.6,
+        "fatG100g": 0.97,
+        "fiberG100g": 1.6,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/169704/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "ea8d080c-4f5b-5c7b-9ffd-07ca3abfcc17",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "46980197-6e9b-5d10-8b18-1e5dd86365cf",
+      "slug": "quinoa-cooked",
+      "content": {
+        "title": "Quinoa, cooked",
+        "preparation": "Quinoa, cooked",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 120,
+        "proteinG100g": 4.4,
+        "carbohydrateG100g": 21.3,
+        "fatG100g": 1.92,
+        "fiberG100g": 2.8,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/168917/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "4e6e5ef7-6609-550f-a8fa-da5ec9501e6f",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "ee6a8748-5bb6-5f27-b6b4-084237e1a8ce",
+      "slug": "rolled-oats-dry",
+      "content": {
+        "title": "Cereals, oats, regular and quick, not fortified, dry",
+        "preparation": "Cereals, oats, regular and quick, not fortified, dry",
+        "preparationState": "RAW",
+        "prepMinutes": 0,
+        "energyKcal100g": 379,
+        "proteinG100g": 13.2,
+        "carbohydrateG100g": 67.7,
+        "fatG100g": 6.52,
+        "fiberG100g": 10.1,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/173904/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "b78dca8b-70dd-5850-921a-fa9952bbcc84",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "ef7d0bc0-2140-51c9-9cda-176758c93ded",
+      "slug": "sweet-potato-baked",
+      "content": {
+        "title": "Sweet potato, cooked, baked in skin, flesh, with salt",
+        "preparation": "Sweet potato, cooked, baked in skin, flesh, with salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 90.0,
+        "proteinG100g": 2.01,
+        "carbohydrateG100g": 20.7,
+        "fatG100g": 0.15,
+        "fiberG100g": 3.3,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/170134/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "edaaad93-74c6-55c2-bb97-f609a79efb05",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "26075c9f-740d-59c3-8f63-bc287c9c57d9",
+      "slug": "potato-baked",
+      "content": {
+        "title": "Potatoes, baked, flesh and skin, without salt",
+        "preparation": "Potatoes, baked, flesh and skin, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 93.0,
+        "proteinG100g": 2.5,
+        "carbohydrateG100g": 21.2,
+        "fatG100g": 0.13,
+        "fiberG100g": 2.2,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/170093/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "8db85e70-d886-5b5f-9cc9-ebc1c168570a",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "475441e5-e0d2-5a36-b1a8-53e604ff46d2",
+      "slug": "banana-raw",
+      "content": {
+        "title": "Bananas, raw",
+        "preparation": "Bananas, raw",
+        "preparationState": "RAW",
+        "prepMinutes": 0,
+        "energyKcal100g": 89.0,
+        "proteinG100g": 1.09,
+        "carbohydrateG100g": 22.8,
+        "fatG100g": 0.33,
+        "fiberG100g": 2.6,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/173944/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "cc77d959-aa0b-5e03-835d-a24f8758e42d",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "d1c9dd5f-3b8b-528e-92d4-22d11c85a02f",
+      "slug": "lentils-cooked",
+      "content": {
+        "title": "Lentils, mature seeds, cooked, boiled, without salt",
+        "preparation": "Lentils, mature seeds, cooked, boiled, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 116,
+        "proteinG100g": 9.02,
+        "carbohydrateG100g": 20.1,
+        "fatG100g": 0.38,
+        "fiberG100g": 7.9,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/172421/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "f2f4ad10-4f45-57a6-b049-1dc93908ab4e",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "54d158a7-b3c9-5557-9130-a184dbb8b094",
+      "slug": "black-beans-cooked",
+      "content": {
+        "title": "Beans, black, mature seeds, cooked, boiled, without salt",
+        "preparation": "Beans, black, mature seeds, cooked, boiled, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 132,
+        "proteinG100g": 8.86,
+        "carbohydrateG100g": 23.7,
+        "fatG100g": 0.54,
+        "fiberG100g": 8.7,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/173735/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "7c3fb5c4-aa81-5439-a077-691e8c577855",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "84fad51a-8666-5330-9250-c629010b521b",
+      "slug": "broccoli-cooked",
+      "content": {
+        "title": "Broccoli, cooked, boiled, drained, without salt",
+        "preparation": "Broccoli, cooked, boiled, drained, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 35.0,
+        "proteinG100g": 2.38,
+        "carbohydrateG100g": 7.18,
+        "fatG100g": 0.41,
+        "fiberG100g": 3.3,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/169967/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "51504294-d82f-5bef-8036-2c6350f16103",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "98dccdb9-f0aa-5503-ba30-d9ebb6db25bb",
+      "slug": "spinach-cooked",
+      "content": {
+        "title": "Spinach, cooked, boiled, drained, without salt",
+        "preparation": "Spinach, cooked, boiled, drained, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 23.0,
+        "proteinG100g": 2.97,
+        "carbohydrateG100g": 3.75,
+        "fatG100g": 0.26,
+        "fiberG100g": 2.4,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/168463/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "f0202520-98bb-58c9-a48c-0eae9f2a326b",
+            "quantityG": 100
+          }
+        ]
+      }
+    },
+    {
+      "id": "0a43f62d-df6b-5770-b1d2-925c59ccd518",
+      "slug": "carrots-cooked",
+      "content": {
+        "title": "Carrots, cooked, boiled, drained, without salt",
+        "preparation": "Carrots, cooked, boiled, drained, without salt",
+        "preparationState": "COOKED",
+        "prepMinutes": 0,
+        "energyKcal100g": 35.0,
+        "proteinG100g": 0.76,
+        "carbohydrateG100g": 8.22,
+        "fatG100g": 0.18,
+        "fiberG100g": 3.0,
+        "nutrientSource": {
+          "title": "USDA FoodData Central — SR Legacy (April 2018)",
+          "reference": "https://fdc.nal.usda.gov/fdc-app.html#/food-details/170394/nutrients",
+          "licenseNotes": "Public domain, CC0 1.0. Nutrients per 100 g; exact preparation/form follows the USDA item. SR Legacy is a final historical dataset, not updated since April 2018; review before publication."
+        },
+        "mediaId": null,
+        "ingredients": [
+          {
+            "ingredientId": "b1c07307-10e2-5da9-985d-8c0c7bfd0213",
+            "quantityG": 100
+          }
+        ]
+      }
+    }
+  ],
+  "foodSections": [
+    {
+      "id": "0d1df329-7a8b-5cc9-ba77-1fa9763d1ce9",
+      "slug": "protein-options",
+      "title": "Protein options — draft, review portions",
+      "members": [
+        {
+          "foodId": "89fb3cbe-1ee0-586d-a1b3-efd277f870f5",
+          "portionGPerUnit": 100,
+          "displayPortion": "100 g"
+        },
+        {
+          "foodId": "324b6bf4-4781-5a40-9631-dc7a7922dfd7",
+          "portionGPerUnit": 125,
+          "displayPortion": "125 g drained"
+        },
+        {
+          "foodId": "a1ba2e9f-d4ac-5494-8840-d3224185bf04",
+          "portionGPerUnit": 200,
+          "displayPortion": "2 large eggs (about 100 g edible each)"
+        },
+        {
+          "foodId": "666c6a69-f8c6-5084-99d0-17979f3dc24f",
+          "portionGPerUnit": 200,
+          "displayPortion": "200 g"
+        },
+        {
+          "foodId": "b8d2f2dc-bcfa-542f-8b6d-0195eaf2176b",
+          "portionGPerUnit": 200,
+          "displayPortion": "200 g"
+        },
+        {
+          "foodId": "1546593a-04a8-5ad7-b451-94305ccaef57",
+          "portionGPerUnit": 100,
+          "displayPortion": "100 g"
+        }
+      ]
+    },
+    {
+      "id": "348710fd-66e8-5818-afd3-62e11178b032",
+      "slug": "carbohydrate-options",
+      "title": "Carbohydrate options — draft, review portions",
+      "members": [
+        {
+          "foodId": "9a946491-5451-5d4b-b48e-e9008df2a9bc",
+          "portionGPerUnit": 150,
+          "displayPortion": "150 g cooked"
+        },
+        {
+          "foodId": "46980197-6e9b-5d10-8b18-1e5dd86365cf",
+          "portionGPerUnit": 150,
+          "displayPortion": "150 g cooked"
+        },
+        {
+          "foodId": "ee6a8748-5bb6-5f27-b6b4-084237e1a8ce",
+          "portionGPerUnit": 45,
+          "displayPortion": "45 g dry"
+        },
+        {
+          "foodId": "ef7d0bc0-2140-51c9-9cda-176758c93ded",
+          "portionGPerUnit": 200,
+          "displayPortion": "200 g baked flesh"
+        },
+        {
+          "foodId": "26075c9f-740d-59c3-8f63-bc287c9c57d9",
+          "portionGPerUnit": 200,
+          "displayPortion": "200 g baked flesh and skin"
+        },
+        {
+          "foodId": "475441e5-e0d2-5a36-b1a8-53e604ff46d2",
+          "portionGPerUnit": 180,
+          "displayPortion": "180 g peeled"
+        },
+        {
+          "foodId": "d1c9dd5f-3b8b-528e-92d4-22d11c85a02f",
+          "portionGPerUnit": 150,
+          "displayPortion": "150 g cooked"
+        },
+        {
+          "foodId": "54d158a7-b3c9-5557-9130-a184dbb8b094",
+          "portionGPerUnit": 150,
+          "displayPortion": "150 g cooked"
+        }
+      ]
+    },
+    {
+      "id": "b92d8318-c0d2-5219-943c-772c53a50d3e",
+      "slug": "vegetable-options",
+      "title": "Vegetable options — draft, review portions",
+      "members": [
+        {
+          "foodId": "84fad51a-8666-5330-9250-c629010b521b",
+          "portionGPerUnit": 100,
+          "displayPortion": "100 g cooked"
+        },
+        {
+          "foodId": "98dccdb9-f0aa-5503-ba30-d9ebb6db25bb",
+          "portionGPerUnit": 100,
+          "displayPortion": "100 g cooked"
+        },
+        {
+          "foodId": "0a43f62d-df6b-5770-b1d2-925c59ccd518",
+          "portionGPerUnit": 100,
+          "displayPortion": "100 g cooked"
+        }
+      ]
+    }
+  ],
+  "mealSections": [
+    {
+      "id": "a085e3ca-bff7-5c93-9bdd-9969c03d9370",
+      "slug": "breakfast",
+      "title": "Breakfast ideas — draft"
+    },
+    {
+      "id": "560962e6-308d-5cb9-961b-f438cd30949c",
+      "slug": "main-meals",
+      "title": "Main meals — draft"
+    }
+  ],
+  "meals": [
+    {
+      "id": "b6699c49-713d-51bb-85cd-172393e713d8",
+      "slug": "oats-yogurt-banana",
+      "sectionId": "a085e3ca-bff7-5c93-9bdd-9969c03d9370",
+      "title": "Oats with Greek yogurt and banana",
+      "items": [
+        {
+          "foodSlug": "rolled-oats-dry",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "plain-nonfat-greek-yogurt",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "banana-raw",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "carbohydrate-options"
+        }
+      ]
+    },
+    {
+      "id": "4efd7268-e06e-5035-9764-26a6cf9e0c50",
+      "slug": "egg-sweet-potato-spinach",
+      "sectionId": "a085e3ca-bff7-5c93-9bdd-9969c03d9370",
+      "title": "Egg, sweet potato and spinach plate",
+      "items": [
+        {
+          "foodSlug": "hard-boiled-egg",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "sweet-potato-baked",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "spinach-cooked",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "vegetable-options"
+        }
+      ]
+    },
+    {
+      "id": "efd8c2f6-2da4-5600-9211-4f88e5ca924c",
+      "slug": "chicken-rice-broccoli",
+      "sectionId": "560962e6-308d-5cb9-961b-f438cd30949c",
+      "title": "Roasted chicken, brown rice and broccoli bowl",
+      "items": [
+        {
+          "foodSlug": "chicken-breast-roasted",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "brown-rice-cooked",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "broccoli-cooked",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "vegetable-options"
+        }
+      ]
+    },
+    {
+      "id": "b5623c27-e312-5b2e-9824-1581fd1ead4c",
+      "slug": "salmon-quinoa-carrots",
+      "sectionId": "560962e6-308d-5cb9-961b-f438cd30949c",
+      "title": "Salmon, quinoa and carrots plate",
+      "items": [
+        {
+          "foodSlug": "wild-atlantic-salmon-cooked",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "quinoa-cooked",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "carrots-cooked",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "vegetable-options"
+        }
+      ]
+    },
+    {
+      "id": "2ac10259-b7e6-5b0f-bcd7-c7958480b9ab",
+      "slug": "tuna-lentil-spinach-bowl",
+      "sectionId": "560962e6-308d-5cb9-961b-f438cd30949c",
+      "title": "Tuna, lentil and spinach bowl",
+      "items": [
+        {
+          "foodSlug": "canned-light-tuna",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "lentils-cooked",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "spinach-cooked",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "vegetable-options"
+        }
+      ]
+    },
+    {
+      "id": "9e522bc1-7207-505d-b743-c5bdf521310c",
+      "slug": "tofu-black-bean-rice-bowl",
+      "sectionId": "560962e6-308d-5cb9-961b-f438cd30949c",
+      "title": "Tofu, black bean and brown rice bowl",
+      "items": [
+        {
+          "foodSlug": "firm-tofu",
+          "exchangeUnits": 1,
+          "position": 0,
+          "foodSectionSlug": "protein-options"
+        },
+        {
+          "foodSlug": "black-beans-cooked",
+          "exchangeUnits": 1,
+          "position": 1,
+          "foodSectionSlug": "carbohydrate-options"
+        },
+        {
+          "foodSlug": "brown-rice-cooked",
+          "exchangeUnits": 1,
+          "position": 2,
+          "foodSectionSlug": "carbohydrate-options"
+        }
+      ]
+    }
+  ]
+}

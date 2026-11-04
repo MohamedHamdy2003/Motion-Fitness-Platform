@@ -1,12 +1,12 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.18 · **Updated:** 2026-11-01 · **Status:** F00–F03 backend implemented locally; external integrations and staging remain pending. Feature-specific decisions in Section 12 remain open.
+**Version:** 2.20 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library is in progress on a non-main branch. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
 **Approved F01 update (2026-10-31):** Email verification and password recovery now use six-digit emailed OTPs (10-minute lifetime, five attempts, 60-second resend cooldown). Verification accepts email/code; recovery exchanges email/code for a five-minute single-use reset proof before changing the password. Previous email-link requirements below are superseded; no VERIFY_LINK_BASE or RESET_LINK_BASE is required. See [OTP/OAuth setup](docs/OTP_OAUTH_SETUP_AR.md).
 
-**Deployment update (2026-11-01):** AWS EC2 + RDS PostgreSQL + private S3 using the EC2 IAM role replaces the previous Oracle/Neon target. User verified infrastructure connectivity and is preparing GitHub Actions deployment from main. App rollout and public HTTPS remain to be verified.
+**Deployment update (2026-11-04):** The live deployment uses AWS EC2, RDS PostgreSQL and a private S3 bucket accessed through the EC2 IAM role. HTTPS and the public readiness endpoint work on the EC2 IP. GitHub Actions runs CI for `dev` and `main`; only successful pushes to `main` invoke production deployment through SSM. Current release policy holds changes on `dev` until the user requests release. A separate staging environment is not provisioned.
 
 ## 1. Product and Technology
 
@@ -526,8 +526,8 @@ erDiagram
 | Google Auth | Mobile Google Sign-In sends an ID token. Verify signature, issuer, allowed client-ID audience, expiry, and challenge nonce when used. Look up the provider subject, then create an account or sign in to the linked account |
 | Apple Auth | Receive identity token, authorization code, and nonce challenge. Verify signature, issuer, audience, expiry, and nonce server-side; exchange the code with Apple. Support Private Relay, save the name when first available, and issue a Motion session |
 | Account linking | Enforce provider/subject uniqueness. Never merge accounts solely because emails match. Linking requires an authenticated session and fresh verification of both the current account and provider identity; reject an identity owned by another user |
-| Forgot password | Accept an email address. For an eligible local account, email a reset link containing a random, hashed, single-use token valid for 15 minutes. Return the same response for existing/nonexistent emails and rate-limit requests. Do not create a local password for a social-only account through this flow |
-| Reset password | Open the link via a mobile deep link and submit token, newPassword, confirmPassword. Validate password match/policy and token expiry; atomically consume the token, update the password hash, revoke all sessions and outstanding reset tokens. Require a new login |
+| Forgot password | Accept an email address. For an eligible local account, email a six-digit OTP valid for 10 minutes with five attempts and a 60-second resend cooldown. Return the same response for existing/nonexistent emails and rate-limit requests. Do not create a local password for a social-only account through this flow |
+| Reset password | Verify email/code to exchange the OTP for a five-minute, single-use reset proof; submit that proof with newPassword and confirmPassword. Validate password match/policy and proof expiry; atomically consume it, update the password hash, revoke all sessions and outstanding reset proofs. Require a new login |
 | Change password | Require an authenticated local account, currentPassword, newPassword, confirmPassword. Verify the current password, update its hash, revoke all sessions/reset tokens, and require a new login. Return PASSWORD_LOGIN_NOT_ENABLED for social-only accounts |
 | Refresh | Short-lived JWT access tokens and hashed refresh tokens rotated on each use. Reuse of a consumed refresh token revokes its session family |
 | Logout | Revoke the device session and refresh family. Logout all revokes all sessions. Include session ID in the access token and check session/account status on protected requests for immediate revocation |
@@ -617,13 +617,13 @@ dev → release PR → main
 - Use names such as `feature/F01-auth`, `feature/F02-onboarding`, and `feature/F05-ai-matching`. Keep changes reviewable; a large feature may use several focused PRs.
 - Complete implementation and relevant local checks, then open a feature PR targeting `dev`. Resolve conflicts on the feature branch by incorporating current `dev`; rerun checks after changes.
 - Merge into `dev` only after required CI checks pass on the latest revision, review findings are resolved, and the implemented behavior has been verified. Delete merged feature branches.
-- Open a release PR from `dev` to `main` for a coherent, tested set of features; not automatically after every feature merge.
+- Open a release PR from `dev` to `main` for a coherent, tested set of features only after the user explicitly authorizes a release; not automatically after every feature merge.
 - Release gates: no conflicts, successful required CI against the current base, review completed, integration/E2E checks passed, and the release candidate verified on Staging once Staging is available. Before that, record equivalent local integration verification explicitly.
 - A conflict-free diff alone is not release approval. If `dev` or the release PR changes after validation, rerun affected checks and validate the new candidate.
 - Protect both `main` and `dev`: PR-only changes, required status checks, resolved review conversations, no direct pushes, no force pushes, and no deletion. Require an independent approval when another reviewer is available; during solo development, record a deliberate self-review in the PR without claiming independent approval.
 - Keep the PR branch up to date with its target or use a merge queue if adopted. Resolve release conflicts by merging current `main` into `dev`, then rerun validation; do not rewrite shared branch history.
 - Use merge commits for feature-to-dev and dev-to-main merges to preserve meaningful commits and shared ancestry. Clean up temporary/WIP commits before review; do not repeatedly squash the long-lived `dev` branch into `main`.
-- After release, confirm `dev` contains the released `main` history and synchronize it through a PR when needed. Production deployment is a separate release step, not implied by the absence of merge conflicts.
+- Until the user explicitly authorizes a release, keep new feature work on `dev`. After an authorized release, confirm `dev` contains the released `main` history and synchronize it through a PR when needed. Production deployment is a separate release step, not implied by the absence of merge conflicts.
 - Implement repository protections when the GitHub repository is created/connected. [GitHub protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
 **Green CI — GitHub Actions**
@@ -707,15 +707,14 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- Immediate delivery priority: implement F00–F02 in a separate Motion implementation chat while remaining feature planning continues here. Preserve the full roadmap; this changes delivery priority, not the agreed product scope.
-- Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/staging environment templates, request/response examples, integration assertions and a verified free-tier HTTPS staging deployment for mobile developers. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
-- F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Initial lookup data and seed infrastructure are in scope; researched program/meal seed content remains later work.
-- Verify hosting terms and database persistence before selecting a free provider; deployment must be functional and explicitly distinguish live endpoints from configuration-blocked integrations.
+- Delivery priority has advanced from F00–F02 to the F08 reusable food/meal library. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
+- Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
+- F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 
 
 `F00 → F01 → F16 → F02/F03 → F08 food/meal library → F04 → F05 → F06 + F08 enrollment integration → F17 → F07 → F08 swaps/completion → F09 → F18 → F10 → F11 → F12 → F13/F14 → F15`
 
-- F08 food/meal library can be implemented after F02/F03. F04 then builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
+- F08 food/meal library is being implemented after F02/F03. F04 then builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
 
 - F16 initially supplies service contracts and rewriting; Matcher/Fitter behavior is implemented in F05/F17, not as an implicit prerequisite for F02. Food/meal library content is reusable; program creation commits both schedules together, publication validates completeness, and enrollment assignment applies both together in a separate transaction.
 - Feature numbers remain stable identifiers, not execution order. Complete daily fitting and completion guards before exposing workout execution to users. AI service and admin dashboard each receive lint/typecheck/build and relevant tests in Green CI.
@@ -726,7 +725,7 @@ admin-dashboard/
 
 - F17/F08 responsibility split is settled: retain AiProgramFitter for injury-description/exercise-description assessment only, daily and on demand. Food allergy/dislike/exclusion checks use structured backend queries only; no nutrition AI, free-text allergy assessment, or new AI food-restriction tables. The two other AI components remain AiAssistedMatcher and AiRewriter.
 - F00/F01 foundation and local authentication can start now. The list below gates the named integrations/features, not all coding. Do not claim the whole plan is implementation-complete until these choices are resolved.
-- F01: configure Android/iOS Google client IDs, Apple App/Service IDs and keys, email delivery, and reset-password deep links.
+- F01: configure mobile Google client IDs, Apple App/Service IDs and keys when Apple sign-in is resumed, and email delivery for OTP verification/recovery. OTP flow does not require reset-password deep links.
 - F02/F05 approved 2026-10-31: users must be strictly older than 18. Current weight has no measurement date/history; users edit it themselves. Store date of birth and training-day count; fixed weekday scheduling is a later option.
 - F16/F17: approve exercise-description completeness, review-role qualifications, instruction/model evaluation thresholds, request timeout/lease limits, and provider data-retention settings. No clinical diagnosis or exercise substitutions. Food exchanges follow the deterministic F08 rules.
 - F18: choose the Admin Dashboard frontend framework and deployment target.

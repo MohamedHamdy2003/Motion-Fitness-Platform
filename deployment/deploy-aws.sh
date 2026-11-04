@@ -17,6 +17,7 @@ previous=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q 
 docker build --tag "$MOTION_IMAGE" .
 # Migrate before replacing the running API. Schema changes must be backward-compatible.
 "${compose[@]}" run --rm --no-deps api node dist/infrastructure/database/migrate.js
+"${compose[@]}" run --rm --no-deps api node dist/infrastructure/database/seeds/seed-content.js
 if ! "${compose[@]}" up --detach --wait --wait-timeout 150 api; then
   echo 'New API failed readiness; database migrations are NOT reverted.'
   if [[ -n "$previous" ]]; then

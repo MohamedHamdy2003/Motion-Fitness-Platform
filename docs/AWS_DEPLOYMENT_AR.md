@@ -1,8 +1,6 @@
 # نشر Motion على AWS EC2 + RDS + S3
 
-تحديث 2 نوفمبر 2026: المستخدم أكد نشر التطبيق وتشغيل EC2 وRDS وS3 وأرسل إعدادات Caddy لشهادة IP. أُدرجت في Caddy.aws وCompose. الربط التلقائي عبر SSM ومستخدم IAM مخصص موضح في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md)، ولم يتم التحقق من أول نشر عبر Actions بعد.
-
-تحديث 1 نوفمبر 2026: المستخدم جهز الخدمات واختبر اتصال EC2 بـRDS وS3. الملفات هنا تجهز نشر التطبيق؛ لم يتم الدخول إلى السيرفر أو نشر Motion من هذه المحادثة. Oracle وNeon لم يعودا هدف النشر الحالي.
+تحديث 4 نوفمبر 2026: التطبيق يعمل على EC2 مع PostgreSQL على RDS وملفات خاصة على S3 باستخدام IAM Role. HTTPS وhealth endpoint يعملان على عنوان IP. GitHub Actions يشغّل CI على `dev`، أما نشر الإنتاج فيبدأ فقط عند push ناجح إلى `main`. سياسة المشروع الحالية تمنع دمج الميزات إلى `main` حتى يطلب المستخدم ذلك صراحةً. راجع نتيجة الـworkflow وملف `.local/aws-deployed-revision` على EC2 للتأكد من SHA المنشور؛ خطوات CI/CD في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md).
 
 ## المطلوب على EC2
 

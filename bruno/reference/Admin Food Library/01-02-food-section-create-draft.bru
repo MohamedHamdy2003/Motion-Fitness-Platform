@@ -1,0 +1,49 @@
+meta {
+  name: 02-food-section-create-draft
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/food-sections
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "slug": "replace-with-unique-food-section",
+    "title": "Protein options — draft; review portions before publication",
+    "members": [
+      {
+        "foodVersionId": "{{foodVersionId}}",
+        "portionGPerUnit": 100,
+        "displayPortion": "100 g cooked"
+      },
+      {
+        "foodVersionId": "{{foodVersionId2}}",
+        "portionGPerUnit": 100,
+        "displayPortion": "100 g cooked"
+      }
+    ]
+  }
+}
+
+script:post-response {
+  const b=res.getBody(); if(b.id) bru.setVar("foodSectionId",b.id); if(b.version_id) bru.setVar("foodSectionVersionId",b.version_id);
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Contract version: v1 / 0.4.0.
+  See docs/API_CONTRACT.md for response shapes and error codes.
+  Never commit populated credentials or runtime tokens.
+}

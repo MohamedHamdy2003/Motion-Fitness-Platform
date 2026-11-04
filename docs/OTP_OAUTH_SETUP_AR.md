@@ -14,7 +14,7 @@
 
 ## Google على Android
 
-الموجود محليًا: معرفان Google Client IDs. صيغة المعرف وحدها لا تثبت نوعه أو صحة ربط تطبيقه؛ راجع Google Cloud Console.
+الموجود محليًا: Google Android وWeb OAuth Client IDs في إعدادات البيئة. صيغة المعرف وحدها لا تثبت صحة ربط التطبيق؛ راجع Google Cloud Console. الـBackend يصدر challenge وnonce، لكن اختبار تسجيل الدخول الكامل يحتاج تنفيذ Google Sign-In داخل تطبيق Android وإرسال ID token وchallengeId.
 
 1. جهز OAuth consent screen وTest users إن كان التطبيق في Testing.
 2. أنشئ Android OAuth client باسم package المطابق للتطبيق وبصمة SHA-1 لشهادة التوقيع. جهز بصمات debug وrelease وPlay App Signing بحسب النسخ المستخدمة.
@@ -42,4 +42,4 @@
 
 ## الوصول إلى الـBackend
 
-OAuth يحتاج تطبيق الموبايل نفسه؛ المشروع الحالي Backend. localhost على الموبايل يشير للموبايل، وليس الكمبيوتر. للتشغيل المنشور نحتاج عنوان API مع HTTPS موثوق. إعداد IP HTTPS على Oracle لم يُختبر بعد. لا ترسل مفاتيح أو ID tokens في المحادثة؛ اضبطها واختبرها من التطبيق أو الملفات المحلية.
+OAuth يحتاج تنفيذ تطبيق الموبايل نفسه؛ المشروع الحالي Backend. localhost على الموبايل يشير للموبايل، وليس الكمبيوتر. عنوان الإنتاج الحالي `https://13.49.114.20/api/v1` بشهادة HTTPS؛ المستخدم تحقق من health endpoint في 2 نوفمبر 2026. Google challenge متاح من الـBackend، لكن لا تعتبر تسجيل الدخول مكتملًا قبل اختبار ID token وnonce من تطبيق Android. Apple مؤجل لعدم توفر حساب مطور Apple وجهاز iPhone. لا ترسل مفاتيح أو ID tokens في المحادثة؛ اضبطها واختبرها من التطبيق أو الملفات المحلية.
