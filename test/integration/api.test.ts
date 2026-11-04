@@ -967,10 +967,7 @@ describe('profiles, onboarding and injuries', () => {
     ).toBe(404);
     const refs = await api.get(prefix + '/references/onboarding').set(headers);
     expect(refs.body).not.toHaveProperty('measurement_max_age_days');
-    expect(refs.body.genders).toEqual([
-      'FEMALE',
-      'MALE',
-    ]);
+    expect(refs.body.genders).toEqual(['FEMALE', 'MALE']);
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
     const r = await register();

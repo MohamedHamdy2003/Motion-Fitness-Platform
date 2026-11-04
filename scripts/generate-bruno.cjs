@@ -259,15 +259,21 @@ add(
     docs: 'Requires Bearer auth. Use this nonce with an identity already linked to the current Motion account, then call /auth/reauthenticate. This produces a reauthentication proof, not a login session or a link challenge.',
   },
 );
-add('Social reauthentication', 'POST', '/auth/reauthenticate', {
-  method: 'GOOGLE',
-  idToken: '{{idToken}}',
-  challengeId: '{{reauthChallengeId}}',
-  purpose: 'LINK',
-}, {
-  post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
-  docs: 'Proves the existing Google identity again and stores a short-lived LINK proof for the final link request. For a password account, use Password reauthentication instead.',
-});
+add(
+  'Social reauthentication',
+  'POST',
+  '/auth/reauthenticate',
+  {
+    method: 'GOOGLE',
+    idToken: '{{idToken}}',
+    challengeId: '{{reauthChallengeId}}',
+    purpose: 'LINK',
+  },
+  {
+    post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
+    docs: 'Proves the existing Google identity again and stores a short-lived LINK proof for the final link request. For a password account, use Password reauthentication instead.',
+  },
+);
 add(
   'Link challenge',
   'POST',
@@ -279,13 +285,19 @@ add(
     docs: 'Requires Bearer auth. Pass this nonce to Google Sign-In to get the identity being added, then combine its ID token and linkChallengeId with a reauthenticationToken at /auth/identities/google/link.',
   },
 );
-add('Link Google identity', 'POST', '/auth/identities/google/link', {
-  idToken: '{{idToken}}',
-  challengeId: '{{linkChallengeId}}',
-  reauthenticationToken: '{{reauthenticationToken}}',
-}, {
-  docs: 'Final step: provide Bearer auth for the current Motion account, the ID token made with the LINK challenge nonce, that linkChallengeId, and fresh reauthenticationToken with purpose LINK. This links the provider; it does not merge accounts.',
-});
+add(
+  'Link Google identity',
+  'POST',
+  '/auth/identities/google/link',
+  {
+    idToken: '{{idToken}}',
+    challengeId: '{{linkChallengeId}}',
+    reauthenticationToken: '{{reauthenticationToken}}',
+  },
+  {
+    docs: 'Final step: provide Bearer auth for the current Motion account, the ID token made with the LINK challenge nonce, that linkChallengeId, and fresh reauthenticationToken with purpose LINK. This links the provider; it does not merge accounts.',
+  },
+);
 add('Link Apple identity', 'POST', '/auth/identities/apple/link', {
   idToken: '{{idToken}}',
   authorizationCode: '{{authorizationCode}}',

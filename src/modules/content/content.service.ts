@@ -215,7 +215,9 @@ export class ContentService {
         `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
         [codes],
       );
-      const knownCodes = new Set(known.map((row: { code: string }) => row.code));
+      const knownCodes = new Set(
+        known.map((row: { code: string }) => row.code),
+      );
       const unknown = codes.find((code) => !knownCodes.has(code));
       if (unknown)
         throw new ApiError(
