@@ -11,7 +11,9 @@ Updated: 2026-10-30. User authorized a separate implementation chat in the same 
 
 ## Immediate Authorized Delivery
 
-Implement F00, F01 and F02 APIs so Android/iOS client developers can integrate while broader planning continues. Create a versioned Bruno collection with usable examples, assertions, local/staging environment templates and no committed secrets. Deploy a working integration/staging API and PostgreSQL using a currently verified free hosting option. The user authorized free deployment; do not purchase a paid plan. Verify free-tier persistence, quotas, sleep/cold-start behavior, expiry and outbound-email limitations against official current documentation. Do not promise permanent free availability. Prefer an authenticated stable HTTPS API over a temporary local tunnel. Report live base URL and actual endpoint/test status when available.
+Historical handoff for the F00–F02 implementation slice. The original free-tier staging target was superseded by the user's AWS deployment. The current production base URL and EC2/RDS/S3 workflow are documented in [AWS deployment](AWS_DEPLOYMENT_AR.md) and [GitHub automation](GITHUB_AUTOMATION_AR.md); the separate staging environment is not provisioned.
+
+The implementation scope below remains useful as a record of the F00–F02 requirements. Do not follow the original free-provider setup steps as the current deployment procedure.
 
 F00: NestJS + TypeScript + PostgreSQL + TypeORM, shared DataSource, explicit migrations, synchronize:false, migrationsRun:false, configuration validation, validation/error conventions, request IDs, health/readiness, local development setup, jobs/mail infrastructure needed for auth, CI and seed runner. Branches main/dev plus feature branches; feature PRs to dev and tested release PR to main. Green GitHub Actions, meaningful commits, PRs explaining changes. Set up the local repository; use actual available GitHub account/repository information rather than inventing a remote. Keep secrets outside Git.
 
