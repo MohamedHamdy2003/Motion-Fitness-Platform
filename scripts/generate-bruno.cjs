@@ -7,7 +7,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       version: '1',
-      name: 'Motion API v1 — F00–F08',
+      name: 'Motion API v1 — F00–F04',
       type: 'collection',
       ignore: ['node_modules', '.git'],
     },
@@ -40,6 +40,10 @@ const variables = {
   mealSectionId: '',
   mealId: '',
   mealVersionId: '',
+  programId: '',
+  programRevision: '1',
+  programHintId: '',
+  exerciseRevisionId: '',
   profileRevision: '0',
   preferenceRevision: '0',
   injuryVersion: '1',
@@ -771,6 +775,132 @@ write(
   'DELETE',
   '/admin/meals/{{mealId}}',
   { expectedRevision: 3 },
+);
+
+// F04 combined admin program and nutrition schedule builder.
+const programDayMeals = [
+  {
+    mealType: 'LUNCH',
+    localTime: '12:00',
+    mealVersionId: '{{mealVersionId}}',
+  },
+];
+const programWeeks = Array.from({ length: 4 }, () => ({
+  days: Array.from({ length: 7 }, (_, index) =>
+    index === 0 || index === 3
+      ? {
+          kind: 'TRAINING',
+          workout: {
+            title: 'Draft workout',
+            description: 'Replace with reviewed workout notes.',
+            exercises: [
+              {
+                exerciseRevisionId: '{{exerciseRevisionId}}',
+                prescription: {
+                  mode: 'REPS',
+                  setCount: 3,
+                  repsMin: 8,
+                  repsMax: 12,
+                  restSeconds: 60,
+                },
+              },
+            ],
+          },
+          meals: programDayMeals,
+        }
+      : { kind: 'REST', meals: programDayMeals },
+  ),
+}));
+const programAggregate = {
+  slug: 'replace-with-unique-program-slug',
+  title: 'Draft program title',
+  primaryGoal: 'STRENGTH_HYPERTROPHY',
+  supportedGoals: ['STRENGTH_HYPERTROPHY'],
+  idealLevel: 'BEGINNER',
+  supportedLevels: ['BEGINNER'],
+  trainingDaysPerWeek: 2,
+  editorialPriority: 0,
+  description: 'Replace with accurate program description.',
+  requiredEquipment: [],
+  intendedAudience: null,
+  months: [{ title: 'Month 1', weeks: programWeeks }],
+};
+write('reference/Admin Programs', '01-programs-list', 'GET', '/admin/programs');
+write(
+  'reference/Admin Programs',
+  '02-program-create-draft',
+  'POST',
+  '/admin/programs',
+  programAggregate,
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);',
+    docs: 'The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '03-program-get',
+  'GET',
+  '/admin/programs/{{programId}}',
+);
+const programEdit = { ...programAggregate };
+delete programEdit.slug;
+write(
+  'reference/Admin Programs',
+  '04-program-edit-draft',
+  'PATCH',
+  '/admin/programs/{{programId}}',
+  { ...programEdit, expectedVersion: 1 },
+  {
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    docs: 'This sample expects a draft at revision 1. Use the current numeric revision returned by GET when editing. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '05-program-publish',
+  'POST',
+  '/admin/programs/{{programId}}/publish',
+  { expectedVersion: 1 },
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    docs: 'This sample expects an untouched draft at revision 1. Use the current numeric revision returned by GET. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '06-program-hint-draft',
+  'POST',
+  '/admin/programs/{{programId}}/hints',
+  {
+    expectedVersion: 1,
+    originalText: 'Replace with reviewed program guidance.',
+    structuredHints: { suitabilityNotes: ['Replace with reviewed notes.'] },
+  },
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programHintId",b.id);',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '07-program-hint-approve',
+  'POST',
+  '/admin/programs/{{programId}}/hints/{{programHintId}}/approve',
+  { expectedVersion: 2 },
+  { status: 201, headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
+);
+write(
+  'reference/Admin Programs',
+  '08-program-archive',
+  'DELETE',
+  '/admin/programs/{{programId}}',
+  { expectedVersion: 1 },
+  { headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
 );
 write(
   'reference/Admin Food Library',

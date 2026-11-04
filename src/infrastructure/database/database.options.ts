@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { LibraryIntegrity1793448002000 } from './migrations/1793448002000-LibraryIntegrity';
 import { NutritionLibrary1793448003000 } from './migrations/1793448003000-NutritionLibrary';
+import { ProgramBuilder1793448004000 } from './migrations/1793448004000-ProgramBuilder';
 import { EmailOtp1793448001000 } from './migrations/1793448001000-EmailOtp';
 import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
@@ -43,6 +44,7 @@ export function databaseOptions(): DataSourceOptions {
       EmailOtp1793448001000,
       LibraryIntegrity1793448002000,
       NutritionLibrary1793448003000,
+      ProgramBuilder1793448004000,
     ],
     synchronize: false,
     migrationsRun: false,
