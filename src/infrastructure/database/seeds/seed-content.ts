@@ -1,23 +1,25 @@
 import { importLibrary } from './import-library';
 import db from '../data-source';
 import { seedContent } from './seed-runner';
+import { resolve } from 'node:path';
+const datasetPath =
+  process.env.CONTENT_DATASET_PATH ??
+  resolve(__dirname, 'data/nutrition-library.v1.json');
 void db
   .initialize()
   .then(() => seedContent(db))
-  .then(() =>
-    process.env.CONTENT_DATASET_PATH
-      ? importLibrary(db, process.env.CONTENT_DATASET_PATH)
-      : undefined,
-  )
+  .then(() => importLibrary(db, datasetPath))
   .then(() =>
     process.stdout.write(
-      process.env.CONTENT_DATASET_PATH
-        ? 'Content dataset imported as drafts\n'
-        : 'Content stage validated; no approved content dataset supplied\n',
+      `Content dataset imported as drafts: ${datasetPath}\n`,
     ),
   )
   .finally(() => (db.isInitialized ? db.destroy() : undefined))
-  .catch(() => {
-    process.stderr.write('Content seed failed\n');
+  .catch((error: unknown) => {
+    const detail =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error);
+    process.stderr.write(`Content seed failed: ${detail}\n`);
     process.exitCode = 1;
   });

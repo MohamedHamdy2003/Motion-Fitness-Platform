@@ -44,6 +44,49 @@ const apiErrorMessages: Record<string, string> = {
   APPLE_REVOCATION_FAILED:
     'The Apple authorization could not be revoked. Please try again later.',
   RATE_LIMITED: 'Too many requests. Please try again later.',
+  REVISION_CONFLICT:
+    'This item changed since you loaded it. Refresh and try again.',
+  ALREADY_PUBLISHED: 'This version is already published.',
+  CONTENT_ARCHIVED: 'This item is archived and cannot be changed.',
+  FOOD_VERSION_NOT_FOUND: 'The selected food version does not exist.',
+  FOOD_SECTION_NEEDS_ALTERNATIVES:
+    'Publish a food section only after adding at least two alternatives.',
+  FOOD_SECTION_FOOD_NOT_PUBLISHED:
+    'Every food in the section must be published first.',
+  FOOD_SECTION_MEMBER_NOT_FOUND:
+    'The selected food section member does not exist.',
+  MEAL_SECTION_UNAVAILABLE:
+    'The selected meal section does not exist or is archived.',
+  MEAL_NEEDS_ITEMS: 'Add at least one food item before publishing the meal.',
+  MEAL_ITEM_NOT_PUBLISHED:
+    'Every meal item must use a published food section and food.',
+  IDEMPOTENCY_KEY_REQUIRED:
+    'Send an Idempotency-Key header containing 8 to 128 letters, numbers, underscores, or hyphens.',
+  IDEMPOTENCY_CONFLICT:
+    'This Idempotency-Key was already used with different request data.',
+  PROGRAM_VERSION_IMMUTABLE:
+    'Published program versions cannot be changed. Create a new draft version.',
+  PROGRAM_PAIR_INVALID:
+    'The program and nutrition schedule versions must both be drafts before publication.',
+  PROGRAM_WEEK_TRAINING_DAYS_INVALID:
+    'Each program week must contain the configured number of training days.',
+  PROGRAM_EXERCISE_UNAVAILABLE:
+    'An exercise in this program does not exist or is archived.',
+  PROGRAM_MEAL_UNAVAILABLE:
+    'A meal in this nutrition schedule does not exist or is archived.',
+  PROGRAM_SCHEDULE_INCOMPLETE:
+    'The program and nutrition schedule must contain one paired nutrition day for every program day and at least one meal slot per day.',
+  PROGRAM_WEEK_INVALID:
+    'Every program week must contain seven days and the configured training-day count.',
+  PROGRAM_WORKOUTS_INCOMPLETE:
+    'Every training day must contain a workout with at least one exercise.',
+  PROGRAM_MEALS_UNPUBLISHED:
+    'Publish every referenced meal before publishing this program.',
+  PROGRAM_HINT_APPROVAL_REQUIRED:
+    'Approve the program hint version before publishing this program.',
+  PROGRAM_NUTRITION_PAIR_INVALID:
+    'Each program day must map to the corresponding day in its paired nutrition schedule.',
+  PROGRAM_HINT_NOT_FOUND: 'The draft program hint was not found.',
 };
 export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const r = schema.safeParse(value);

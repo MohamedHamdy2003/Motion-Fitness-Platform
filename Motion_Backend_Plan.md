@@ -1,12 +1,12 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.19 · **Updated:** 2026-11-04 · **Status:** F00–F03 backend implemented; AWS production infrastructure and main-branch deployment workflow are configured. Staging and later product features remain pending. Feature-specific decisions in Section 12 remain open.
+**Version:** 2.22 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; the next roadmap feature is F05 matching. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
 **Approved F01 update (2026-10-31):** Email verification and password recovery now use six-digit emailed OTPs (10-minute lifetime, five attempts, 60-second resend cooldown). Verification accepts email/code; recovery exchanges email/code for a five-minute single-use reset proof before changing the password. Previous email-link requirements below are superseded; no VERIFY_LINK_BASE or RESET_LINK_BASE is required. See [OTP/OAuth setup](docs/OTP_OAUTH_SETUP_AR.md).
 
-**Deployment update (2026-11-04):** AWS EC2 + RDS PostgreSQL + private S3 using the EC2 IAM role replaces the previous Oracle/Neon target. The user verified the AWS services and the HTTPS health endpoint. GitHub Actions is configured to deploy a tested `main` commit through SSM; check the workflow run and deployed SHA for each release. A separate staging environment is still pending.
+**Deployment update (2026-11-04):** The live deployment uses AWS EC2, RDS PostgreSQL and a private S3 bucket accessed through the EC2 IAM role. HTTPS and the public readiness endpoint work on the EC2 IP. GitHub Actions runs CI for `dev` and `main`; only successful pushes to `main` invoke production deployment through SSM. Current release policy holds changes on `dev` until the user requests release. A separate staging environment is not provisioned.
 
 ## 1. Product and Technology
 
@@ -87,10 +87,10 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 
 | Input or Metric | Implementation |
 |---|---|
-| Goal and fitness level | Required primary_goal: FAT_LOSS or STRENGTH_HYPERTROPHY; fitness_level: BEGINNER, INTERMEDIATE or ADVANCED. Use the same codes in profile DTOs, content metadata and matching queries |
+| Goal, gender and fitness level | Required primary_goal: FAT_LOSS or STRENGTH_HYPERTROPHY; self-reported gender: MALE or FEMALE from the genders lookup; fitness_level enum: BEGINNER, INTERMEDIATE or ADVANCED. Gender is not used to infer health, eligibility or calorie requirements. |
 | Age | Store `date_of_birth`; calculate age at assessment and include it in the matching snapshot |
 | Height and weight | `height_cm` and `weight_kg`, from the current profile revision in the request snapshot; `tall` is not a separate input |
-| Training availability | Required training-day count in {2, 3, 4, 5}; include equipment/time constraints only after the corresponding onboarding fields exist |
+| Training availability | Required selection of 2-5 fixed weekdays from SUNDAY through SATURDAY; derive count for program matching. Include equipment/time constraints only after the corresponding onboarding fields exist |
 | BMI | `weight_kg / (height_cm / 100)^2`; contextual metric, never the sole selector |
 
 - BMI does not distinguish muscle from fat. Apply CDC adult categories only for ages 20+; unknown age or a younger user must not receive those adult labels. [CDC BMI limitations](https://www.cdc.gov/bmi/faq/) and [age-specific categories](https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html).
@@ -201,7 +201,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Accounts | `users`: email_normalized (nullable when unavailable from a social provider), password_hash (nullable for social-only accounts), status, verified_at; local registration requires email and password; `roles`, `user_roles` |
 | Social identities | `auth_identities`: user_id, provider GOOGLE/APPLE, provider_subject, provider_email nullable, provider_refresh_token_encrypted nullable for Apple revocation; identify accounts by subject, not email |
 | Authentication challenges | `auth_challenges`: user_id nullable before login, purpose, provider, nonce_hash, expires_at, consumed_at; short-lived and single-use |
-| Profiles | `user_profiles`: user_id, name, phone, **height_cm**, current **weight_kg**, primary_goal, fitness_level, training_days_per_week, timezone, locale, avatar_media_id, date_of_birth, profile_revision |
+| Profiles | `user_profiles`: user_id, name, phone, self-reported nullable `gender` referencing the seeded `genders` lookup, **height_cm**, current **weight_kg**, primary_goal, fitness_level enum, derived training-day count plus nullable `training_weekdays` array, timezone, locale, avatar_media_id, date_of_birth, profile_revision |
 | Profile weight and settings | Current positive **weight_kg** on `user_profiles`, without measurement dates/history; `user_settings`: user_id, reminders, theme, quiet_hours |
 | Sessions and verification | `auth_sessions`: user_id, family_id, expires_at, revoked_at; `auth_refresh_tokens`: session_id, token_hash UNIQUE, parent_token_id nullable, expires_at, consumed_at, revoked_at; retain consumed hashes until expiry for replay detection; `verification_tokens`: user_id, purpose EMAIL_VERIFICATION/PASSWORD_RESET, token_hash, expires_at, consumed_at |
 | Programs | `programs`: slug; `program_versions`: program_id, version, status, primary_goal, supported_goals, ideal_level, supported_levels, training_days_per_week, editorial_priority, description, required_equipment, intended_audience, nutrition_plan_version_id NOT NULL UNIQUE (paired version created atomically), approved_hint_version_id nullable |
@@ -216,6 +216,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Workout execution | `workout_sessions`: user_id, scheduled_day_id, workout_revision_id, status, started_at, completed_at, active_duration_seconds |
 | Exercise execution | `session_exercises`: session_id, workout_exercise_id, status, completion_mode, fitting_run_id nullable; `set_logs`: session_exercise_id, set_number, status, actual_reps, weight_kg, duration_seconds, client_event_id |
 | Month completion | `month_completions`: enrollment_id, monthly_plan_id, completed_at |
+| Reference lookups | `roles`, `body_areas`, `allergens`, and `genders` have stable codes and are populated by `npm run seed:lookups`; `food_reference_items` is populated by the versioned nutrition library importer. Fixed fitness levels and weekdays remain validated enums/constants, not lookup tables. |
 | Ingredients and allergens | `ingredients`: dietary_tags, metadata_version; `allergens`, `ingredient_allergens`; ingredient/allergen/dietary metadata status: `UNKNOWN/VERIFIED`; policy-versioned dietary restriction codes map to verified ingredient tags, unknown metadata is returned explicitly, never assumed compatible |
 | Food catalog | `foods`: slug; `food_versions`: food_id, version, title, preparation, preparation_state, prep_minutes, media_id, status, availability_status, energy_kcal_100g, protein_g_100g, carbohydrate_g_100g, fat_g_100g, fiber_g_100g nullable, nutrient_source, review_status; `food_ingredients`: food_version_id, ingredient_id, quantity_g |
 | Food safety metadata | `food_safety_metadata`: food_version_id UNIQUE, revision, verification_status; `food_allergen_declarations`: food_version_id, allergen_id, declaration CONTAINS/MAY_CONTAIN; combine with ingredient-level allergen data |
@@ -260,7 +261,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 - Unique: enrollment recommendation_run_id; session scheduled_day_id; `(enrollment_id, plan_day_id)`; `(session_id, workout_exercise_id)`; `(session_exercise_id, set_number)`; `(enrollment_id, monthly_plan_id)`.
 - Unique: `(user_id, revision)` for preferences; `(nutrition_assignment_id, local_date)` and `(nutrition_assignment_id, day_number)` for nutrition days; `(nutrition_day_id, meal_slot_id)` for meals; `(scheduled_meal_id, selection_version, template_meal_item_id)` for scheduled items; `(user_id, local_date)` for targets; `(user_id, local_date, source)` for steps; `(user_id, client_event_id)` for water.
 - Unique `(provider, external_id)` combinations using the appropriate external-ID field for products, subscriptions, transactions, and events; scope idempotency keys by user and operation.
-- CHECK training_days_per_week IN (2,3,4,5) in profiles/program versions; constrain primary_goal to FAT_LOSS/STRENGTH_HYPERTROPHY and fitness levels to BEGINNER/INTERMEDIATE/ADVANCED. supported_levels must be nonempty and contain only these values.
+- CHECK program_versions.training_days_per_week IN (2,3,4,5); profiles store 2-5 distinct weekday codes in `training_weekdays` and derive the count. Constrain primary_goal to FAT_LOSS/STRENGTH_HYPERTROPHY and fitness levels to BEGINNER/INTERMEDIATE/ADVANCED. supported_levels must be nonempty and contain only these values.
 - Require positive, non-null weight per measurement, and other positive values/ranges, including `reps_min <= reps_max`; REST days have no workout and TRAINING days require one.
 - Program aggregate commands use Idempotency-Key and expectedVersion for edits; write through one transaction-scoped EntityManager. Uploads and AI hint previews finish before save; never keep a transaction open while the Admin edits the form. Publication validates and publishes both paired versions atomically, with no provider calls inside the transaction.
 - Program aggregate save validates equal day counts and a one-to-one day mapping before commit. Enforce NOT NULL/UNIQUE nutrition_plan_version_id on program_versions and NOT NULL/UNIQUE nutrition_template_day_id on plan_days. Check each mapped nutrition day belongs to that program's paired nutrition version and matches its absolute ordinal; no extra or unmapped nutrition days. Cross-table counts require service validation in the transaction, not a simple SQL CHECK. All schedule writes use the aggregate service and lock the draft program version.
@@ -471,7 +472,7 @@ erDiagram
 ## 6. Database Seeding
 
 - Two explicit seed entry points: `seed-lookups.ts` populates static reference tables; `seed-content.ts` loads sourced exercise/food/meal libraries and program/nutrition aggregates referencing those lookups. Each initializes the shared DataSource, invokes its Seed Runner stage, and closes the connection. `seed.ts` orchestrates both in order. These files are planned, not implemented yet.
-- Lookup stage: modeled static tables such as roles, body areas and allergens, using stable codes. Keep fixed goal/level/day enums as validated enums; do not invent lookup tables for them solely to seed them.
+- Lookup stage: modeled static tables such as roles, body areas, allergens and genders, using stable codes. Keep fixed goal/fitness-level/weekday values as validated enums/constants; do not invent lookup tables for them solely to seed them.
 - Content stage: validate required lookup keys/versions, then insert exercises, ingredients/foods, sections, meals, paired program/nutrition schedules and matching configuration in dependency order. Use versioned local sourced datasets; no live AI calls, web scraping or media downloads during seeding.
 - Content provenance and retained research: [Motion Research and Content Sourcing](docs/Motion_Research_and_Content_Sourcing.md). Maintain a versioned source manifest beside seed datasets; nutrient values, preparation state, portions, exercise technique and program rationale must be traceable. No random nutrient values or invented references. Generated content stays DRAFT until reviewed. Portion personalization is still a separate open decision.
 - Core seeds use actor_id = null with action source SYSTEM_SEED in audit. Seeded rulesets may have created_by = null only on this controlled path; runtime admin writes require an authenticated creator. Core programs remain DRAFT until an Admin reviews and publishes them; demo-approved hints use the demo admin created before demo scenarios. No production password or hidden admin account is seeded. Provision the first real Admin through an explicit one-time admin:bootstrap command with credentials from protected configuration before publishing.
@@ -617,13 +618,13 @@ dev → release PR → main
 - Use names such as `feature/F01-auth`, `feature/F02-onboarding`, and `feature/F05-ai-matching`. Keep changes reviewable; a large feature may use several focused PRs.
 - Complete implementation and relevant local checks, then open a feature PR targeting `dev`. Resolve conflicts on the feature branch by incorporating current `dev`; rerun checks after changes.
 - Merge into `dev` only after required CI checks pass on the latest revision, review findings are resolved, and the implemented behavior has been verified. Delete merged feature branches.
-- Open a release PR from `dev` to `main` for a coherent, tested set of features; not automatically after every feature merge.
+- Open a release PR from `dev` to `main` for a coherent, tested set of features only after the user explicitly authorizes a release; not automatically after every feature merge.
 - Release gates: no conflicts, successful required CI against the current base, review completed, integration/E2E checks passed, and the release candidate verified on Staging once Staging is available. Before that, record equivalent local integration verification explicitly.
 - A conflict-free diff alone is not release approval. If `dev` or the release PR changes after validation, rerun affected checks and validate the new candidate.
 - Protect both `main` and `dev`: PR-only changes, required status checks, resolved review conversations, no direct pushes, no force pushes, and no deletion. Require an independent approval when another reviewer is available; during solo development, record a deliberate self-review in the PR without claiming independent approval.
 - Keep the PR branch up to date with its target or use a merge queue if adopted. Resolve release conflicts by merging current `main` into `dev`, then rerun validation; do not rewrite shared branch history.
 - Use merge commits for feature-to-dev and dev-to-main merges to preserve meaningful commits and shared ancestry. Clean up temporary/WIP commits before review; do not repeatedly squash the long-lived `dev` branch into `main`.
-- After release, confirm `dev` contains the released `main` history and synchronize it through a PR when needed. Production deployment is a separate release step, not implied by the absence of merge conflicts.
+- Until the user explicitly authorizes a release, keep new feature work on `dev`. After an authorized release, confirm `dev` contains the released `main` history and synchronize it through a PR when needed. Production deployment is a separate release step, not implied by the absence of merge conflicts.
 - Implement repository protections when the GitHub repository is created/connected. [GitHub protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
 **Green CI — GitHub Actions**
@@ -707,15 +708,14 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- Immediate delivery priority: implement F00–F02 in a separate Motion implementation chat while remaining feature planning continues here. Preserve the full roadmap; this changes delivery priority, not the agreed product scope.
+- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F05 matching. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
 - Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
-- F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Initial lookup data and seed infrastructure are in scope; researched program/meal seed content remains later work.
-- Verify hosting terms and database persistence before selecting a free provider; deployment must be functional and explicitly distinguish live endpoints from configuration-blocked integrations.
+- F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 
 
 `F00 → F01 → F16 → F02/F03 → F08 food/meal library → F04 → F05 → F06 + F08 enrollment integration → F17 → F07 → F08 swaps/completion → F09 → F18 → F10 → F11 → F12 → F13/F14 → F15`
 
-- F08 food/meal library can be implemented after F02/F03. F04 then builds program and nutrition schedules together through the aggregate service. Personal assignments/schedules integrate with F06. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
+- F08 food/meal library follows F02/F03 and F04 is merged to `dev`. F04 builds program and nutrition schedules together through the aggregate service. A F04 cycle is four 7-day weeks (28 days), not a Gregorian month; the profile stores fixed weekdays, while the program template stores a count and seven positions. Personal assignments map these in a later feature. Nutrition uses direct DB queries, with no assessment-run tables or AI calls.
 
 - F16 initially supplies service contracts and rewriting; Matcher/Fitter behavior is implemented in F05/F17, not as an implicit prerequisite for F02. Food/meal library content is reusable; program creation commits both schedules together, publication validates completeness, and enrollment assignment applies both together in a separate transaction.
 - Feature numbers remain stable identifiers, not execution order. Complete daily fitting and completion guards before exposing workout execution to users. AI service and admin dashboard each receive lint/typecheck/build and relevant tests in Green CI.
@@ -727,7 +727,7 @@ admin-dashboard/
 - F17/F08 responsibility split is settled: retain AiProgramFitter for injury-description/exercise-description assessment only, daily and on demand. Food allergy/dislike/exclusion checks use structured backend queries only; no nutrition AI, free-text allergy assessment, or new AI food-restriction tables. The two other AI components remain AiAssistedMatcher and AiRewriter.
 - F00/F01 foundation and local authentication can start now. The list below gates the named integrations/features, not all coding. Do not claim the whole plan is implementation-complete until these choices are resolved.
 - F01: configure mobile Google client IDs, Apple App/Service IDs and keys when Apple sign-in is resumed, and email delivery for OTP verification/recovery. OTP flow does not require reset-password deep links.
-- F02/F05 approved 2026-10-31: users must be strictly older than 18. Current weight has no measurement date/history; users edit it themselves. Store date of birth and training-day count; fixed weekday scheduling is a later option.
+- F02/F05 approved 2026-11-04: users must be strictly older than 18. Current weight has no measurement date/history; users edit it themselves. Store date of birth and the user's 2-5 selected weekdays; derive training-day count for program matching.
 - F16/F17: approve exercise-description completeness, review-role qualifications, instruction/model evaluation thresholds, request timeout/lease limits, and provider data-retention settings. No clinical diagnosis or exercise substitutions. Food exchanges follow the deterministic F08 rules.
 - F18: choose the Admin Dashboard frontend framework and deployment target.
 - F05: choose AI provider/model, data-handling settings, candidate-summary schema, instruction/constraint versions, retry limits, and expert-reviewed evaluation acceptance thresholds.

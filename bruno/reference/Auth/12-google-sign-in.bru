@@ -13,7 +13,7 @@ post {
 body:json {
   {
     "idToken": "{{idToken}}",
-    "challengeId": "{{challengeId}}"
+    "challengeId": "{{signInChallengeId}}"
   }
 }
 
@@ -28,6 +28,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: {"idToken":"<Google ID token from native sign-in>","challengeId":"<challengeId from Google challenge>"}. Success returns session {accessToken,refreshToken,tokenType:"Bearer",expiresIn:900}. This is the first endpoint that creates a session; use platform secure storage for tokens.
   Never commit populated credentials or runtime tokens.
 }

@@ -24,7 +24,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  This public request confirms the email using the six-digit OTP. Register does not issue a session; call Login after successful verification.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: {"email":"{{email}}","code":"{{otpCode}}"} where code is the six-digit OTP from email. Success: {"status":"VERIFIED"}. This confirms email but does not issue a session; call Login next.
   Never commit populated credentials or runtime tokens.
 }

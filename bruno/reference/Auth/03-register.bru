@@ -17,6 +17,10 @@ body:json {
   }
 }
 
+script:post-response {
+  const b = res.getBody(); if (b.accessToken) { bru.setVar("accessToken", b.accessToken); bru.setVar("refreshToken", b.refreshToken); }
+}
+
 tests {
   test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
@@ -24,6 +28,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Requires real email transport or local capture; returns 503 EMAIL_NOT_CONFIGURED otherwise. Success creates an unverified user, returns emailDelivery QUEUED and nextStep VERIFY_EMAIL, and issues no session tokens. Verify the OTP, then call Login.
+  Request: {"email":"{{email}}","password":"{{password}}"}; new password must be 8-128 characters with at least one number and one symbol. Success: {"user":{"id":"<uuid>","email":"<normalized-email>","verified":false},"emailDelivery":"QUEUED","nextStep":"VERIFY_EMAIL"}. Registration does not issue tokens. Verify the OTP, then call Login. Requires configured email delivery; otherwise 503 EMAIL_NOT_CONFIGURED.
   Never commit populated credentials or runtime tokens.
 }

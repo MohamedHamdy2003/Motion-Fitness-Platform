@@ -193,7 +193,7 @@ describe('foundation against PostgreSQL', () => {
     expect(malformed.text).not.toContain('SyntaxError');
     const oversized = await api
       .post(prefix + '/auth/login')
-      .send({ email: 'x'.repeat(40000), password });
+      .send({ email: 'x'.repeat(2_000_000), password });
     expect(oversized.status, oversized.text).toBe(413);
     expect(oversized.body).toHaveProperty('requestId');
   });
@@ -680,8 +680,6 @@ describe('external adapter boundaries with fixture transports', () => {
       SMTP_USER: 'sender@example.test',
       SMTP_PASSWORD: 'fixture-app-password',
       MAIL_FROM: 'sender@example.test',
-      RESET_LINK_BASE: 'https://client.example.test/reset',
-      VERIFY_LINK_BASE: 'https://client.example.test/verify',
     });
     await register();
     const { JobsService } =
@@ -853,10 +851,11 @@ describe('profiles, onboarding and injuries', () => {
     const r = await register();
     const input = {
       name: 'Athlete',
+      gender: 'FEMALE',
       height_cm: 175,
       primary_goal: 'FAT_LOSS',
       fitness_level: 'BEGINNER',
-      training_days_per_week: 3,
+      training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
       timezone: 'Africa/Cairo',
       locale: 'ar',
       date_of_birth: '1998-03-14',
@@ -880,10 +879,11 @@ describe('profiles, onboarding and injuries', () => {
       ).status,
     ).toBe(200);
     const [saved] = await db.query(
-      'SELECT weight_kg,profile_revision FROM user_profiles WHERE user_id=$1',
+      'SELECT weight_kg,gender,profile_revision FROM user_profiles WHERE user_id=$1',
       [r.user.id],
     );
     expect(Number(saved.weight_kg)).toBe(80);
+    expect(saved.gender).toBe('FEMALE');
     expect(saved.profile_revision).toBe(1);
   });
   it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
@@ -967,6 +967,7 @@ describe('profiles, onboarding and injuries', () => {
     ).toBe(404);
     const refs = await api.get(prefix + '/references/onboarding').set(headers);
     expect(refs.body).not.toHaveProperty('measurement_max_age_days');
+    expect(refs.body.genders).toEqual(['FEMALE', 'MALE']);
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
     const r = await register();
@@ -1109,7 +1110,7 @@ describe('profiles, onboarding and injuries', () => {
           .set(bearer(r.accessToken))
           .send({ ...input, allergen_codes: ['INVENTED'] })
       ).status,
-    ).toBe(400);
+    ).toBe(422);
     const saved = await api
       .put(prefix + '/me/food-preferences')
       .set(bearer(r.accessToken))
@@ -1352,6 +1353,438 @@ it('imports library drafts atomically and rejects changed seed versions', async 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it('seeds the USDA food and meal catalog as idempotent drafts', async () => {
+  const { importLibrary } =
+    await import('../../src/infrastructure/database/seeds/import-library.js');
+  const { join } = await import('node:path');
+  const dataPath = join(
+    process.cwd(),
+    'src/infrastructure/database/seeds/data/nutrition-library.v1.json',
+  );
+  await importLibrary(db, dataPath);
+  await importLibrary(db, dataPath);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM foods WHERE slug IN ('chicken-breast-roasted','brown-rice-cooked','rolled-oats-dry','broccoli-cooked','hard-boiled-egg','sweet-potato-baked','banana-raw','plain-nonfat-greek-yogurt','canned-light-tuna','black-beans-cooked','lentils-cooked','quinoa-cooked','wild-atlantic-salmon-cooked','firm-tofu','potato-baked','spinach-cooked','carrots-cooked')`,
+      )
+    )[0].n,
+  ).toBe(17);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM meal_versions WHERE meal_id IN (SELECT id FROM meals WHERE slug IN ('oats-yogurt-banana','egg-sweet-potato-spinach','chicken-rice-broccoli','salmon-quinoa-carrots','tuna-lentil-spinach-bowl','tofu-black-bean-rice-bowl')) AND status='DRAFT'`,
+      )
+    )[0].n,
+  ).toBe(6);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM food_exchange_group_versions WHERE group_id IN (SELECT id FROM food_exchange_groups WHERE slug IN ('protein-options','carbohydrate-options','vegetable-options')) AND status='DRAFT'`,
+      )
+    )[0].n,
+  ).toBe(3);
+});
+
+it('creates and publishes an admin food section and a meal from published foods', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+    user.user.id,
+  ]);
+  const ingredient = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-ingredient',
+      content: {
+        title: 'F08 fixture ingredient',
+        dietaryTags: [],
+        allergenCodes: [],
+        verificationStatus: 'UNKNOWN',
+      },
+    });
+  const foodContent = (title: string) => ({
+    title,
+    preparation: 'Fixture preparation',
+    preparationState: 'COOKED',
+    prepMinutes: 0,
+    energyKcal100g: 100,
+    proteinG100g: 10,
+    carbohydrateG100g: 10,
+    fatG100g: 1,
+    fiberG100g: 1,
+    nutrientSource: {
+      title: 'Fixture',
+      reference: 'Test fixture',
+      licenseNotes: 'Test only',
+    },
+    mediaId: null,
+    ingredients: [{ ingredientId: ingredient.body.id, quantityG: 100 }],
+  });
+  const foodA = await api
+    .post(prefix + '/admin/foods')
+    .set(headers)
+    .send({ slug: 'f08-food-one', content: foodContent('F08 food one') });
+  const foodB = await api
+    .post(prefix + '/admin/foods')
+    .set(headers)
+    .send({ slug: 'f08-food-two', content: foodContent('F08 food two') });
+  expect(
+    (await api.get(prefix + '/references/foods').set(headers)).body
+      .contentStatus,
+  ).toBe('CATALOG_NOT_SEEDED');
+  for (const food of [foodA, foodB])
+    expect(
+      (
+        await api
+          .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
+          .set(headers)
+          .send({ expectedRevision: 1 })
+      ).status,
+    ).toBe(201);
+  expect(
+    (await api.get(prefix + '/references/foods').set(headers)).body
+      .contentStatus,
+  ).toBe('READY');
+  const section = await api
+    .post(prefix + '/admin/food-sections')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-section',
+      title: 'F08 fixture alternatives',
+      members: [foodA, foodB].map((food) => ({
+        foodVersionId: food.body.id,
+        portionGPerUnit: 100,
+        displayPortion: '100 g',
+      })),
+    });
+  expect(section.status, section.text).toBe(201);
+  const editedSection = await api
+    .patch(prefix + `/admin/food-sections/${section.body.id}`)
+    .set(headers)
+    .send({
+      expectedRevision: 1,
+      title: 'Edited F08 fixture alternatives',
+      members: [foodA, foodB].map((food) => ({
+        foodVersionId: food.body.id,
+        portionGPerUnit: 100,
+        displayPortion: '100 g',
+      })),
+    });
+  expect(editedSection.status, editedSection.text).toBe(200);
+  const publishedSection = await api
+    .post(prefix + `/admin/food-sections/${section.body.id}/publish`)
+    .set(headers)
+    .send({ expectedRevision: 2 });
+  expect(publishedSection.status, publishedSection.text).toBe(201);
+  const members = await api
+    .get(prefix + `/admin/food-sections/${section.body.id}`)
+    .set(headers);
+  const mealSection = await api
+    .post(prefix + '/admin/meal-sections')
+    .set(headers)
+    .send({ slug: 'f08-fixture-meals', title: 'Fixture meals' });
+  const meal = await api
+    .post(prefix + '/admin/meals')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-meal',
+      sectionId: mealSection.body.id,
+      title: 'Fixture meal',
+      items: [
+        {
+          memberId: members.body.versions[0].members[0].id,
+          exchangeUnits: 1,
+          position: 0,
+        },
+      ],
+    });
+  expect(meal.status, meal.text).toBe(201);
+  const editedMeal = await api
+    .patch(prefix + `/admin/meals/${meal.body.id}`)
+    .set(headers)
+    .send({
+      expectedRevision: 1,
+      sectionId: mealSection.body.id,
+      title: 'Edited fixture meal',
+      items: [
+        {
+          memberId: members.body.versions[0].members[0].id,
+          exchangeUnits: 1,
+          position: 0,
+        },
+      ],
+    });
+  expect(editedMeal.status, editedMeal.text).toBe(200);
+  expect(
+    (
+      await api
+        .post(prefix + `/admin/meals/${meal.body.id}/publish`)
+        .set(headers)
+        .send({ expectedRevision: 2 })
+    ).status,
+  ).toBe(201);
+  expect(
+    (await api.get(prefix + `/admin/meals/${meal.body.id}`).set(headers)).body
+      .versions[0].items,
+  ).toHaveLength(1);
+});
+
+it('saves an atomic paired program draft, publishes it, and versions later edits', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+    user.user.id,
+  ]);
+  const exercise = await api
+    .post(prefix + '/admin/exercises')
+    .set(headers)
+    .send({
+      slug: 'f04-fixture-exercise',
+      content: {
+        title: 'F04 fixture exercise',
+        description: 'Test only',
+        instructions: ['Test instruction'],
+        muscleGroups: ['fixture'],
+        equipment: [],
+        source: {
+          title: 'Test fixture',
+          reference: 'test-only',
+          licenseNotes: 'Not production content',
+        },
+        mediaId: null,
+      },
+    });
+  expect(exercise.status, exercise.text).toBe(201);
+  expect(
+    (
+      await api
+        .post(prefix + `/admin/exercises/${exercise.body.exercise_id}/publish`)
+        .set(headers)
+        .send({ expectedRevision: 1 })
+    ).status,
+  ).toBe(201);
+  const ingredient = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({
+      slug: 'f04-fixture-ingredient',
+      content: {
+        title: 'F04 fixture ingredient',
+        dietaryTags: [],
+        allergenCodes: [],
+        verificationStatus: 'UNKNOWN',
+      },
+    });
+  const foodContent = (title: string) => ({
+    title,
+    preparation: 'Fixture preparation',
+    preparationState: 'COOKED',
+    prepMinutes: 0,
+    energyKcal100g: 100,
+    proteinG100g: 10,
+    carbohydrateG100g: 10,
+    fatG100g: 1,
+    fiberG100g: 1,
+    nutrientSource: {
+      title: 'Fixture',
+      reference: 'Test fixture',
+      licenseNotes: 'Test only',
+    },
+    mediaId: null,
+    ingredients: [{ ingredientId: ingredient.body.id, quantityG: 100 }],
+  });
+  const foods = await Promise.all(
+    ['one', 'two'].map((suffix) =>
+      api
+        .post(prefix + '/admin/foods')
+        .set(headers)
+        .send({
+          slug: `f04-fixture-food-${suffix}`,
+          content: foodContent(`F04 fixture food ${suffix}`),
+        }),
+    ),
+  );
+  for (const food of foods)
+    expect(
+      (
+        await api
+          .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
+          .set(headers)
+          .send({ expectedRevision: 1 })
+      ).status,
+    ).toBe(201);
+  const section = await api
+    .post(prefix + '/admin/food-sections')
+    .set(headers)
+    .send({
+      slug: 'f04-fixture-food-section',
+      title: 'F04 fixture alternatives',
+      members: foods.map((food) => ({
+        foodVersionId: food.body.id,
+        portionGPerUnit: 100,
+        displayPortion: '100 g',
+      })),
+    });
+  expect(section.status, section.text).toBe(201);
+  expect(
+    (
+      await api
+        .post(prefix + `/admin/food-sections/${section.body.id}/publish`)
+        .set(headers)
+        .send({ expectedRevision: 1 })
+    ).status,
+  ).toBe(201);
+  const sectionDetail = await api
+    .get(prefix + `/admin/food-sections/${section.body.id}`)
+    .set(headers);
+  const mealSection = await api
+    .post(prefix + '/admin/meal-sections')
+    .set(headers)
+    .send({ slug: 'f04-fixture-meals', title: 'F04 fixture meals' });
+  const meal = await api
+    .post(prefix + '/admin/meals')
+    .set(headers)
+    .send({
+      slug: 'f04-fixture-meal',
+      sectionId: mealSection.body.id,
+      title: 'F04 fixture meal',
+      items: [
+        {
+          memberId: sectionDetail.body.versions[0].members[0].id,
+          exchangeUnits: 1,
+          position: 0,
+        },
+      ],
+    });
+  expect(meal.status, meal.text).toBe(201);
+  expect(
+    (
+      await api
+        .post(prefix + `/admin/meals/${meal.body.id}/publish`)
+        .set(headers)
+        .send({ expectedRevision: 1 })
+    ).status,
+  ).toBe(201);
+  const publishedMeal = await api
+    .get(prefix + `/admin/meals/${meal.body.id}`)
+    .set(headers);
+  const mealVersionId = publishedMeal.body.versions[0].id;
+  const exerciseRevisionId = exercise.body.id;
+  const nutritionSlot = {
+    mealType: 'LUNCH',
+    localTime: '12:00',
+    mealVersionId,
+  };
+  const weeks = Array.from({ length: 4 }, () => ({
+    days: Array.from({ length: 7 }, (_, day) =>
+      day === 0 || day === 3
+        ? {
+            kind: 'TRAINING' as const,
+            workout: {
+              title: 'Fixture workout',
+              description: 'Fixture workout description',
+              exercises: [
+                {
+                  exerciseRevisionId,
+                  prescription: {
+                    mode: 'REPS' as const,
+                    setCount: 3,
+                    repsMin: 8,
+                    repsMax: 12,
+                    restSeconds: 60,
+                  },
+                },
+              ],
+            },
+            meals: [nutritionSlot],
+          }
+        : { kind: 'REST' as const, meals: [nutritionSlot] },
+    ),
+  }));
+  const aggregate = {
+    slug: 'f04-fixture-program',
+    title: 'F04 fixture program',
+    primaryGoal: 'STRENGTH_HYPERTROPHY',
+    supportedGoals: ['STRENGTH_HYPERTROPHY'],
+    idealLevel: 'BEGINNER',
+    supportedLevels: ['BEGINNER'],
+    trainingDaysPerWeek: 2,
+    editorialPriority: 0,
+    description: 'Program aggregate integration fixture.',
+    requiredEquipment: [],
+    intendedAudience: null,
+    months: [{ title: 'Month one', weeks }],
+  };
+  const created = await api
+    .post(prefix + '/admin/programs')
+    .set(headers)
+    .set('Idempotency-Key', 'f04-create-key-0001')
+    .send(aggregate);
+  expect(created.status, created.text).toBe(201);
+  expect(created.body.months[0].weeks).toHaveLength(4);
+  expect(
+    created.body.months[0].weeks.flatMap(
+      (week: { days: unknown[] }) => week.days,
+    ),
+  ).toHaveLength(28);
+  expect(created.body.status).toBe('DRAFT');
+  const hint = await api
+    .post(prefix + `/admin/programs/${created.body.id}/hints`)
+    .set(headers)
+    .set('Idempotency-Key', 'f04-hint-create-001')
+    .send({
+      expectedVersion: 1,
+      originalText: 'Test-only guidance for the fixture program.',
+      structuredHints: { suitabilityNotes: ['Test only'] },
+    });
+  expect(hint.status, hint.text).toBe(201);
+  const approvedHint = await api
+    .post(
+      prefix +
+        `/admin/programs/${created.body.id}/hints/${hint.body.id}/approve`,
+    )
+    .set(headers)
+    .set('Idempotency-Key', 'f04-hint-approve-01')
+    .send({ expectedVersion: 2 });
+  expect(approvedHint.status, approvedHint.text).toBe(201);
+  const published = await api
+    .post(prefix + `/admin/programs/${created.body.id}/publish`)
+    .set(headers)
+    .set('Idempotency-Key', 'f04-publish-key-001')
+    .send({ expectedVersion: 3 });
+  expect(published.status, published.text).toBe(201);
+  expect(published.body.status).toBe('PUBLISHED');
+  const [pair] = await db.query(
+    `SELECT pv.status AS program_status,npv.status AS nutrition_status,npv.duration_days FROM program_versions pv JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE pv.id=$1`,
+    [created.body.version_id],
+  );
+  expect(pair).toEqual({
+    program_status: 'PUBLISHED',
+    nutrition_status: 'PUBLISHED',
+    duration_days: 28,
+  });
+  const nextDraft = await api
+    .patch(prefix + `/admin/programs/${created.body.id}`)
+    .set(headers)
+    .set('Idempotency-Key', 'f04-edit-key-0001')
+    .send({
+      ...Object.fromEntries(
+        Object.entries(aggregate).filter(([key]) => key !== 'slug'),
+      ),
+      expectedVersion: 4,
+      title: 'Edited F04 fixture',
+    });
+  expect(nextDraft.status, nextDraft.text).toBe(200);
+  expect(nextDraft.body.version).toBe(2);
+  expect(nextDraft.body.status).toBe('DRAFT');
+  expect(
+    (await api.get(prefix + `/admin/programs/${created.body.id}`).set(headers))
+      .body.title,
+  ).toBe('Edited F04 fixture');
 });
 
 it('limits OTP guesses, expires codes and invalidates older codes on resend', async () => {

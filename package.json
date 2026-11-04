@@ -19,6 +19,7 @@
     "migration:revert": "tsx node_modules/typeorm/cli.js migration:revert -d src/infrastructure/database/data-source.ts",
     "seed:lookups": "tsx src/infrastructure/database/seeds/seed-lookups.ts",
     "seed:content": "tsx src/infrastructure/database/seeds/seed-content.ts",
+    "seed:exercises": "tsx src/infrastructure/database/seeds/seed-exercises.ts",
     "worker": "tsx src/infrastructure/jobs/worker.ts",
     "bruno": "node scripts/run-bruno.cjs",
     "bruno:check": "node scripts/check-bruno.cjs",

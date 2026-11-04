@@ -2,6 +2,12 @@ import { query } from '../query';
 import { DataSource } from 'typeorm';
 export async function seedLookups(db: DataSource) {
   await db.transaction(async (m) => {
+    for (const gender of ['MALE', 'FEMALE'])
+      await query(
+        m,
+        `INSERT INTO genders(code) VALUES($1) ON CONFLICT DO NOTHING`,
+        [gender],
+      );
     for (const role of [
       'ATHLETE',
       'CONTENT_EDITOR',
@@ -64,6 +70,6 @@ export async function seedContent(db: DataSource) {
       `SELECT count(*)::integer AS count FROM roles WHERE code='ATHLETE'`,
     );
     if (r.count !== 1) throw new Error('Lookup stage required');
-    // Intentionally empty: no approved sourced program/food datasets in F00–F02.
+    // Content catalogs are imported separately through the versioned content seeder.
   });
 }

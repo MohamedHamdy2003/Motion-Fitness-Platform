@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { AuthGuard } from '../../common/auth.guard';
 import { parse } from '../../common/http';
-import { listQuery } from './profile.dto';
+import { FitnessLevel, listQuery, TrainingWeekday } from './profile.dto';
 import { minimumAge } from './profile.policy';
 @Controller('references')
 @UseGuards(AuthGuard)
@@ -31,22 +31,33 @@ export class ReferenceController {
       listQuery.extend({ search: z.string().max(100).default('') }),
       input,
     );
-    return {
-      items: await query(
+    const [items, status] = await Promise.all([
+      query(
         this.db,
         `SELECT id,name,kind FROM available_food_references WHERE name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3`,
         ['%' + q.search + '%', q.limit, q.offset],
       ),
+      query(
+        this.db,
+        `SELECT EXISTS(SELECT 1 FROM foods f JOIN food_versions v ON v.food_id=f.id WHERE NOT f.archived AND v.status='PUBLISHED') AS seeded`,
+      ),
+    ]);
+    return {
+      items,
       limit: q.limit,
       offset: q.offset,
-      contentStatus: 'CATALOG_NOT_SEEDED',
+      contentStatus: status[0].seeded ? 'READY' : 'CATALOG_NOT_SEEDED',
     };
   }
-  @Get('onboarding') options() {
+  @Get('onboarding') async options() {
     return {
       primary_goals: ['FAT_LOSS', 'STRENGTH_HYPERTROPHY'],
-      fitness_levels: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'],
-      training_days_per_week: [2, 3, 4, 5],
+      genders: (
+        await query(this.db, `SELECT code FROM genders ORDER BY code`)
+      ).map((row: { code: string }) => row.code),
+      fitness_levels: Object.values(FitnessLevel),
+      training_days_per_week: Object.values(TrainingWeekday),
+      training_days_per_week_count: [2, 3, 4, 5],
       minimum_age: minimumAge,
       minimum_age_inclusive: false,
       policyStatus: 'CONFIGURED',

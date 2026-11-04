@@ -1,5 +1,19 @@
 import { z } from 'zod';
 import { uuid } from '../../common/http';
+export enum FitnessLevel {
+  BEGINNER = 'BEGINNER',
+  INTERMEDIATE = 'INTERMEDIATE',
+  ADVANCED = 'ADVANCED',
+}
+export enum TrainingWeekday {
+  SUNDAY = 'SUNDAY',
+  MONDAY = 'MONDAY',
+  TUESDAY = 'TUESDAY',
+  WEDNESDAY = 'WEDNESDAY',
+  THURSDAY = 'THURSDAY',
+  FRIDAY = 'FRIDAY',
+  SATURDAY = 'SATURDAY',
+}
 export const timezone = z
   .string()
   .max(100)
@@ -24,6 +38,7 @@ export const date = z
   });
 export const profileFields = {
   name: z.string().trim().min(1).max(120),
+  gender: z.enum(['FEMALE', 'MALE']),
   phone: z
     .string()
     .regex(/^\+?[0-9 ()-]{6,30}$/)
@@ -31,13 +46,14 @@ export const profileFields = {
   height_cm: z.number().positive().max(1000),
   weight_kg: z.number().positive().max(10000),
   primary_goal: z.enum(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']),
-  fitness_level: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
-  training_days_per_week: z.union([
-    z.literal(2),
-    z.literal(3),
-    z.literal(4),
-    z.literal(5),
-  ]),
+  fitness_level: z.enum(FitnessLevel),
+  training_days_per_week: z
+    .array(z.enum(TrainingWeekday))
+    .min(2)
+    .max(5)
+    .refine((days) => new Set(days).size === days.length, {
+      message: 'Training weekdays must not contain duplicates',
+    }),
   timezone,
   locale: z
     .string()
@@ -55,6 +71,7 @@ export const profilePatch = z
 export const onboarding = z
   .object({
     name: profileFields.name,
+    gender: profileFields.gender,
     height_cm: profileFields.height_cm,
     weight_kg: profileFields.weight_kg,
     primary_goal: profileFields.primary_goal,

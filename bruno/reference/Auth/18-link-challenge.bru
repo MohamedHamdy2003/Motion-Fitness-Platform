@@ -21,6 +21,10 @@ body:json {
   }
 }
 
+script:post-response {
+  const b=res.getBody(); if(b.challengeId) bru.setVar("linkChallengeId",b.challengeId);
+}
+
 tests {
   test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
@@ -28,6 +32,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  First half of linking Google to an already signed-in Motion account. Request: {"provider":"GOOGLE","purpose":"LINK"}; current account Bearer token is required. Response: {"challengeId":"<uuid>","nonce":"<random-string>","expiresIn":300}. Bruno stores the challenge ID separately as linkChallengeId so it is not overwritten by the other challenge purposes. The mobile app passes nonce to native Google Sign-In; this ties Google's ID token to this short-lived, one-use link attempt. Separately get reauthenticationToken from password reauthentication or from a REAUTHENTICATE challenge for the already-linked social identity. Finally POST /auth/identities/google/link with the Google idToken, linkChallengeId and reauthenticationToken.
   Never commit populated credentials or runtime tokens.
 }

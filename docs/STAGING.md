@@ -8,6 +8,7 @@
 - عنوان API الإنتاج: `https://13.49.114.20/api/v1`.
 - المستخدم تحقق من `GET /api/v1/health/ready` عبر HTTPS وكانت قاعدة البيانات `CONNECTED`.
 - GitHub Actions مضبوط لتشغيل الفحوص ثم نشر تغييرات `main` عبر SSM. راجع نتيجة الـworkflow وSHA المنشور بعد كل إصدار.
+- التعديلات الجديدة تُرفع إلى `dev` فقط حتى يطلب المستخدم إصدارًا على `main`؛ push إلى `dev` يشغّل CI ولا ينشر على EC2.
 - تفاصيل إعداد EC2 وRDS وS3 والنشر موجودة في [دليل AWS](AWS_DEPLOYMENT_AR.md)، وخطوات GitHub Actions في [دليل GitHub](GITHUB_AUTOMATION_AR.md).
 
 ## Staging منفصل

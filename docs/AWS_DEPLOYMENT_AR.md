@@ -1,8 +1,6 @@
 # نشر Motion على AWS EC2 + RDS + S3
 
-تحديث 4 نوفمبر 2026: المستخدم أكد تشغيل Motion على EC2 مع RDS وS3، والتحقق من HTTPS health endpoint. GitHub Actions مضبوط للنشر بعد نجاح CI على `main`. راجع نتيجة الـworkflow وملف `.local/aws-deployed-revision` على EC2 للتأكد من SHA لكل إصدار؛ إعداد CI/CD موثق في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md).
-
-تحديث 1 نوفمبر 2026: تم اعتماد AWS بدل Oracle/Neon. تعليمات Oracle/Neon القديمة لم تعد مسار النشر الحالي.
+تحديث 4 نوفمبر 2026: التطبيق يعمل على EC2 مع PostgreSQL على RDS وملفات خاصة على S3 باستخدام IAM Role. HTTPS وhealth endpoint يعملان على عنوان IP. GitHub Actions يشغّل CI على `dev`، أما نشر الإنتاج فيبدأ فقط عند push ناجح إلى `main`. سياسة المشروع الحالية تمنع دمج الميزات إلى `main` حتى يطلب المستخدم ذلك صراحةً. راجع نتيجة الـworkflow وملف `.local/aws-deployed-revision` على EC2 للتأكد من SHA المنشور؛ خطوات CI/CD في [دليل GitHub وBruno](GITHUB_AUTOMATION_AR.md).
 
 ## المطلوب على EC2
 

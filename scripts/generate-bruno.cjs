@@ -7,7 +7,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       version: '1',
-      name: 'Motion API v1 — F00–F03',
+      name: 'Motion API v1 — F00–F04',
       type: 'collection',
       ignore: ['node_modules', '.git'],
     },
@@ -27,11 +27,25 @@ const variables = {
   deletionToken: '',
   idToken: '',
   authorizationCode: '',
-  challengeId: '',
+  signInChallengeId: '',
+  linkChallengeId: '',
+  reauthChallengeId: '',
   injuryId: '',
   mediaId: '',
   contentId: '',
   ingredientId: '',
+  foodVersionId: '',
+  foodVersionId2: '',
+  foodSectionId: '',
+  foodSectionVersionId: '',
+  foodMemberId: '',
+  mealSectionId: '',
+  mealId: '',
+  mealVersionId: '',
+  programId: '',
+  programRevision: '1',
+  programHintId: '',
+  exerciseRevisionId: '',
   profileRevision: '0',
   preferenceRevision: '0',
   injuryVersion: '1',
@@ -191,15 +205,15 @@ add(
   {
     auth: false,
     status: 201,
-    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("challengeId",b.challengeId);',
-    docs: 'Configure provider client IDs. Pass nonce to native provider request; send resulting ID token.',
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("signInChallengeId",b.challengeId);',
+    docs: 'First sign-in step: pass nonce to native Google Sign-In, then send its ID token and signInChallengeId to POST /auth/google. Expires in five minutes and is one-use. Bruno cannot mint a real Google token.',
   },
 );
 add(
   'Google sign in',
   'POST',
   '/auth/google',
-  { idToken: '{{idToken}}', challengeId: '{{challengeId}}' },
+  { idToken: '{{idToken}}', challengeId: '{{signInChallengeId}}' },
   { auth: false, post: saveTokens },
 );
 add(
@@ -207,7 +221,11 @@ add(
   'POST',
   '/auth/challenges',
   { provider: 'APPLE', purpose: 'SIGN_IN' },
-  { auth: false, status: 201 },
+  {
+    auth: false,
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("signInChallengeId",b.challengeId);',
+  },
 );
 add(
   'Apple sign in',
@@ -216,7 +234,7 @@ add(
   {
     idToken: '{{idToken}}',
     authorizationCode: '{{authorizationCode}}',
-    challengeId: '{{challengeId}}',
+    challengeId: '{{signInChallengeId}}',
   },
   { auth: false, post: saveTokens },
 );
@@ -224,9 +242,10 @@ add(
   'Password reauthentication',
   'POST',
   '/auth/reauthenticate',
-  { method: 'PASSWORD', password: '{{password}}', purpose: 'DELETE' },
+  { method: 'PASSWORD', password: '{{password}}', purpose: 'LINK' },
   {
     post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
+    docs: 'Re-proves the signed-in password account. Use purpose=LINK before adding Google or purpose=DELETE before deletion. It returns a short-lived purpose-bound reauthenticationToken.',
   },
 );
 add(
@@ -234,30 +253,55 @@ add(
   'POST',
   '/auth/challenges',
   { provider: 'GOOGLE', purpose: 'REAUTHENTICATE' },
-  { status: 201 },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("reauthChallengeId",b.challengeId);',
+    docs: 'Requires Bearer auth. Use this nonce with an identity already linked to the current Motion account, then call /auth/reauthenticate. This produces a reauthentication proof, not a login session or a link challenge.',
+  },
 );
-add('Social reauthentication', 'POST', '/auth/reauthenticate', {
-  method: 'GOOGLE',
-  idToken: '{{idToken}}',
-  challengeId: '{{challengeId}}',
-  purpose: 'LINK',
-});
+add(
+  'Social reauthentication',
+  'POST',
+  '/auth/reauthenticate',
+  {
+    method: 'GOOGLE',
+    idToken: '{{idToken}}',
+    challengeId: '{{reauthChallengeId}}',
+    purpose: 'LINK',
+  },
+  {
+    post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
+    docs: 'Proves the existing Google identity again and stores a short-lived LINK proof for the final link request. For a password account, use Password reauthentication instead.',
+  },
+);
 add(
   'Link challenge',
   'POST',
   '/auth/challenges',
   { provider: 'GOOGLE', purpose: 'LINK' },
-  { status: 201 },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("linkChallengeId",b.challengeId);',
+    docs: 'Requires Bearer auth. Pass this nonce to Google Sign-In to get the identity being added, then combine its ID token and linkChallengeId with a reauthenticationToken at /auth/identities/google/link.',
+  },
 );
-add('Link Google identity', 'POST', '/auth/identities/google/link', {
-  idToken: '{{idToken}}',
-  challengeId: '{{challengeId}}',
-  reauthenticationToken: '{{reauthenticationToken}}',
-});
+add(
+  'Link Google identity',
+  'POST',
+  '/auth/identities/google/link',
+  {
+    idToken: '{{idToken}}',
+    challengeId: '{{linkChallengeId}}',
+    reauthenticationToken: '{{reauthenticationToken}}',
+  },
+  {
+    docs: 'Final step: provide Bearer auth for the current Motion account, the ID token made with the LINK challenge nonce, that linkChallengeId, and fresh reauthenticationToken with purpose LINK. This links the provider; it does not merge accounts.',
+  },
+);
 add('Link Apple identity', 'POST', '/auth/identities/apple/link', {
   idToken: '{{idToken}}',
   authorizationCode: '{{authorizationCode}}',
-  challengeId: '{{challengeId}}',
+  challengeId: '{{linkChallengeId}}',
   reauthenticationToken: '{{reauthenticationToken}}',
 });
 add('Get me', 'GET', '/me', undefined, {
@@ -269,7 +313,7 @@ add('Patch profile', 'PATCH', '/me', {
   height_cm: 175,
   primary_goal: 'STRENGTH_HYPERTROPHY',
   fitness_level: 'BEGINNER',
-  training_days_per_week: 3,
+  training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
   timezone: 'Africa/Cairo',
   locale: 'ar',
   date_of_birth: '1998-03-14',
@@ -281,10 +325,11 @@ add(
   {
     expectedRevision: 0,
     name: 'Motion Athlete',
+    gender: 'FEMALE',
     height_cm: 175,
     primary_goal: 'FAT_LOSS',
     fitness_level: 'BEGINNER',
-    training_days_per_week: 3,
+    training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
     timezone: 'Africa/Cairo',
     locale: 'ar',
     date_of_birth: '1998-03-14',
@@ -292,7 +337,7 @@ add(
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires age strictly greater than 18. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
+    docs: 'Requires gender, age strictly greater than 18 and 2-5 unique fixed weekdays. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -397,7 +442,6 @@ smoke('Ready', 'GET', '/health/ready', undefined, { auth: false });
 smoke('Register ephemeral athlete', 'POST', '/auth/register', local, {
   auth: false,
   status: 201,
-  pre: '  bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");\n  bru.setVar("password", "Disposable-Bruno-Password-123");',
   post: saveTokens,
 });
 smoke('Login', 'POST', '/auth/login', local, { auth: false, post: saveTokens });
@@ -408,7 +452,7 @@ smoke('Patch profile', 'PATCH', '/me', {
   height_cm: 175,
   primary_goal: 'FAT_LOSS',
   fitness_level: 'BEGINNER',
-  training_days_per_week: 3,
+  training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
   timezone: 'Africa/Cairo',
   locale: 'en',
 });
@@ -621,3 +665,287 @@ write(
   { status: 200 },
 );
 write('reference/Admin Media', '05-list', 'GET', '/admin/media');
+
+// F08 reusable food and meal library administration.
+const foodSectionFixture = {
+  slug: 'replace-with-unique-food-section',
+  title: 'Protein options — draft; review portions before publication',
+  members: [
+    {
+      foodVersionId: '{{foodVersionId}}',
+      portionGPerUnit: 100,
+      displayPortion: '100 g cooked',
+    },
+    {
+      foodVersionId: '{{foodVersionId2}}',
+      portionGPerUnit: 100,
+      displayPortion: '100 g cooked',
+    },
+  ],
+};
+write(
+  'reference/Admin Food Library',
+  '01-food-sections-list',
+  'GET',
+  '/admin/food-sections',
+);
+write(
+  'reference/Admin Food Library',
+  '02-food-section-create-draft',
+  'POST',
+  '/admin/food-sections',
+  foodSectionFixture,
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("foodSectionId",b.id); if(b.version_id) bru.setVar("foodSectionVersionId",b.version_id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '03-food-section-get',
+  'GET',
+  '/admin/food-sections/{{foodSectionId}}',
+  undefined,
+  {
+    post: '  const b=res.getBody(); const v=(b.versions||[]).find(x=>x.status==="PUBLISHED")||(b.versions||[])[0]; if(v&&v.members&&v.members[0]) bru.setVar("foodMemberId",v.members[0].id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '04-food-section-edit',
+  'PATCH',
+  '/admin/food-sections/{{foodSectionId}}',
+  {
+    title: foodSectionFixture.title,
+    members: foodSectionFixture.members,
+    expectedRevision: 1,
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '05-food-section-publish',
+  'POST',
+  '/admin/food-sections/{{foodSectionId}}/publish',
+  { expectedRevision: 2 },
+  { status: 201 },
+);
+write(
+  'reference/Admin Food Library',
+  '07-meal-sections-list',
+  'GET',
+  '/admin/meal-sections',
+);
+write(
+  'reference/Admin Food Library',
+  '08-meal-section-create',
+  'POST',
+  '/admin/meal-sections',
+  { slug: 'replace-with-unique-meal-section', title: 'Breakfast ideas' },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("mealSectionId",b.id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '09-meal-section-get',
+  'GET',
+  '/admin/meal-sections/{{mealSectionId}}',
+);
+write(
+  'reference/Admin Food Library',
+  '10-meal-section-edit',
+  'PATCH',
+  '/admin/meal-sections/{{mealSectionId}}',
+  { slug: 'replace-with-unique-meal-section', title: 'Edited meal section' },
+);
+write('reference/Admin Food Library', '11-meals-list', 'GET', '/admin/meals');
+write(
+  'reference/Admin Food Library',
+  '12-meal-create-draft',
+  'POST',
+  '/admin/meals',
+  {
+    slug: 'replace-with-unique-meal-slug',
+    sectionId: '{{mealSectionId}}',
+    title: 'Draft meal idea',
+    items: [{ memberId: '{{foodMemberId}}', exchangeUnits: 1, position: 0 }],
+  },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("mealId",b.id); if(b.version_id) bru.setVar("mealVersionId",b.version_id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '13-meal-get',
+  'GET',
+  '/admin/meals/{{mealId}}',
+);
+write(
+  'reference/Admin Food Library',
+  '14-meal-edit',
+  'PATCH',
+  '/admin/meals/{{mealId}}',
+  {
+    sectionId: '{{mealSectionId}}',
+    title: 'Edited draft meal',
+    expectedRevision: 1,
+    items: [{ memberId: '{{foodMemberId}}', exchangeUnits: 1, position: 0 }],
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '15-meal-publish',
+  'POST',
+  '/admin/meals/{{mealId}}/publish',
+  { expectedRevision: 2 },
+  { status: 201 },
+);
+write(
+  'reference/Admin Food Library',
+  '16-meal-archive',
+  'DELETE',
+  '/admin/meals/{{mealId}}',
+  { expectedRevision: 3 },
+);
+
+// F04 combined admin program and nutrition schedule builder.
+const programDayMeals = [
+  {
+    mealType: 'LUNCH',
+    localTime: '12:00',
+    mealVersionId: '{{mealVersionId}}',
+  },
+];
+const programWeeks = Array.from({ length: 4 }, () => ({
+  days: Array.from({ length: 7 }, (_, index) =>
+    index === 0 || index === 3
+      ? {
+          kind: 'TRAINING',
+          workout: {
+            title: 'Draft workout',
+            description: 'Replace with reviewed workout notes.',
+            exercises: [
+              {
+                exerciseRevisionId: '{{exerciseRevisionId}}',
+                prescription: {
+                  mode: 'REPS',
+                  setCount: 3,
+                  repsMin: 8,
+                  repsMax: 12,
+                  restSeconds: 60,
+                },
+              },
+            ],
+          },
+          meals: programDayMeals,
+        }
+      : { kind: 'REST', meals: programDayMeals },
+  ),
+}));
+const programAggregate = {
+  slug: 'replace-with-unique-program-slug',
+  title: 'Draft program title',
+  primaryGoal: 'STRENGTH_HYPERTROPHY',
+  supportedGoals: ['STRENGTH_HYPERTROPHY'],
+  idealLevel: 'BEGINNER',
+  supportedLevels: ['BEGINNER'],
+  trainingDaysPerWeek: 2,
+  editorialPriority: 0,
+  description: 'Replace with accurate program description.',
+  requiredEquipment: [],
+  intendedAudience: null,
+  months: [{ title: 'Month 1', weeks: programWeeks }],
+};
+write('reference/Admin Programs', '01-programs-list', 'GET', '/admin/programs');
+write(
+  'reference/Admin Programs',
+  '02-program-create-draft',
+  'POST',
+  '/admin/programs',
+  programAggregate,
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);',
+    docs: 'The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '03-program-get',
+  'GET',
+  '/admin/programs/{{programId}}',
+);
+const programEdit = { ...programAggregate };
+delete programEdit.slug;
+write(
+  'reference/Admin Programs',
+  '04-program-edit-draft',
+  'PATCH',
+  '/admin/programs/{{programId}}',
+  { ...programEdit, expectedVersion: 1 },
+  {
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    docs: 'This sample expects a draft at revision 1. Use the current numeric revision returned by GET when editing. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '05-program-publish',
+  'POST',
+  '/admin/programs/{{programId}}/publish',
+  { expectedVersion: 1 },
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    docs: 'This sample expects an untouched draft at revision 1. Use the current numeric revision returned by GET. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '06-program-hint-draft',
+  'POST',
+  '/admin/programs/{{programId}}/hints',
+  {
+    expectedVersion: 1,
+    originalText: 'Replace with reviewed program guidance.',
+    structuredHints: { suitabilityNotes: ['Replace with reviewed notes.'] },
+  },
+  {
+    status: 201,
+    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programHintId",b.id);',
+  },
+);
+write(
+  'reference/Admin Programs',
+  '07-program-hint-approve',
+  'POST',
+  '/admin/programs/{{programId}}/hints/{{programHintId}}/approve',
+  { expectedVersion: 2 },
+  { status: 201, headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
+);
+write(
+  'reference/Admin Programs',
+  '08-program-archive',
+  'DELETE',
+  '/admin/programs/{{programId}}',
+  { expectedVersion: 1 },
+  { headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
+);
+write(
+  'reference/Admin Food Library',
+  '17-meal-section-archive',
+  'DELETE',
+  '/admin/meal-sections/{{mealSectionId}}',
+  undefined,
+);
+write(
+  'reference/Admin Food Library',
+  '18-food-section-archive',
+  'DELETE',
+  '/admin/food-sections/{{foodSectionId}}',
+  { expectedRevision: 3 },
+);

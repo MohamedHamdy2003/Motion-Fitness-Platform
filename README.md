@@ -1,66 +1,62 @@
-[النشر الحالي على AWS EC2 + RDS + S3](docs/AWS_DEPLOYMENT_AR.md).
+# Motion Fitness Platform — Backend
 
-[ربط Bruno بـGitHub وإعداد النشر التلقائي إلى EC2](docs/GITHUB_AUTOMATION_AR.md).
+خادم APIs لتطبيق لياقة يساعد المستخدمين على إدارة حساباتهم وملفاتهم وبرامج التمرين والتغذية.
 
-[جدول APIs المنفّذة وما يلزم لاختبارها فعليًا](docs/APIS_ACTUAL_AR.md).
+## الأدوات الأساسية
 
-[أوامر التشغيل لفريق الموبايل من main](docs/MOBILE_LOCAL_SETUP_AR.md).
+**Node.js 24 · TypeScript · NestJS · PostgreSQL · TypeORM · Docker · Bruno**
 
-[تشغيل OTP والناقص لإعداد Google وApple](docs/OTP_OAUTH_SETUP_AR.md).
+يستخدم المشروع AWS EC2 لتشغيل الـAPI، وAmazon RDS لقاعدة البيانات، وAmazon S3 للملفات الخاصة. النشر مؤمّن بـHTTPS عبر Caddy، ويُفحص بواسطة GitHub Actions.
 
-# Motion API — F00–F03
+## تشغيل المشروع محليًا
 
-NestJS, TypeScript, PostgreSQL and TypeORM. JWT Bearer authentication. Contract version `v1 / 0.4.0`. No Swagger/OpenAPI.
-
-[شرح F03 ومكتبة المحتوى والوسائط](docs/F03_CONTENT_AR.md).
-
-[شرح مبسط بالعربي لحالة المشروع والشغل المنفّذ](docs/PROJECT_PROGRESS_AR.md).
-
-[دليل إنشاء الحسابات وربط الاستضافة وDNS وGoogle وApple بالمشروع](docs/ACCOUNTS_SETUP_AR.md).
-
-The latest [backend plan](docs/Motion_Backend_Plan.md) (v2.19, updated 2026-11-04) is available in `docs/` as an exact copy of the authoritative [root plan](Motion_Backend_Plan.md); keep both copies in sync when updating the plan. The plan and [research notes](docs/Motion_Research_and_Content_Sourcing.md) remain authoritative. Implementation and external integration status are tracked separately in [delivery status](docs/DELIVERY_STATUS.md).
-
-## Local setup
-
-Requires Node 24, npm and Docker Desktop running Linux containers.
+المتطلبات: Node.js 24 وnpm وDocker Desktop.
 
 ```powershell
 npm ci
 node scripts/setup-local.cjs
-docker compose up -d postgres
+docker compose up -d --wait postgres
 npm run migration:run
 npm run seed:lookups
+npm run seed:content
+npm run seed:exercises
 npm run dev
 ```
 
-Base URL: `http://localhost:3100/api/v1`. PostgreSQL binds to `127.0.0.1:55432` and persists in the `motion_motion_pg` Docker volume. API port 3100 avoids an existing app on this workstation. Never use the Compose credentials in staging.
+عنوان الـAPI المحلي: `http://localhost:3100/api/v1`.
 
-`setup-local` creates an ignored `.env` with random keys and **local encrypted mail capture**. It preserves an existing `.env`. Registration queues a captured message; it does not send real email. Read the latest local message for your test account:
+لإنشاء مستخدم محرر محتوى محلي، سجّل حسابًا ثم نفّذ:
 
 ```powershell
-npx tsx scripts/read-mail.ts athlete@example.test
+npm run dev:grant-editor -- user@example.com
 ```
 
-This command prints the encrypted local captured email, including its OTP, only to your terminal. Never paste it into source control. `MAIL_MODE=disabled` returns `503 EMAIL_NOT_CONFIGURED` for delivery-dependent operations. Gmail SMTP and HTTPS Resend adapters are included. Gmail SMTP was configured and a real OTP delivery was accepted; check current service settings before relying on delivery.
+ملف `.env` محلي ومُستبعد من Git. الإعداد المحلي يلتقط رسائل البريد للاختبار ولا يرسلها إلى Gmail.
 
-Approved policy (2026-10-31): users must be strictly older than 18, checked using their birth date and timezone; with date-only birth data, eligibility starts the day after the 18th birthday. The profile holds one current weight, edited by the user without a measurement date or history. `MINIMUM_AGE` and `MEASUREMENT_MAX_AGE_DAYS` are no longer configuration settings. Weight and height are profile fields; historical tracking is deferred. See [latest decisions](docs/PRODUCT_DECISIONS_AR.md).
-
-## Verification
-
-Create a dedicated disposable database, then run:
+## الاختبارات وBruno
 
 ```powershell
-docker compose exec -T postgres createdb -U motion motion_test
 npm run format:check
 npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run bruno:check
+```
+
+لتشغيل اختبارات قاعدة البيانات، شغّل PostgreSQL وقاعدة اختبار اسمها ينتهي بـ`_test` ثم:
+
+```powershell
 npm run test:integration
+```
+
+لتجربة طلبات Bruno تلقائيًا، شغّل الـAPI محليًا ثم:
+
+```powershell
 npm run bruno
 ```
 
-The `createdb` command is needed once. Integration tests default to port 55432 and database `motion_test`. Override `TEST_DATABASE_URL` for CI. Tests refuse database names without the `_test` suffix and **revert/reapply migrations and truncate fixture data** there. They never target the development `motion` database. Bruno requires the local API running and mail capture configured; it creates disposable `example.test` users.
+لفحوص خدمة الذكاء الاصطناعي المنفصلة:
 
 ```powershell
 npm --prefix ai-service ci
@@ -69,22 +65,73 @@ npm --prefix ai-service test
 npm --prefix ai-service run build
 ```
 
-AI tests use fixtures and make no paid model calls. Main CI checks both services, an empty PostgreSQL database, migrations, seed reruns, security/concurrency E2E tests and Bruno.
+افتح مجلد `bruno/` في تطبيق Bruno للطلبات اليدوية. اختر `local` للتطوير. طلبات `reference` مرتبة حسب المجال، ومنها `Auth` و`Profile` و`Admin Food Library`؛ أما `smoke` فتجربة آلية ببيانات مؤقتة ولا تُشغّل على الإنتاج.
 
-## Mobile integration
+## ما الذي يقدمه التطبيق؟
 
-Open `bruno/` in Bruno. `reference/` has every API operation, including configuration-blocked operations. `smoke/` is the automated local flow. Copy environment variables into a local-only environment; never commit tokens. Production runs on AWS; the separate staging environment intentionally remains an `.invalid` placeholder until it is provisioned.
+- تسجيل ودخول وحماية جلسات الحساب.
+- تأكيد البريد واستعادة كلمة المرور باستخدام OTP.
+- ملف شخصي وقياسات حالية وإصابات وتفضيلات المستخدم.
+- إدارة محتوى التمارين والأطعمة والوسائط بصلاحيات إدارية.
+- مكتبة الأطعمة والوجبات F08 موجودة في `dev`؛ بيانات USDA تُحمّل كمسودات للمراجعة قبل النشر.
+- بناء البرامج F04 مدمج على `dev`: يربط برنامج التمارين بجدول التغذية في نسخة واحدة. ترشيح البرنامج F05 هو التالي.
+- Google OAuth مهيأ من جهة الخادم؛ إتمامه يحتاج تطبيق Android يرسل `idToken` وبيانات التحدي.
+- تسجيل Apple مؤجل. خدمة الذكاء الاصطناعي الخاصة موجودة، لكن مزود الإنتاج غير مفعّل.
 
-Reference requests are grouped into `Auth`, `Profile`, `Settings`, `Food Preferences`, `Injuries`, `References`, `Matching`, `Media`, `Account`, and `Health` folders. The `smoke/` requests retain their numbered order because later steps depend on earlier responses. `scripts/generate-bruno.cjs` preserves this layout when regenerating the collection.
+## هيكل المشروع
 
-Read [API contracts and examples](docs/API_CONTRACT.md), [provider integration](docs/PROVIDER_INTEGRATION.md), and [staging status](docs/STAGING.md). No client-developer messages have been sent.
+```text
+src/
+  modules/                 APIs الحساب والملف والمحتوى والوسائط
+  infrastructure/database/ إعداد PostgreSQL وMigrations وSeeders
+  infrastructure/jobs/     البريد والمهام الخلفية
+ai-service/                خدمة Mastra خاصة منفصلة
+bruno/                      طلبات API والبيئات
+deployment/                 Docker وCaddy وسكربتات AWS
+.github/workflows/          فحوص GitHub Actions والنشر
+docs/                       الخطة والأدلة وعقود API
+test/                       اختبارات الوحدة والتكامل
+```
 
-## Database and jobs
+## طريقة البناء
 
-The application and CLI share one DataSource configuration. `synchronize` and `migrationsRun` are always false. Deployments explicitly run `dist/infrastructure/database/migrate.js`, which takes a database advisory lock, applies migrations and seeds lookups before starting the server. Reverting is a deliberate maintenance operation: stop writes, back up, run `npm run migration:revert`; the initial down migration removes all slice tables.
+تستقبل NestJS طلبات REST وتتحقق من المدخلات والصلاحيات، ثم تتعامل مع PostgreSQL من خلال TypeORM واستعلامات SQL. قاعدة البيانات لا تنشئ الجداول تلقائيًا؛ التغييرات تُسجّل كـMigrations. خدمة Mastra داخلية منفصلة، ولا تتصل بقاعدة بيانات التطبيق مباشرة. مصدرها موجود، لكن خدمة الإنتاج ومزود الذكاء الاصطناعي غير مفعّلين حاليًا.
 
-`seed:lookups` is transactional/idempotent. `seed:content` checks lookup dependencies and clearly reports no approved content dataset supplied. No scientific foods, programs, meals or demo users are invented.
+## قاعدة البيانات وملفات Seeder
 
-PostgreSQL mail/deletion jobs run from the API process, using `SKIP LOCKED`, leases and fencing tokens. A separate `npm run worker` process is available on infrastructure that supports it. Sleeping free web services delay background work until they wake; the outbox survives in PostgreSQL. SMTP may redeliver after a crash; OTP challenges remain single-use. Failed jobs retain error codes only and retry with bounded backoff. Cleanup runs hourly while the process is awake.
+- PostgreSQL هو مخزن الحسابات والملفات الشخصية والمحتوى والجلسات والمهام.
+- `npm run migration:run` ينشئ أو يحدّث الجداول.
+- `npm run seed:lookups` يضيف القوائم الأساسية مثل الأدوار ومناطق الجسم والحساسيات.
+- `npm run seed:content` يستورد 17 طعامًا و6 أمثلة وجبات من USDA FoodData Central.
+- `npm run seed:exercises` يستورد 19 تمرينًا كمسودات؛ كل تمرين يبدأ بلا فيديو (`mediaId: null`) ويحتاج مراجعة المحرر وإضافة الفيديو قبل نشر النسخة. راجع [دليل المكتبة والفيديو](docs/EXERCISE_LIBRARY_AND_VIDEO_AR.md).
+- الأطعمة والأقسام والوجبات المستوردة تبدأ كـ`DRAFT` وتحتاج مراجعة قبل النشر. مصدر البيانات وتاريخه مذكوران في [دليل F08](docs/F08_FOOD_MEAL_LIBRARY_AR.md).
+- الطعام يرتبط بمكونات؛ أقسام الطعام تجمع بدائل بحصص؛ والوجبات تتكون من أعضاء هذه الأقسام. لا يقرر الخادم أن البدائل متساوية غذائيًا.
+- النسخ المنشورة ثابتة؛ التعديلات تنشئ مراجعات أو نسخًا جديدة.
 
-Deletion immediately blocks the account and revokes sessions. Actual data/file cleanup waits for approved retention policy. Apple revocation retries five times before data deletion can proceed with an explicit provider-warning status. Store-subscription cancellation belongs to F11/F14.
+## النشر على AWS
+
+```text
+GitHub push إلى main → GitHub Actions: فحوص CI → AWS Systems Manager → EC2
+EC2: Docker → NestJS API → PostgreSQL على RDS
+EC2 IAM Role → S3 خاص
+Caddy → HTTPS على عنوان IP → API
+```
+
+البيئة الحية: `https://13.49.114.20/api/v1`. لا نحتاج Domain أو DNS حاليًا.
+
+GitHub Actions يشغّل CI على `dev` و`main`. النشر إلى EC2 يعمل فقط بعد push إلى `main` ونجاح الفحوص. حسب توجيه المستخدم، تبقى الميزات الجديدة على `dev` ولا تدمج إلى `main` إلا بعد طلب إصدار صريح؛ لذلك تطوير الميزة الحالية لا ينشر تلقائيًا على السيرفر.
+
+تفاصيل الأوامر والحالة في [دليل AWS](docs/AWS_DEPLOYMENT_AR.md) و[دليل GitHub Actions](docs/GITHUB_AUTOMATION_AR.md).
+
+## وثائق مفيدة
+
+- [شرح حالة المشروع](docs/PROJECT_PROGRESS_AR.md)
+- [جدول APIs](docs/APIS_ACTUAL_AR.md)
+- [عقد API](docs/API_CONTRACT.md)
+- [مكتبة الطعام والوجبات F08](docs/F08_FOOD_MEAL_LIBRARY_AR.md)
+- [مكتبة التمارين ورفع الفيديوهات](docs/EXERCISE_LIBRARY_AND_VIDEO_AR.md)
+- [مراجعة تصميم F04](docs/F04_ADMIN_PROGRAMS_AR.md)
+- [تشغيل الموبايل محليًا](docs/MOBILE_LOCAL_SETUP_AR.md)
+- [خطة المشروع](Motion_Backend_Plan.md)
+
+لا ترفع ملفات `.env` أو أسرار AWS أو كلمات المرور أو التوكنات إلى GitHub.

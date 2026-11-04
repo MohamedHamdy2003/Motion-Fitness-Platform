@@ -64,6 +64,66 @@ export const ingredient = z
     verificationStatus: z.enum(['UNKNOWN', 'VERIFIED']),
   })
   .strict();
+const foodSectionFields = z
+  .object({
+    slug,
+    title: text,
+    members: z
+      .array(
+        z
+          .object({
+            foodVersionId: uuid,
+            portionGPerUnit: z.number().positive().max(100000),
+            displayPortion: text,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
+const uniqueFoodVersions = <T extends { members: { foodVersionId: string }[] }>(
+  v: T,
+) => new Set(v.members.map((m) => m.foodVersionId)).size === v.members.length;
+export const foodSection = foodSectionFields.refine(
+  uniqueFoodVersions,
+  'Duplicate food version',
+);
+export const mealSection = z.object({ slug, title: text }).strict();
+const mealFields = z
+  .object({
+    slug,
+    sectionId: uuid,
+    title: text,
+    items: z
+      .array(
+        z
+          .object({
+            memberId: uuid,
+            exchangeUnits: z.number().positive().max(10000),
+            position: z.number().int().min(0).max(1000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
+const uniqueMealPositions = <T extends { items: { position: number }[] }>(
+  v: T,
+) => new Set(v.items.map((i) => i.position)).size === v.items.length;
+export const meal = mealFields.refine(
+  uniqueMealPositions,
+  'Duplicate meal item position',
+);
+export const foodSectionUpdate = foodSectionFields
+  .omit({ slug: true })
+  .extend({ expectedRevision: z.number().int().positive() })
+  .refine(uniqueFoodVersions, 'Duplicate food version');
+export const mealUpdate = mealFields
+  .omit({ slug: true })
+  .extend({ expectedRevision: z.number().int().positive() })
+  .refine(uniqueMealPositions, 'Duplicate meal item position');
 export const page = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(30),

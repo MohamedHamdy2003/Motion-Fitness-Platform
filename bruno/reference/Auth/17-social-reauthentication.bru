@@ -18,9 +18,13 @@ body:json {
   {
     "method": "GOOGLE",
     "idToken": "{{idToken}}",
-    "challengeId": "{{challengeId}}",
+    "challengeId": "{{reauthChallengeId}}",
     "purpose": "LINK"
   }
+}
+
+script:post-response {
+  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);
 }
 
 tests {
@@ -30,6 +34,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  This endpoint verifies the signed-in account again; it does not create a new login session. For method=GOOGLE first call POST /auth/challenges with {"provider":"GOOGLE","purpose":"REAUTHENTICATE"}, pass its nonce to Google Sign-In, then send that idToken and challengeId here. purpose=LINK returns a short-lived reauthenticationToken required by the final link request. For a password account, use method=PASSWORD and the current password instead; no social challenge is needed.
   Never commit populated credentials or runtime tokens.
 }

@@ -22,10 +22,11 @@ body:json {
   {
     "expectedRevision": 0,
     "name": "Motion Athlete",
+    "gender": "FEMALE",
     "height_cm": 175,
     "primary_goal": "FAT_LOSS",
     "fitness_level": "BEGINNER",
-    "training_days_per_week": 3,
+    "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
     "timezone": "Africa/Cairo",
     "locale": "ar",
     "date_of_birth": "1998-03-14",
@@ -40,6 +41,8 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Requires age strictly greater than 18. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.
+  Required: expectedRevision, name, gender, height_cm, weight_kg, primary_goal, fitness_level, training_days_per_week, timezone, locale, date_of_birth. gender: MALE | FEMALE. primary_goal: FAT_LOSS | STRENGTH_HYPERTROPHY. fitness_level enum: BEGINNER | INTERMEDIATE | ADVANCED. training_days_per_week is an array of 2-5 unique weekdays: SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY. Example: ["SUNDAY","TUESDAY"]. Idempotency-Key is required (8-128 ASCII letters/digits/_/-). Age must be strictly over 18.
+  Success example: {"status":"COMPLETED","profile_revision":1,"matching":{"status":"PENDING","reason":"F05_NOT_IMPLEMENTED"}}. Matching remains PENDING until F05. Current weight only; no target weight, measurement date or history.
+  Onboarding fields are not food preferences or medical screening. Save food preferences separately with PUT /me/food-preferences. /health/ready is an operational server/database check, not a personal health check.
   Never commit populated credentials or runtime tokens.
 }

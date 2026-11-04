@@ -64,18 +64,36 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 
 ## Profile and onboarding
 
-| Method/route              | Request                                                                                                                                                | Response                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| GET `/me`                 | —                                                                                                                                                      | 200 aggregate described below                                                                        |
-| PATCH `/me`               | `expectedRevision` and one or more profile fields                                                                                                      | 200 full profile with incremented `profile_revision`                                                 |
-| PUT `/me/onboarding`      | `expectedRevision`, `name`, `height_cm`, `weight_kg`, `primary_goal`, `fitness_level`, `training_days_per_week`, `timezone`, `locale`, `date_of_birth` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
-| GET `/me/settings`        | —                                                                                                                                                      | 200 `{reminders,theme,quiet_hours,version}`                                                          |
-| PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`                                                                                        | 200 updated settings/version                                                                         |
-| GET `/me/matching/status` | —                                                                                                                                                      | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
+| Method/route              | Request                                                                                                                                                          | Response                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| GET `/me`                 | —                                                                                                                                                                | 200 aggregate described below                                                                        |
+| PATCH `/me`               | `expectedRevision` and one or more profile fields                                                                                                                | 200 full profile with incremented `profile_revision`                                                 |
+| PUT `/me/onboarding`      | `expectedRevision`, `name`, `gender`, `height_cm`, `weight_kg`, `primary_goal`, `fitness_level`, `training_days_per_week`, `timezone`, `locale`, `date_of_birth` | 200 `{status:"COMPLETED",profile_revision,matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
+| GET `/me/settings`        | —                                                                                                                                                                | 200 `{reminders,theme,quiet_hours,version}`                                                          |
+| PATCH `/me/settings`      | `expectedVersion`, optional `reminders`, `theme`, `quiet_hours`                                                                                                  | 200 updated settings/version                                                                         |
+| GET `/me/matching/status` | —                                                                                                                                                                | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                                     |
 
-All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED`; `training_days_per_week:2|3|4|5`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY.
+All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender:MALE|FEMALE` (FK to the seeded `genders` lookup); `height_cm`; current `weight_kg`; `primary_goal:FAT_LOSS|STRENGTH_HYPERTROPHY`; `fitness_level:BEGINNER|INTERMEDIATE|ADVANCED` (a fixed application enum); `training_days_per_week`, an array of 2–5 unique weekday codes from `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. Existing profiles may have `gender:null` until updated.
 
-Onboarding requires name, height, primary goal, fitness level, training days, timezone, locale, date of birth and a flat `weight_kg` field. It updates the aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Current weight has no measurement date or expiry. Historical tracking is deferred.
+Onboarding requires name, gender, height, primary goal, fitness level, 2–5 fixed training weekdays, timezone, locale, date of birth and a flat current `weight_kg` field. The count is derived from the selected weekday array. Day values are saved exactly as selected; no weekday is inferred for existing accounts. Program templates continue to store a count and seven day positions, so future program assignment must map selected weekdays onto that program week. It updates the profile aggregate in one transaction. Approved policy (2026-10-31): strictly older than 18, checked against the user's local date; date-only eligibility starts the day after their 18th birthday. In non-leap years, a February 29 birthday has its anniversary on March 1. Age failures return `422 AGE_NOT_ELIGIBLE`, including edits to birth date/timezone. Current weight has no measurement date or expiry. Historical tracking is deferred; no target-weight field exists.
+
+Example request:
+
+```json
+{
+  "expectedRevision": 0,
+  "name": "Motion Athlete",
+  "gender": "FEMALE",
+  "height_cm": 175,
+  "weight_kg": 80,
+  "primary_goal": "FAT_LOSS",
+  "fitness_level": "BEGINNER",
+  "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
+  "timezone": "Africa/Cairo",
+  "locale": "ar",
+  "date_of_birth": "1998-03-14"
+}
+```
 
 Update current weight with PATCH /me:
 
@@ -129,13 +147,13 @@ Protected `GET /me/food-preferences` and `PUT /me/food-preferences`. PUT replace
 }
 ```
 
-Success returns `{revision:1,allergen_codes:["MILK"],disliked_food_ids:[],excluded_food_ids:[]}`. Invalid lookup IDs fail and roll back; stale revisions return 409. Food preference revision is independent of injury revision. No nutrition AI calls.
+Success returns `{revision:1,allergen_codes:["MILK"],disliked_food_ids:[],excluded_food_ids:[]}`. A code absent from `allergens` fails with 422 `ALLERGEN_CODE_NOT_FOUND`, names that code in `message` and `details.allergen_code`, and rolls back the update. Fetch current values from GET `/references/allergens`. Invalid food lookup IDs also fail and roll back; stale revisions return 409. Food preference revision is independent of injury revision. No nutrition AI calls.
 
-Protected reference routes: GET `/references/body-areas` → `{items:[{code,parent_code}]}`; `/references/allergens` → `{items:[{code,label}]}`; `/references/foods?search=&limit=30&offset=0` → `{items:[{id,name,kind}],limit,offset,contentStatus:"CATALOG_NOT_SEEDED"}`; `/references/onboarding` → allowed enums plus configured policy fields/null and policy status. The food library is honestly empty until future approved content is supplied. Lookup allergen choices are starter form identifiers, not an approved global allergen safety catalog.
+Protected reference routes: GET `/references/body-areas` → `{items:[{code,parent_code}]}`; `/references/allergens` → `{items:[{code,label}]}`; `/references/foods?search=&limit=30&offset=0` → `{items:[{id,name,kind}],limit,offset,contentStatus:"CATALOG_NOT_SEEDED"|"READY"}`; `/references/onboarding` → allowed enums plus configured policy fields/null and policy status. Options are primary goals `FAT_LOSS|STRENGTH_HYPERTROPHY`, genders `MALE|FEMALE` from the seeded lookup, fitness levels `BEGINNER|INTERMEDIATE|ADVANCED`, weekday codes `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`, and counts `[2,3,4,5]` under `training_days_per_week_count`. Food preferences are a separate endpoint, not part of onboarding. Current allergen lookup codes are `MILK`, `EGG`, `PEANUT`, `TREE_NUT`, `SOY`, `WHEAT`, `FISH`, `CRUSTACEAN`, and `SESAME`. These are rows in a lookup table (`allergens.code` primary key), not an enum or an approved global allergen safety catalog.
 
 ## Media and account deletion
 
-Protected POST `/media/upload-intents` with `{mime:"image/png",size:1024}` → 201 `{id,uploadUrl,method:"PUT",headers,expiresIn:300}`. JPEG/PNG/WebP only; max 5 MiB. Upload to the returned URL, then protected POST `/media/:id/finalize` with `{}` → 201 `{id,status:"READY"}` after size/MIME/signature checks and conditional copy into an immutable final key. Protected GET `/media/:id` returns owned metadata and, for READY assets, a five-minute `downloadUrl`/`expiresIn`. Use the READY ID as `avatar_media_id` in PATCH /me. No configured S3 bucket: 503; wrong owner: 404. Live storage has not been connected.
+Protected POST `/media/upload-intents` with `{mime:"image/png",size:1024}` → 201 `{id,uploadUrl,method:"PUT",headers,expiresIn:300}`. JPEG/PNG/WebP only; max 5 MiB. Upload to the returned URL, then protected POST `/media/:id/finalize` with `{}` → 201 `{id,status:"READY"}` after size/MIME/signature checks and conditional copy into an immutable final key. Protected GET `/media/:id` returns owned metadata and, for READY assets, a five-minute `downloadUrl`/`expiresIn`. Use the READY ID as `avatar_media_id` in PATCH /me. Production S3 is configured through EC2's IAM role; successful service connectivity was reported, but this contract review did not run a new upload against production.
 
 Protected POST `/me/account-deletion` with `{reauthenticationToken:"<DELETE-proof>"}` returns 202 `{status:"PENDING",trackingToken,expiresIn:2592000,subscriptionCancellation:"NOT_INTEGRATED",message}`. It immediately sets DELETION_PENDING and revokes all sessions. Poll GET `/me/account-deletion` using **`X-Deletion-Token`**, without Bearer: `{status,requested_at,completed_at}` only. Tracking secret is hashed in DB and expires after 30 days. This endpoint never exposes account data.
 
@@ -143,7 +161,7 @@ Cleanup waits for `DELETION_RETENTION_APPROVED=true`; completion is never report
 
 ## Idempotency and concurrency
 
-Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. JSON numbers/revisions must be numbers, not strings.
+Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. The gender migration clears old onboarding keys because the required request body changed. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. JSON numbers/revisions must be numbers, not strings.
 
 Profile/settings/preferences/injury changes use expected revisions/versions. On conflict, refetch current state, reconcile and explicitly retry. Writes serialize on the user row; model/provider calls stay outside DB transactions. Identity linking and deletion proofs are purpose-, session- and user-bound, single-use, and five minutes old at most.
 
