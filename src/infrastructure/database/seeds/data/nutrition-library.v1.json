@@ -8,7 +8,7 @@
       "content": {
         "title": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
         "dietaryTags": ["LEAN_PROTEIN"],
-        "allergenCodes": ["Chicken breast, roasted"],
+        "allergenCodes": [],
         "verificationStatus": "UNKNOWN"
       }
     },
