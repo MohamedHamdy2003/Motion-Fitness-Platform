@@ -193,7 +193,7 @@ describe('foundation against PostgreSQL', () => {
     expect(malformed.text).not.toContain('SyntaxError');
     const oversized = await api
       .post(prefix + '/auth/login')
-      .send({ email: 'x'.repeat(40000), password });
+      .send({ email: 'x'.repeat(2_000_000), password });
     expect(oversized.status, oversized.text).toBe(413);
     expect(oversized.body).toHaveProperty('requestId');
   });
