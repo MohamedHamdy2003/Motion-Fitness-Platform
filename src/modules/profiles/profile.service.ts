@@ -11,7 +11,7 @@ import { assertAgeEligible } from './profile.policy';
 @Injectable()
 export class ProfileService {
   constructor(@Inject(DataSource) public db: DataSource) {}
-  private profileResponse(row: Record<string, any>) {
+  private profileResponse(row: Record<string, any>): Record<string, any> {
     const { training_weekdays, ...profile } = row;
     return {
       ...profile,
