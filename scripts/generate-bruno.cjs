@@ -7,7 +7,7 @@ fs.writeFileSync(
   JSON.stringify(
     {
       version: '1',
-      name: 'Motion API v1 — F00–F03',
+      name: 'Motion API v1 — F00–F08',
       type: 'collection',
       ignore: ['node_modules', '.git'],
     },
@@ -32,6 +32,14 @@ const variables = {
   mediaId: '',
   contentId: '',
   ingredientId: '',
+  foodVersionId: '',
+  foodVersionId2: '',
+  foodSectionId: '',
+  foodSectionVersionId: '',
+  foodMemberId: '',
+  mealSectionId: '',
+  mealId: '',
+  mealVersionId: '',
   profileRevision: '0',
   preferenceRevision: '0',
   injuryVersion: '1',
@@ -621,3 +629,158 @@ write(
   { status: 200 },
 );
 write('reference/Admin Media', '05-list', 'GET', '/admin/media');
+
+// F08 reusable food and meal library administration.
+const foodSectionFixture = {
+  slug: 'replace-with-unique-food-section',
+  title: 'Protein options — draft; review portions before publication',
+  members: [
+    {
+      foodVersionId: '{{foodVersionId}}',
+      portionGPerUnit: 100,
+      displayPortion: '100 g cooked',
+    },
+    {
+      foodVersionId: '{{foodVersionId2}}',
+      portionGPerUnit: 100,
+      displayPortion: '100 g cooked',
+    },
+  ],
+};
+write(
+  'reference/Admin Food Library',
+  '01-food-sections-list',
+  'GET',
+  '/admin/food-sections',
+);
+write(
+  'reference/Admin Food Library',
+  '02-food-section-create-draft',
+  'POST',
+  '/admin/food-sections',
+  foodSectionFixture,
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("foodSectionId",b.id); if(b.version_id) bru.setVar("foodSectionVersionId",b.version_id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '03-food-section-get',
+  'GET',
+  '/admin/food-sections/{{foodSectionId}}',
+  undefined,
+  {
+    post: '  const b=res.getBody(); const v=(b.versions||[]).find(x=>x.status==="PUBLISHED")||(b.versions||[])[0]; if(v&&v.members&&v.members[0]) bru.setVar("foodMemberId",v.members[0].id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '04-food-section-edit',
+  'PATCH',
+  '/admin/food-sections/{{foodSectionId}}',
+  { ...foodSectionFixture, expectedRevision: 1 },
+);
+write(
+  'reference/Admin Food Library',
+  '05-food-section-publish',
+  'POST',
+  '/admin/food-sections/{{foodSectionId}}/publish',
+  { expectedRevision: 2 },
+  { status: 201 },
+);
+write(
+  'reference/Admin Food Library',
+  '07-meal-sections-list',
+  'GET',
+  '/admin/meal-sections',
+);
+write(
+  'reference/Admin Food Library',
+  '08-meal-section-create',
+  'POST',
+  '/admin/meal-sections',
+  { slug: 'replace-with-unique-meal-section', title: 'Breakfast ideas' },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("mealSectionId",b.id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '09-meal-section-get',
+  'GET',
+  '/admin/meal-sections/{{mealSectionId}}',
+);
+write(
+  'reference/Admin Food Library',
+  '10-meal-section-edit',
+  'PATCH',
+  '/admin/meal-sections/{{mealSectionId}}',
+  { slug: 'replace-with-unique-meal-section', title: 'Edited meal section' },
+);
+write('reference/Admin Food Library', '11-meals-list', 'GET', '/admin/meals');
+write(
+  'reference/Admin Food Library',
+  '12-meal-create-draft',
+  'POST',
+  '/admin/meals',
+  {
+    slug: 'replace-with-unique-meal-slug',
+    sectionId: '{{mealSectionId}}',
+    title: 'Draft meal idea',
+    items: [{ memberId: '{{foodMemberId}}', exchangeUnits: 1, position: 0 }],
+  },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("mealId",b.id); if(b.version_id) bru.setVar("mealVersionId",b.version_id);',
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '13-meal-get',
+  'GET',
+  '/admin/meals/{{mealId}}',
+);
+write(
+  'reference/Admin Food Library',
+  '14-meal-edit',
+  'PATCH',
+  '/admin/meals/{{mealId}}',
+  {
+    slug: 'replace-with-unique-meal-slug',
+    sectionId: '{{mealSectionId}}',
+    title: 'Edited draft meal',
+    expectedRevision: 1,
+    items: [{ memberId: '{{foodMemberId}}', exchangeUnits: 1, position: 0 }],
+  },
+);
+write(
+  'reference/Admin Food Library',
+  '15-meal-publish',
+  'POST',
+  '/admin/meals/{{mealId}}/publish',
+  { expectedRevision: 2 },
+  { status: 201 },
+);
+write(
+  'reference/Admin Food Library',
+  '16-meal-archive',
+  'DELETE',
+  '/admin/meals/{{mealId}}',
+  { expectedRevision: 3 },
+);
+write(
+  'reference/Admin Food Library',
+  '17-meal-section-archive',
+  'DELETE',
+  '/admin/meal-sections/{{mealSectionId}}',
+  undefined,
+);
+write(
+  'reference/Admin Food Library',
+  '18-food-section-archive',
+  'DELETE',
+  '/admin/food-sections/{{foodSectionId}}',
+  { expectedRevision: 3 },
+);

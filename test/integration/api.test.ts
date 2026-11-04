@@ -680,8 +680,6 @@ describe('external adapter boundaries with fixture transports', () => {
       SMTP_USER: 'sender@example.test',
       SMTP_PASSWORD: 'fixture-app-password',
       MAIL_FROM: 'sender@example.test',
-      RESET_LINK_BASE: 'https://client.example.test/reset',
-      VERIFY_LINK_BASE: 'https://client.example.test/verify',
     });
     await register();
     const { JobsService } =
@@ -1352,6 +1350,185 @@ it('imports library drafts atomically and rejects changed seed versions', async 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it('seeds the USDA food and meal catalog as idempotent drafts', async () => {
+  const { importLibrary } =
+    await import('../../src/infrastructure/database/seeds/import-library.js');
+  const { join } = await import('node:path');
+  const dataPath = join(
+    process.cwd(),
+    'src/infrastructure/database/seeds/data/nutrition-library.v1.json',
+  );
+  await importLibrary(db, dataPath);
+  await importLibrary(db, dataPath);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM foods WHERE slug IN ('chicken-breast-roasted','brown-rice-cooked','rolled-oats-dry','broccoli-cooked','hard-boiled-egg','sweet-potato-baked','banana-raw','plain-nonfat-greek-yogurt','canned-light-tuna','black-beans-cooked','lentils-cooked','quinoa-cooked','wild-atlantic-salmon-cooked','firm-tofu','potato-baked','spinach-cooked','carrots-cooked')`,
+      )
+    )[0].n,
+  ).toBe(17);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM meal_versions WHERE meal_id IN (SELECT id FROM meals WHERE slug IN ('oats-yogurt-banana','egg-sweet-potato-spinach','chicken-rice-broccoli','salmon-quinoa-carrots','tuna-lentil-spinach-bowl','tofu-black-bean-rice-bowl')) AND status='DRAFT'`,
+      )
+    )[0].n,
+  ).toBe(6);
+  expect(
+    (
+      await db.query(
+        `SELECT count(*)::int AS n FROM food_exchange_group_versions WHERE group_id IN (SELECT id FROM food_exchange_groups WHERE slug IN ('protein-options','carbohydrate-options','vegetable-options')) AND status='DRAFT'`,
+      )
+    )[0].n,
+  ).toBe(3);
+});
+
+it('creates and publishes an admin food section and a meal from published foods', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
+    user.user.id,
+  ]);
+  const ingredient = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-ingredient',
+      content: {
+        title: 'F08 fixture ingredient',
+        dietaryTags: [],
+        allergenCodes: [],
+        verificationStatus: 'UNKNOWN',
+      },
+    });
+  const foodContent = (title: string) => ({
+    title,
+    preparation: 'Fixture preparation',
+    preparationState: 'COOKED',
+    prepMinutes: 0,
+    energyKcal100g: 100,
+    proteinG100g: 10,
+    carbohydrateG100g: 10,
+    fatG100g: 1,
+    fiberG100g: 1,
+    nutrientSource: {
+      title: 'Fixture',
+      reference: 'Test fixture',
+      licenseNotes: 'Test only',
+    },
+    mediaId: null,
+    ingredients: [{ ingredientId: ingredient.body.id, quantityG: 100 }],
+  });
+  const foodA = await api
+    .post(prefix + '/admin/foods')
+    .set(headers)
+    .send({ slug: 'f08-food-one', content: foodContent('F08 food one') });
+  const foodB = await api
+    .post(prefix + '/admin/foods')
+    .set(headers)
+    .send({ slug: 'f08-food-two', content: foodContent('F08 food two') });
+  expect(
+    (await api.get(prefix + '/references/foods').set(headers)).body
+      .contentStatus,
+  ).toBe('CATALOG_NOT_SEEDED');
+  for (const food of [foodA, foodB])
+    expect(
+      (
+        await api
+          .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
+          .set(headers)
+          .send({ expectedRevision: 1 })
+      ).status,
+    ).toBe(201);
+  expect(
+    (await api.get(prefix + '/references/foods').set(headers)).body
+      .contentStatus,
+  ).toBe('READY');
+  const section = await api
+    .post(prefix + '/admin/food-sections')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-section',
+      title: 'F08 fixture alternatives',
+      members: [foodA, foodB].map((food) => ({
+        foodVersionId: food.body.id,
+        portionGPerUnit: 100,
+        displayPortion: '100 g',
+      })),
+    });
+  expect(section.status, section.text).toBe(201);
+  const editedSection = await api
+    .patch(prefix + `/admin/food-sections/${section.body.id}`)
+    .set(headers)
+    .send({
+      expectedRevision: 1,
+      title: 'Edited F08 fixture alternatives',
+      members: [foodA, foodB].map((food) => ({
+        foodVersionId: food.body.id,
+        portionGPerUnit: 100,
+        displayPortion: '100 g',
+      })),
+    });
+  expect(editedSection.status, editedSection.text).toBe(200);
+  const publishedSection = await api
+    .post(prefix + `/admin/food-sections/${section.body.id}/publish`)
+    .set(headers)
+    .send({ expectedRevision: 2 });
+  expect(publishedSection.status, publishedSection.text).toBe(201);
+  const members = await api
+    .get(prefix + `/admin/food-sections/${section.body.id}`)
+    .set(headers);
+  const mealSection = await api
+    .post(prefix + '/admin/meal-sections')
+    .set(headers)
+    .send({ slug: 'f08-fixture-meals', title: 'Fixture meals' });
+  const meal = await api
+    .post(prefix + '/admin/meals')
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-meal',
+      sectionId: mealSection.body.id,
+      title: 'Fixture meal',
+      items: [
+        {
+          memberId: members.body.versions[0].members[0].id,
+          exchangeUnits: 1,
+          position: 0,
+        },
+      ],
+    });
+  expect(meal.status, meal.text).toBe(201);
+  const editedMeal = await api
+    .patch(prefix + `/admin/meals/${meal.body.id}`)
+    .set(headers)
+    .send({
+      slug: 'f08-fixture-meal',
+      expectedRevision: 1,
+      sectionId: mealSection.body.id,
+      title: 'Edited fixture meal',
+      items: [
+        {
+          memberId: members.body.versions[0].members[0].id,
+          exchangeUnits: 1,
+          position: 0,
+        },
+      ],
+    });
+  expect(editedMeal.status, editedMeal.text).toBe(200);
+  expect(
+    (
+      await api
+        .post(prefix + `/admin/meals/${meal.body.id}/publish`)
+        .set(headers)
+        .send({ expectedRevision: 2 })
+    ).status,
+  ).toBe(201);
+  expect(
+    (await api.get(prefix + `/admin/meals/${meal.body.id}`).set(headers)).body
+      .versions[0].items,
+  ).toHaveLength(1);
 });
 
 it('limits OTP guesses, expires codes and invalidates older codes on resend', async () => {

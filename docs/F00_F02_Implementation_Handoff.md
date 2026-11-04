@@ -1,19 +1,19 @@
 # Motion — F00–F02 Implementation Handoff
 
-Updated: 2026-10-30. User authorized a separate implementation chat in the same Motion project. This planning chat remains open for later features.
+Updated: 2026-11-04. Archived handoff: F00–F02 implementation and deployment have since been completed. Use this document only as a historical description of the original implementation requirements.
 
 ## Source of Truth
 
 - Project: C:/Users/Mohamed Hamada/OneDrive/Desktop/Motion
 - Read Motion_Backend_Plan.md (v2.13 or newer) and docs/Motion_Research_and_Content_Sourcing.md before implementation. These are authoritative saved requirements, not a claim that code already exists.
-- At handoff, the project has planning/research documents, no backend implementation and no Git repository. Inspect actual files before scaffolding because this may change.
+- The original handoff preceded backend implementation; the repository and current status documents are now authoritative for what exists.
 - User communicates in Egyptian Arabic. Code/contracts/docs use English except existing Arabic explanatory paragraphs. No Swagger or OpenAPI tooling.
 
 ## Immediate Authorized Delivery
 
-Historical handoff for the F00–F02 implementation slice. The original free-tier staging target was superseded by the user's AWS deployment. The current production base URL and EC2/RDS/S3 workflow are documented in [AWS deployment](AWS_DEPLOYMENT_AR.md) and [GitHub automation](GITHUB_AUTOMATION_AR.md); the separate staging environment is not provisioned.
+The current production base URL and EC2/RDS/S3 workflow are documented in [AWS deployment](AWS_DEPLOYMENT_AR.md) and [GitHub automation](GITHUB_AUTOMATION_AR.md); a separate staging environment is not provisioned.
 
-The implementation scope below remains useful as a record of the F00–F02 requirements. Do not follow the original free-provider setup steps as the current deployment procedure.
+The implementation scope below remains useful as a record of the F00–F02 requirements. It is not a current deployment runbook.
 
 F00: NestJS + TypeScript + PostgreSQL + TypeORM, shared DataSource, explicit migrations, synchronize:false, migrationsRun:false, configuration validation, validation/error conventions, request IDs, health/readiness, local development setup, jobs/mail infrastructure needed for auth, CI and seed runner. Branches main/dev plus feature branches; feature PRs to dev and tested release PR to main. Green GitHub Actions, meaningful commits, PRs explaining changes. Set up the local repository; use actual available GitHub account/repository information rather than inventing a remote. Keep secrets outside Git.
 
@@ -27,7 +27,7 @@ The plan places F16 rewrite integration before completing injury entry in F02. I
 
 Matching, workout fitting, billing and complete program/meal implementation are later features. Keep their interfaces/domain events compatible without implementing the entire platform or presenting mocked functionality as real. Onboarding should expose an honest NOT_STARTED/PENDING matching state until F05 exists. Build F02 preference/reference schemas needed now; defer complete nutrition/catalog functionality.
 
-Ask concise async questions for indispensable external setup (GitHub destination, hosting account, email/deep-link settings, Google/Apple and rewrite provider credentials) while continuing independent local work. Never request secrets in committed files or expose them in logs. Use secure configuration paths. Test meaningful auth/security, ownership, revision, database and Bruno integration behavior on PostgreSQL. A missing external credential is an integration blocker, not a reason to omit implementable endpoints or stop all work.
+External setup and credentials described at original handoff time have since been resolved or deliberately deferred. Never request secrets in committed files or expose them in logs. Use secure configuration paths. Keep actual integration status current in provider and delivery documentation.
 
 ## Preserve Later Product Decisions
 
@@ -37,9 +37,9 @@ Ask concise async questions for indispensable external setup (GitHub destination
 - Fitter is exercise-only, on demand for a requested day with active injuries; no injury/rest day means no Fitter call. Current-version assessments and per-user restrictions; no replacement exercises. All-BLOCKED due days can be EXEMPT without fake workout completion; uncertainty never auto-clears.
 - Food flags are deterministic queries using structured allergies/ingredients. Flag only the item, not the whole meal. User-confirmed same-section item/meal swaps use admin portions, no nutrition AI. Preserve history.
 - Nutrition advances by calendar date independently of delayed workout completion. Equal template lengths do not resolve what to serve after the final nutrition day; that edge case and replacement-program activation timing remain open. Do not resolve these silently while implementing auth/profile.
-- No gender-based carb reduction. Sourced meal/program content is future work; portion personalization remains open.
-- Two seed entry points: seed-lookups.ts then seed-content.ts; demo users/scenarios separate. Implement infrastructure and required lookups now. Do not invent scientific meal/program data to fill the future content stage. Each stage is transactional/idempotent and content requires its lookup dependencies.
+- No gender-based carbohydrate reduction. The F08 food/meal library and USDA seed examples are now in a separate implementation slice; program schedules and personalized portions remain future work.
+- Two seed entry points: seed-lookups.ts then seed-content.ts; demo users/scenarios separate. Sourced catalog foods and example meals are imported as drafts. Each stage is transactional/idempotent and catalog content requires its lookup dependencies.
 
 ## Client Delivery Artifacts
 
-Bruno requests for all implemented F00–F02 routes, local/staging templates, token acquisition/refresh examples, request/response/error contracts, provider/deep-link integration notes, required reference endpoints, migrations/seeding instructions, test evidence and a feature readiness matrix separating implemented/tested/live from externally blocked. API contract changes should be versioned and clearly communicated in the implementation chat. Do not send messages to client developers unless separately authorized.
+Bruno requests for implemented API routes, local/provisioned environment templates, token acquisition/refresh examples, request/response/error contracts, OTP/OAuth setup notes, required reference endpoints, migrations/seeding instructions, test evidence and a feature readiness matrix separating implemented/tested/live from externally blocked. API contract changes should be versioned and clearly communicated. Do not send messages to client developers unless separately authorized.

@@ -1,8 +1,9 @@
 # Delivery status — 2026-11-04
 
-Contract: v1 / 0.4.0. F00–F03 backend implementation and OTP email authentication are in `main`. GitHub Actions runs CI for `main` and is configured to deploy successful main commits to AWS through SSM. Check each workflow run and the recorded server SHA before treating a particular release as deployed.
+Contract: v1 / 0.4.0. F00–F03 backend implementation and OTP email authentication are deployed to AWS. GitHub Actions runs CI for `dev` and `main`; successful `main` pushes deploy to EC2 through SSM. By current user instruction, new features are to be merged only into `dev` until the user explicitly authorizes a main release.
 
-- F03 includes role-protected exercise/food/ingredient CRUD with archive semantics, draft/publish lifecycle, immutable published revisions and recipe membership, optimistic concurrency, and validated local dataset imports as drafts. Production scientific content has not been supplied or approved.
+- F03 includes role-protected exercise/food/ingredient CRUD with archive semantics, draft/publish lifecycle, immutable published revisions and recipe membership, optimistic concurrency, and validated dataset imports as drafts. The F08 development branch adds sourced USDA food data and editorial meal examples; all records require review and are not in production.
+- F08 catalog implementation is in progress on a non-main branch: foods, food alternative sections, meal sections and meals; sourced USDA seed data is imported as drafts. See [F08 library walkthrough](F08_FOOD_MEAL_LIBRARY_AR.md). Program schedules, user assignment, preferences-aware filtering, swaps and consumption tracking remain later work.
 - Admin media supports private signed uploads, metadata/signature checks, immutable final keys, atomic ownership transfer, listing and archive protection for referenced assets. The user reports EC2, RDS and S3 connectivity working; health checks do not exercise upload/finalize. Physical cleanup remains subject to retention policy.
 - Public food references exclude draft and archived foods. Publishing updates the visible title. Ingredient verification remains explicitly UNKNOWN or VERIFIED.
 - Gmail SMTP accepted a real verification/recovery OTP message in an earlier test. Captured/legacy mail is not forwarded when SMTP is enabled. Email links are superseded by OTP.

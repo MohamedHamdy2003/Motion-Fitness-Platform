@@ -31,15 +31,22 @@ export class ReferenceController {
       listQuery.extend({ search: z.string().max(100).default('') }),
       input,
     );
-    return {
-      items: await query(
+    const [items, status] = await Promise.all([
+      query(
         this.db,
         `SELECT id,name,kind FROM available_food_references WHERE name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3`,
         ['%' + q.search + '%', q.limit, q.offset],
       ),
+      query(
+        this.db,
+        `SELECT EXISTS(SELECT 1 FROM foods f JOIN food_versions v ON v.food_id=f.id WHERE NOT f.archived AND v.status='PUBLISHED') AS seeded`,
+      ),
+    ]);
+    return {
+      items,
       limit: q.limit,
       offset: q.offset,
-      contentStatus: 'CATALOG_NOT_SEEDED',
+      contentStatus: status[0].seeded ? 'READY' : 'CATALOG_NOT_SEEDED',
     };
   }
   @Get('onboarding') options() {
