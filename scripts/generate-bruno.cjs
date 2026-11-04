@@ -405,7 +405,6 @@ smoke('Ready', 'GET', '/health/ready', undefined, { auth: false });
 smoke('Register ephemeral athlete', 'POST', '/auth/register', local, {
   auth: false,
   status: 201,
-  pre: '  bru.setVar("email", "bruno-"+Date.now()+"-"+Math.floor(Math.random()*100000)+"@example.test");\n  bru.setVar("password", "Disposable-Bruno-Password-123");',
   post: saveTokens,
 });
 smoke('Login', 'POST', '/auth/login', local, { auth: false, post: saveTokens });
