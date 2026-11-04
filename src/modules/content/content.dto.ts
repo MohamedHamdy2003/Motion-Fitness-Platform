@@ -117,9 +117,11 @@ export const meal = mealFields.refine(
   'Duplicate meal item position',
 );
 export const foodSectionUpdate = foodSectionFields
+  .omit({ slug: true })
   .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueFoodVersions, 'Duplicate food version');
 export const mealUpdate = mealFields
+  .omit({ slug: true })
   .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueMealPositions, 'Duplicate meal item position');
 export const page = z

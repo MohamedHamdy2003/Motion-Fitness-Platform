@@ -679,7 +679,11 @@ write(
   '04-food-section-edit',
   'PATCH',
   '/admin/food-sections/{{foodSectionId}}',
-  { ...foodSectionFixture, expectedRevision: 1 },
+  {
+    title: foodSectionFixture.title,
+    members: foodSectionFixture.members,
+    expectedRevision: 1,
+  },
 );
 write(
   'reference/Admin Food Library',
@@ -748,7 +752,6 @@ write(
   'PATCH',
   '/admin/meals/{{mealId}}',
   {
-    slug: 'replace-with-unique-meal-slug',
     sectionId: '{{mealSectionId}}',
     title: 'Edited draft meal',
     expectedRevision: 1,

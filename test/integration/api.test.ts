@@ -1504,7 +1504,6 @@ it('creates and publishes an admin food section and a meal from published foods'
     .patch(prefix + `/admin/meals/${meal.body.id}`)
     .set(headers)
     .send({
-      slug: 'f08-fixture-meal',
       expectedRevision: 1,
       sectionId: mealSection.body.id,
       title: 'Edited fixture meal',
