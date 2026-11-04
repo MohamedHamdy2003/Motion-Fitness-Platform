@@ -14,6 +14,8 @@
 
 ## Google على Android
 
+شرح الفرق بين challenges الثلاثة ومسار ربط الحساب خطوة بخطوة موجود في [دليل تسجيل الدخول والربط](AUTH_SOCIAL_FLOWS_AR.md).
+
 الموجود محليًا: Google Android وWeb OAuth Client IDs في إعدادات البيئة. صيغة المعرف وحدها لا تثبت صحة ربط التطبيق؛ راجع Google Cloud Console. الـBackend يصدر challenge وnonce، لكن اختبار تسجيل الدخول الكامل يحتاج تنفيذ Google Sign-In داخل تطبيق Android وإرسال ID token وchallengeId.
 
 1. جهز OAuth consent screen وTest users إن كان التطبيق في Testing.

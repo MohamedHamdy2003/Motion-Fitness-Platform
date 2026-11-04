@@ -27,7 +27,9 @@ const variables = {
   deletionToken: '',
   idToken: '',
   authorizationCode: '',
-  challengeId: '',
+  signInChallengeId: '',
+  linkChallengeId: '',
+  reauthChallengeId: '',
   injuryId: '',
   mediaId: '',
   contentId: '',
@@ -203,15 +205,15 @@ add(
   {
     auth: false,
     status: 201,
-    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("challengeId",b.challengeId);',
-    docs: 'Configure provider client IDs. Pass nonce to native provider request; send resulting ID token.',
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("signInChallengeId",b.challengeId);',
+    docs: 'First sign-in step: pass nonce to native Google Sign-In, then send its ID token and signInChallengeId to POST /auth/google. Expires in five minutes and is one-use. Bruno cannot mint a real Google token.',
   },
 );
 add(
   'Google sign in',
   'POST',
   '/auth/google',
-  { idToken: '{{idToken}}', challengeId: '{{challengeId}}' },
+  { idToken: '{{idToken}}', challengeId: '{{signInChallengeId}}' },
   { auth: false, post: saveTokens },
 );
 add(
@@ -219,7 +221,11 @@ add(
   'POST',
   '/auth/challenges',
   { provider: 'APPLE', purpose: 'SIGN_IN' },
-  { auth: false, status: 201 },
+  {
+    auth: false,
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("signInChallengeId",b.challengeId);',
+  },
 );
 add(
   'Apple sign in',
@@ -228,7 +234,7 @@ add(
   {
     idToken: '{{idToken}}',
     authorizationCode: '{{authorizationCode}}',
-    challengeId: '{{challengeId}}',
+    challengeId: '{{signInChallengeId}}',
   },
   { auth: false, post: saveTokens },
 );
@@ -236,9 +242,10 @@ add(
   'Password reauthentication',
   'POST',
   '/auth/reauthenticate',
-  { method: 'PASSWORD', password: '{{password}}', purpose: 'DELETE' },
+  { method: 'PASSWORD', password: '{{password}}', purpose: 'LINK' },
   {
     post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
+    docs: 'Re-proves the signed-in password account. Use purpose=LINK before adding Google or purpose=DELETE before deletion. It returns a short-lived purpose-bound reauthenticationToken.',
   },
 );
 add(
@@ -246,30 +253,55 @@ add(
   'POST',
   '/auth/challenges',
   { provider: 'GOOGLE', purpose: 'REAUTHENTICATE' },
-  { status: 201 },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("reauthChallengeId",b.challengeId);',
+    docs: 'Requires Bearer auth. Use this nonce with an identity already linked to the current Motion account, then call /auth/reauthenticate. This produces a reauthentication proof, not a login session or a link challenge.',
+  },
 );
-add('Social reauthentication', 'POST', '/auth/reauthenticate', {
-  method: 'GOOGLE',
-  idToken: '{{idToken}}',
-  challengeId: '{{challengeId}}',
-  purpose: 'LINK',
-});
+add(
+  'Social reauthentication',
+  'POST',
+  '/auth/reauthenticate',
+  {
+    method: 'GOOGLE',
+    idToken: '{{idToken}}',
+    challengeId: '{{reauthChallengeId}}',
+    purpose: 'LINK',
+  },
+  {
+    post: '  const b=res.getBody(); if(b.reauthenticationToken) bru.setVar("reauthenticationToken",b.reauthenticationToken);',
+    docs: 'Proves the existing Google identity again and stores a short-lived LINK proof for the final link request. For a password account, use Password reauthentication instead.',
+  },
+);
 add(
   'Link challenge',
   'POST',
   '/auth/challenges',
   { provider: 'GOOGLE', purpose: 'LINK' },
-  { status: 201 },
+  {
+    status: 201,
+    post: '  const b=res.getBody(); if(b.challengeId) bru.setVar("linkChallengeId",b.challengeId);',
+    docs: 'Requires Bearer auth. Pass this nonce to Google Sign-In to get the identity being added, then combine its ID token and linkChallengeId with a reauthenticationToken at /auth/identities/google/link.',
+  },
 );
-add('Link Google identity', 'POST', '/auth/identities/google/link', {
-  idToken: '{{idToken}}',
-  challengeId: '{{challengeId}}',
-  reauthenticationToken: '{{reauthenticationToken}}',
-});
+add(
+  'Link Google identity',
+  'POST',
+  '/auth/identities/google/link',
+  {
+    idToken: '{{idToken}}',
+    challengeId: '{{linkChallengeId}}',
+    reauthenticationToken: '{{reauthenticationToken}}',
+  },
+  {
+    docs: 'Final step: provide Bearer auth for the current Motion account, the ID token made with the LINK challenge nonce, that linkChallengeId, and fresh reauthenticationToken with purpose LINK. This links the provider; it does not merge accounts.',
+  },
+);
 add('Link Apple identity', 'POST', '/auth/identities/apple/link', {
   idToken: '{{idToken}}',
   authorizationCode: '{{authorizationCode}}',
-  challengeId: '{{challengeId}}',
+  challengeId: '{{linkChallengeId}}',
   reauthenticationToken: '{{reauthenticationToken}}',
 });
 add('Get me', 'GET', '/me', undefined, {
@@ -281,7 +313,7 @@ add('Patch profile', 'PATCH', '/me', {
   height_cm: 175,
   primary_goal: 'STRENGTH_HYPERTROPHY',
   fitness_level: 'BEGINNER',
-  training_days_per_week: 3,
+  training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
   timezone: 'Africa/Cairo',
   locale: 'ar',
   date_of_birth: '1998-03-14',
@@ -293,10 +325,11 @@ add(
   {
     expectedRevision: 0,
     name: 'Motion Athlete',
+    gender: 'FEMALE',
     height_cm: 175,
     primary_goal: 'FAT_LOSS',
     fitness_level: 'BEGINNER',
-    training_days_per_week: 3,
+    training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
     timezone: 'Africa/Cairo',
     locale: 'ar',
     date_of_birth: '1998-03-14',
@@ -304,7 +337,7 @@ add(
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires age strictly greater than 18. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
+    docs: 'Requires gender, age strictly greater than 18 and 2-5 unique fixed weekdays. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -419,7 +452,7 @@ smoke('Patch profile', 'PATCH', '/me', {
   height_cm: 175,
   primary_goal: 'FAT_LOSS',
   fitness_level: 'BEGINNER',
-  training_days_per_week: 3,
+  training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
   timezone: 'Africa/Cairo',
   locale: 'en',
 });

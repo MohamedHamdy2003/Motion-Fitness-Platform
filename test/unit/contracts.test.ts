@@ -12,12 +12,12 @@ describe('mobile contracts', () => {
     const body = {
       expectedRevision: 0,
       name: 'Athlete',
-      gender: 'NON_BINARY',
+      gender: 'FEMALE',
       height_cm: 170,
       weight_kg: 70,
       primary_goal: 'FAT_LOSS',
       fitness_level: 'BEGINNER',
-      training_days_per_week: 3,
+      training_days_per_week: ['SUNDAY', 'TUESDAY'],
       timezone: 'Africa/Cairo',
       locale: 'ar',
       date_of_birth: '1998-03-14',
@@ -32,7 +32,7 @@ describe('mobile contracts', () => {
   });
   it('rejects unsupported goal, training-day, level and unexpected fields', () => {
     for (const patch of [
-      { training_days_per_week: 6 },
+      { training_days_per_week: ['SUNDAY'] },
       { primary_goal: 'MUSCLE' },
       { fitness_level: 'EXPERT' },
       { target_weight_kg: 65 },
