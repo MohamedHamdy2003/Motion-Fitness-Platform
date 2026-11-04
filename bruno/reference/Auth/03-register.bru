@@ -28,6 +28,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Requires real email transport or local capture; returns 503 EMAIL_NOT_CONFIGURED otherwise. Success: accessToken, refreshToken, tokenType, expiresIn, user, emailDelivery QUEUED.
+  Request: {"email":"{{email}}","password":"{{password}}"}; new password must be 8-128 characters with at least one number and one symbol. Success: {"user":{"id":"<uuid>","email":"<normalized-email>","verified":false},"emailDelivery":"QUEUED","nextStep":"VERIFY_EMAIL"}. Registration does not issue tokens. Verify the OTP, then call Login. Requires configured email delivery; otherwise 503 EMAIL_NOT_CONFIGURED.
   Never commit populated credentials or runtime tokens.
 }

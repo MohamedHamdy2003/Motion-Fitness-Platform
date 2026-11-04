@@ -28,6 +28,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: {"provider":"GOOGLE","purpose":"LINK"}; Bearer token for the account to link is required. Response: {"challengeId":"<uuid>","nonce":"<random-string>","expiresIn":300}. Pass the nonce to native Google Sign-In. Then reauthenticate the current account and call Link Google identity with idToken, challengeId and reauthenticationToken.
   Never commit populated credentials or runtime tokens.
 }

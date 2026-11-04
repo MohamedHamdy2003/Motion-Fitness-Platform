@@ -2,6 +2,12 @@
 
 Breaking: verify-email takes email and six-digit code instead of a link token. Password recovery adds POST /auth/verify-reset-code; its resetToken is passed as token to reset-password. Codes last 10 minutes with five attempts; the reset proof lasts five minutes. Resend cooldown is 60 seconds. Previous email/reset tokens are invalidated by migration. RESET_LINK_BASE and VERIFY_LINK_BASE are no longer needed. Pre-upgrade or capture mail jobs are not automatically sent by SMTP.
 
+## Unreleased on `dev` — onboarding gender and exercise media
+
+- `PUT /me/onboarding` now requires `gender`: `FEMALE`, `MALE`, `NON_BINARY`, or `PREFER_NOT_TO_SAY`; `/references/onboarding` advertises these choices. Existing profiles stay nullable until updated. Old onboarding idempotency keys are cleared because the required request body changed.
+- The profile has no target-weight field. It stores only current weight, with no measurement date or history.
+- A dedicated exercise seeder imports draft content. `exercise_revisions.media_id` links a video asset in `media_assets`; the video object itself remains in private S3.
+
 # API contract changes
 
 ## 0.3.0 — 2026-10-31

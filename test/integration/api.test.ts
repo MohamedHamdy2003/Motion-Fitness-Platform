@@ -851,6 +851,7 @@ describe('profiles, onboarding and injuries', () => {
     const r = await register();
     const input = {
       name: 'Athlete',
+      gender: 'PREFER_NOT_TO_SAY',
       height_cm: 175,
       primary_goal: 'FAT_LOSS',
       fitness_level: 'BEGINNER',
@@ -878,10 +879,11 @@ describe('profiles, onboarding and injuries', () => {
       ).status,
     ).toBe(200);
     const [saved] = await db.query(
-      'SELECT weight_kg,profile_revision FROM user_profiles WHERE user_id=$1',
+      'SELECT weight_kg,gender,profile_revision FROM user_profiles WHERE user_id=$1',
       [r.user.id],
     );
     expect(Number(saved.weight_kg)).toBe(80);
+    expect(saved.gender).toBe('PREFER_NOT_TO_SAY');
     expect(saved.profile_revision).toBe(1);
   });
   it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
@@ -965,6 +967,12 @@ describe('profiles, onboarding and injuries', () => {
     ).toBe(404);
     const refs = await api.get(prefix + '/references/onboarding').set(headers);
     expect(refs.body).not.toHaveProperty('measurement_max_age_days');
+    expect(refs.body.genders).toEqual([
+      'FEMALE',
+      'MALE',
+      'NON_BINARY',
+      'PREFER_NOT_TO_SAY',
+    ]);
   });
   it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
     const r = await register();

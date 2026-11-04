@@ -17,6 +17,7 @@ auth:bearer {
 body:json {
   {
     "expectedRevision": 0,
+    "gender": "FEMALE",
     "name": "Motion Athlete",
     "height_cm": 175,
     "primary_goal": "STRENGTH_HYPERTROPHY",
@@ -35,6 +36,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Send only fields to change plus expectedRevision. gender: FEMALE | MALE | NON_BINARY | PREFER_NOT_TO_SAY. Success returns the full updated profile including profile_revision. 409 REVISION_CONFLICT means refetch GET /me and retry with the latest revision.
   Never commit populated credentials or runtime tokens.
 }

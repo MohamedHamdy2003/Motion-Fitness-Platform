@@ -24,6 +24,7 @@ export const date = z
   });
 export const profileFields = {
   name: z.string().trim().min(1).max(120),
+  gender: z.enum(['FEMALE', 'MALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']),
   phone: z
     .string()
     .regex(/^\+?[0-9 ()-]{6,30}$/)
@@ -55,6 +56,7 @@ export const profilePatch = z
 export const onboarding = z
   .object({
     name: profileFields.name,
+    gender: profileFields.gender,
     height_cm: profileFields.height_cm,
     weight_kg: profileFields.weight_kg,
     primary_goal: profileFields.primary_goal,
