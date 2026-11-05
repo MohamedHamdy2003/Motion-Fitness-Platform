@@ -1,6 +1,6 @@
 Project Motion_Fitness_Platform {
   database_type: 'PostgreSQL'
-  Note: 'Relationship-focused ERD. Includes all application tables and foreign-key relationships after the current repository migrations. Selected non-key columns are included for readability.'
+  Note: 'Relationship-focused ERD for the current dev schema. Includes all application tables, one view, and foreign-key relationships after migrations on dev. Selected non-key columns are included for readability.'
 }
 
 Table users {
@@ -14,7 +14,7 @@ Table rate_limits {
 }
 
 Table roles {
-  code text [pk, note: 'Current values: USER, ADMIN']
+  code text [pk, note: 'Current dev values: ATHLETE, CONTENT_EDITOR, NUTRITION_REVIEWER, EXERCISE_REVIEWER, ADMIN']
 }
 
 Table user_roles {
@@ -72,26 +72,13 @@ Table genders {
   code text [pk, note: 'Current values: MALE, FEMALE']
 }
 
-Table primary_goals {
-  code text [pk, note: 'Current values: FAT_LOSS, STRENGTH_HYPERTROPHY']
-  label text
-  display_order integer [unique]
-}
-
-Table fitness_levels {
-  code text [pk, note: 'Current values: BEGINNER, INTERMEDIATE, ADVANCED']
-  label text
-  display_order integer [unique]
-}
-
 Table user_profiles {
   user_id uuid [pk]
   gender text
-  primary_goal text
-  fitness_level text
+  primary_goal text [note: 'CHECK values: FAT_LOSS, STRENGTH_HYPERTROPHY']
+  fitness_level text [note: 'CHECK values: BEGINNER, INTERMEDIATE, ADVANCED']
   avatar_media_id uuid
   weight_kg numeric
-  target_weight_kg numeric
 }
 
 Table user_settings {
@@ -278,24 +265,16 @@ Table programs {
 Table program_versions {
   id uuid [pk]
   program_id uuid
-  primary_goal text
-  ideal_level text
+  primary_goal text [note: 'CHECK values: FAT_LOSS, STRENGTH_HYPERTROPHY']
+  supported_goals text[]
+  ideal_level text [note: 'CHECK values: BEGINNER, INTERMEDIATE, ADVANCED']
+  supported_levels text[]
   nutrition_plan_version_id uuid [unique]
   approved_hint_version_id uuid
   version integer
   indexes {
     (program_id, version) [unique]
   }
-}
-
-Table program_version_supported_goals {
-  program_version_id uuid [pk]
-  primary_goal_code text [pk]
-}
-
-Table program_version_supported_levels {
-  program_version_id uuid [pk]
-  fitness_level_code text [pk]
 }
 
 Table nutrition_plans {
@@ -415,8 +394,6 @@ Ref: media_assets.owner_user_id > users.id [delete: cascade]
 // Profile, lookups, preferences and restrictions
 Ref: user_profiles.user_id - users.id [delete: cascade]
 Ref: user_profiles.gender > genders.code
-Ref: user_profiles.primary_goal > primary_goals.code
-Ref: user_profiles.fitness_level > fitness_levels.code
 Ref: user_profiles.avatar_media_id > media_assets.id [delete: set null]
 Ref: user_settings.user_id - users.id [delete: cascade]
 Ref: body_areas.parent_code > body_areas.code
@@ -462,14 +439,8 @@ Ref: meal_items.default_exchange_member_id > food_exchange_members.id
 
 // Programs, workout plans and nutrition plans
 Ref: program_versions.program_id > programs.id
-Ref: program_versions.primary_goal > primary_goals.code
-Ref: program_versions.ideal_level > fitness_levels.code
 Ref: program_versions.nutrition_plan_version_id - nutrition_plan_versions.id
 Ref: program_versions.approved_hint_version_id > program_hint_versions.id
-Ref: program_version_supported_goals.program_version_id > program_versions.id [delete: cascade]
-Ref: program_version_supported_goals.primary_goal_code > primary_goals.code
-Ref: program_version_supported_levels.program_version_id > program_versions.id [delete: cascade]
-Ref: program_version_supported_levels.fitness_level_code > fitness_levels.code
 Ref: nutrition_plan_versions.nutrition_plan_id > nutrition_plans.id
 Ref: nutrition_template_days.nutrition_plan_version_id > nutrition_plan_versions.id
 Ref: meal_slots.template_day_id > nutrition_template_days.id
