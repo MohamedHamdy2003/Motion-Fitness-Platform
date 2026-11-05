@@ -73,12 +73,7 @@ export class NutritionLibraryService {
     });
   }
 
-  reviseFoodSection(
-    id: string,
-    expectedRevision: number,
-    title: string,
-    members: MemberInput[],
-  ) {
+  reviseFoodSection(id: string, title: string, members: MemberInput[]) {
     return this.db.transaction(async (m) => {
       const [group] = await query(
         m,
@@ -92,8 +87,6 @@ export class NutritionLibraryService {
         `SELECT * FROM food_exchange_group_versions WHERE group_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
         [id],
       );
-      if (current.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (current.status === 'PUBLISHED') {
         const versionId = randomUUID();
         await query(
@@ -126,7 +119,7 @@ export class NutritionLibraryService {
     });
   }
 
-  async archiveFoodSection(id: string, expectedRevision: number) {
+  async archiveFoodSection(id: string) {
     return this.db.transaction(async (m) => {
       const [group] = await query(
         m,
@@ -134,13 +127,6 @@ export class NutritionLibraryService {
         [id],
       );
       if (!group) throw new ApiError('NOT_FOUND', 404);
-      const [current] = await query(
-        m,
-        `SELECT revision FROM food_exchange_group_versions WHERE group_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
-        [id],
-      );
-      if (current.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (group.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
       await query(
         m,
@@ -151,7 +137,7 @@ export class NutritionLibraryService {
     });
   }
 
-  publishFoodSection(id: string, expectedRevision: number) {
+  publishFoodSection(id: string) {
     return this.db.transaction(async (m) => {
       const [group] = await query(
         m,
@@ -166,8 +152,6 @@ export class NutritionLibraryService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (version.status !== 'DRAFT')
         throw new ApiError('ALREADY_PUBLISHED', 409);
       const members = await query(
@@ -299,13 +283,9 @@ export class NutritionLibraryService {
     };
   }
 
-  addMealItem(mealId: string, expectedRevision: number, item: MealItemInput) {
+  addMealItem(mealId: string, item: MealItemInput) {
     return this.db.transaction(async (m) => {
-      const version = await this.prepareMealItemEdit(
-        m,
-        mealId,
-        expectedRevision,
-      );
+      const version = await this.prepareMealItemEdit(m, mealId);
       await this.assertMealMemberExists(m, item.memberId);
       try {
         await query(
@@ -336,7 +316,6 @@ export class NutritionLibraryService {
   updateMealItem(
     mealId: string,
     position: number,
-    expectedRevision: number,
     input: {
       memberId?: string;
       exchangeUnits?: number;
@@ -344,11 +323,7 @@ export class NutritionLibraryService {
     },
   ) {
     return this.db.transaction(async (m) => {
-      const version = await this.prepareMealItemEdit(
-        m,
-        mealId,
-        expectedRevision,
-      );
+      const version = await this.prepareMealItemEdit(m, mealId);
       const fields: [string, unknown][] = [];
       if (input.memberId !== undefined) {
         await this.assertMealMemberExists(m, input.memberId);
@@ -385,13 +360,9 @@ export class NutritionLibraryService {
     });
   }
 
-  deleteMealItem(mealId: string, position: number, expectedRevision: number) {
+  deleteMealItem(mealId: string, position: number) {
     return this.db.transaction(async (m) => {
-      const version = await this.prepareMealItemEdit(
-        m,
-        mealId,
-        expectedRevision,
-      );
+      const version = await this.prepareMealItemEdit(m, mealId);
       const result = await query(
         m,
         `DELETE FROM meal_items WHERE meal_version_id=$1 AND position=$2 RETURNING position`,
@@ -413,11 +384,7 @@ export class NutritionLibraryService {
     });
   }
 
-  private async prepareMealItemEdit(
-    m: EntityManager,
-    mealId: string,
-    expectedRevision: number,
-  ) {
+  private async prepareMealItemEdit(m: EntityManager, mealId: string) {
     const [meal] = await query(
       m,
       `SELECT * FROM meals WHERE id=$1 FOR UPDATE`,
@@ -431,8 +398,6 @@ export class NutritionLibraryService {
       [mealId],
     );
     if (!current) throw new ApiError('NOT_FOUND', 404);
-    if (current.revision !== expectedRevision)
-      throw new ApiError('REVISION_CONFLICT', 409);
     if (current.status !== 'PUBLISHED')
       return { ...current, createdFromPublished: false };
 
@@ -544,7 +509,6 @@ export class NutritionLibraryService {
 
   reviseMeal(
     id: string,
-    expectedRevision: number,
     sectionId: string,
     title: string,
     items: MealItemInput[],
@@ -574,8 +538,6 @@ export class NutritionLibraryService {
         `SELECT * FROM meal_versions WHERE meal_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
         [id],
       );
-      if (current.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (current.status === 'PUBLISHED') {
         const versionId = randomUUID();
         await query(
@@ -609,7 +571,7 @@ export class NutritionLibraryService {
     });
   }
 
-  async archiveMeal(id: string, expectedRevision: number) {
+  async archiveMeal(id: string) {
     return this.db.transaction(async (m) => {
       const [meal] = await query(
         m,
@@ -617,20 +579,13 @@ export class NutritionLibraryService {
         [id],
       );
       if (!meal) throw new ApiError('NOT_FOUND', 404);
-      const [current] = await query(
-        m,
-        `SELECT revision FROM meal_versions WHERE meal_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
-        [id],
-      );
-      if (current.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (meal.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
       await query(m, `UPDATE meals SET archived=true WHERE id=$1`, [id]);
       return { id, archived: true };
     });
   }
 
-  publishMeal(id: string, expectedRevision: number) {
+  publishMeal(id: string) {
     return this.db.transaction(async (m) => {
       const [meal] = await query(
         m,
@@ -645,8 +600,6 @@ export class NutritionLibraryService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (version.status !== 'DRAFT')
         throw new ApiError('ALREADY_PUBLISHED', 409);
       const items = await query(

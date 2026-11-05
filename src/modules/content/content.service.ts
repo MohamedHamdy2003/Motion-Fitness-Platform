@@ -114,7 +114,6 @@ export class ContentService {
   async revise(
     kind: Kind,
     id: string,
-    expectedRevision: number,
     content?: Record<string, unknown>,
     publish = false,
   ) {
@@ -132,8 +131,6 @@ export class ContentService {
         `SELECT * FROM ${versions} WHERE ${fk}=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
         [id],
       );
-      if (v.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (publish) {
         if (v.status !== 'DRAFT') throw new ApiError('ALREADY_PUBLISHED', 409);
         await this.validateReferences(m, v.content, kind);
@@ -176,21 +173,15 @@ export class ContentService {
       )[0];
     });
   }
-  async archive(kind: Kind, id: string, revision: number) {
+  async archive(kind: Kind, id: string) {
     return this.db.transaction(async (m) => {
-      const [items, versions, fk] = tables[kind];
+      const [items] = tables[kind];
       const [item] = await query(
         m,
         `SELECT * FROM ${items} WHERE id=$1 FOR UPDATE`,
         [id],
       );
       if (!item) throw new ApiError('NOT_FOUND', 404);
-      const [v] = await query(
-        m,
-        `SELECT revision FROM ${versions} WHERE ${fk}=$1 ORDER BY version DESC LIMIT 1`,
-        [id],
-      );
-      if (v.revision !== revision) throw new ApiError('REVISION_CONFLICT', 409);
       await query(m, `UPDATE ${items} SET archived=true WHERE id=$1`, [id]);
       return { id, archived: true };
     });
@@ -206,7 +197,6 @@ export class ContentService {
     data: z.infer<typeof dto.ingredient>,
     slug?: string,
     id?: string,
-    revision?: number,
   ) {
     return this.db.transaction(async (m) => {
       const codes = [...new Set(data.allergenCodes)];
@@ -233,8 +223,6 @@ export class ContentService {
           [id],
         );
         if (!row) throw new ApiError('NOT_FOUND', 404);
-        if (row.metadata_version !== revision)
-          throw new ApiError('REVISION_CONFLICT', 409);
         if (row.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
         await query(
           m,
@@ -280,16 +268,22 @@ export class ContentService {
     if (!row) throw new ApiError('NOT_FOUND', 404);
     return row;
   }
-  async archiveIngredient(id: string, revision: number) {
-    const [row] = await query(
-      this.db,
-      `UPDATE ingredients SET archived=true,metadata_version=metadata_version+1 WHERE id=$1 AND metadata_version=$2 RETURNING *`,
-      [id, revision],
-    );
-    if (!row) {
-      await this.getIngredient(id);
-      throw new ApiError('REVISION_CONFLICT', 409);
-    }
-    return row;
+  async archiveIngredient(id: string) {
+    return this.db.transaction(async (m) => {
+      const [current] = await query(
+        m,
+        `SELECT * FROM ingredients WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (!current) throw new ApiError('NOT_FOUND', 404);
+      if (current.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
+      return (
+        await query(
+          m,
+          `UPDATE ingredients SET archived=true,metadata_version=metadata_version+1 WHERE id=$1 RETURNING *`,
+          [id],
+        )
+      )[0];
+    });
   }
 }

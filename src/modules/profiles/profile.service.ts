@@ -75,7 +75,6 @@ export class ProfileService {
     m: EntityManager,
     id: string,
     input: Record<string, unknown>,
-    expected: number,
   ) {
     if (input.gender) {
       const [gender] = await query(
@@ -154,17 +153,17 @@ export class ProfileService {
     const values = pairs.map(([, v]) => v);
     const [p] = await query(
       m,
-      `UPDATE user_profiles SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},profile_revision=profile_revision+1 WHERE user_id=$1 AND profile_revision=$2 RETURNING *`,
-      [id, expected, ...values],
+      `UPDATE user_profiles SET ${pairs.map(([k], i) => `${k}=$${i + 2}`).join(',')},profile_revision=profile_revision+1 WHERE user_id=$1 RETURNING *`,
+      [id, ...values],
     );
-    if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+    if (!p) throw new ApiError('NOT_FOUND', 404);
     await this.event(m, id, 'PROFILE_UPDATED', p.profile_revision);
     return this.profileResponse(p);
   }
   async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      return this.updateProfile(m, id, input, input.expectedRevision);
+      return this.updateProfile(m, id, input);
     });
   }
   async onboard(
@@ -189,12 +188,9 @@ export class ProfileService {
           matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
         };
       }
-      const { expectedRevision, ...profile } = input;
-      const p = await this.updateProfile(m, id, profile, expectedRevision);
-      await this.savePreferences(m, id, {
-        ...input.food_preferences,
-        expectedRevision: 0,
-      });
+      const { food_preferences, ...profile } = input;
+      const p = await this.updateProfile(m, id, profile);
+      await this.savePreferences(m, id, food_preferences);
       await query(
         m,
         `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
@@ -256,21 +252,18 @@ export class ProfileService {
   async setSettings(id: string, input: z.infer<typeof dto.settings>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const pairs = Object.entries(input).filter(
-        ([k]) => k !== 'expectedVersion',
-      );
+      const pairs = Object.entries(input);
       const [s] = await query(
         m,
-        `UPDATE user_settings SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},version=version+1 WHERE user_id=$1 AND version=$2 RETURNING reminders,theme,quiet_hours,version`,
+        `UPDATE user_settings SET ${pairs.map(([k], i) => `${k}=$${i + 2}`).join(',')},version=version+1 WHERE user_id=$1 RETURNING reminders,theme,quiet_hours,version`,
         [
           id,
-          input.expectedVersion,
           ...pairs.map(([, v]) =>
             typeof v === 'object' && v !== null ? JSON.stringify(v) : v,
           ),
         ],
       );
-      if (!s) throw new ApiError('REVISION_CONFLICT', 409);
+      if (!s) throw new ApiError('NOT_FOUND', 404);
       return s;
     });
   }
@@ -322,10 +315,10 @@ export class ProfileService {
   ) {
     const [p] = await query(
       m,
-      `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 AND revision=$2 RETURNING revision`,
-      [id, input.expectedRevision],
+      `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 RETURNING revision`,
+      [id],
     );
-    if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+    if (!p) throw new ApiError('NOT_FOUND', 404);
     for (const code of new Set(input.allergen_codes)) {
       const [a] = await query(
         m,
@@ -456,11 +449,8 @@ export class ProfileService {
         [injuryId, id],
       );
       if (!existing) throw new ApiError('NOT_FOUND', 404);
-      if (
-        existing.version !== input.expectedVersion ||
-        existing.status !== 'ACTIVE'
-      )
-        throw new ApiError('REVISION_CONFLICT', 409);
+      if (existing.status !== 'ACTIVE')
+        throw new ApiError('INJURY_NOT_ACTIVE', 409);
       const [r] = await query(
         m,
         `UPDATE user_injuries SET body_area_code=$3,side=$4,description=$5,version=version+1,confirmed_at=now() WHERE id=$1 AND user_id=$2 RETURNING *`,
@@ -475,7 +465,7 @@ export class ProfileService {
       return { injury: r, injury_revision: await this.injuryRevision(m, id) };
     });
   }
-  async removeInjury(id: string, injuryId: string, version: number) {
+  async removeInjury(id: string, injuryId: string) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const [r] = await query(
@@ -484,8 +474,7 @@ export class ProfileService {
         [injuryId, id],
       );
       if (!r) throw new ApiError('NOT_FOUND', 404);
-      if (r.version !== version || r.status !== 'ACTIVE')
-        throw new ApiError('REVISION_CONFLICT', 409);
+      if (r.status !== 'ACTIVE') throw new ApiError('INJURY_NOT_ACTIVE', 409);
       await query(
         m,
         `UPDATE user_injuries SET status='REMOVED',removed_at=now(),version=version+1 WHERE id=$1`,
@@ -493,7 +482,7 @@ export class ProfileService {
       );
       return {
         status: 'REMOVED',
-        version: version + 1,
+        version: r.version + 1,
         injury_revision: await this.injuryRevision(m, id),
       };
     });

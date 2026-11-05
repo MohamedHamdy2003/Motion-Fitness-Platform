@@ -1,5 +1,5 @@
 meta {
-  name: Reject stale injury edit
+  name: Update injury without a version field
   type: http
   seq: 11
 }
@@ -18,16 +18,14 @@ body:json {
   {
     "body_area_code": "KNEE",
     "side": "LEFT",
-    "description": "Stale change",
-    "confirmed": true,
-    "expectedVersion": 9
+    "description": "Last successful change",
+    "confirmed": true
   }
 }
 
 tests {
-  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(409); });
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
   test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
-  test("Error contract", function () { const e = res.getBody(); expect(e).to.have.all.keys("code", "message", "details", "requestId"); });
 }
 
 docs {

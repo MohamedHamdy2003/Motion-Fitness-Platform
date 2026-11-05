@@ -160,7 +160,7 @@ export class ProgramService {
     actor: Actor,
     id: string,
     idempotencyKey: string,
-    input: Omit<ProgramAggregate, 'slug'> & { expectedVersion: number },
+    input: Omit<ProgramAggregate, 'slug'>,
   ) {
     const scope = `program-edit:${id}`;
     const resourceId = await this.db.transaction(async (m) => {
@@ -179,8 +179,6 @@ export class ProgramService {
         [id],
       );
       if (!current) throw new ApiError('NOT_FOUND', 404);
-      if (current.revision !== input.expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [nutrition] = await query(
         m,
         `SELECT * FROM nutrition_plan_versions WHERE id=$1 FOR UPDATE`,
@@ -213,14 +211,9 @@ export class ProgramService {
     return this.get(resourceId);
   }
 
-  async publish(
-    actor: Actor,
-    id: string,
-    idempotencyKey: string,
-    expectedVersion: number,
-  ) {
+  async publish(actor: Actor, id: string, idempotencyKey: string) {
     const scope = `program-publish:${id}`;
-    const command = { expectedVersion };
+    const command = {};
     const resourceId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -237,8 +230,6 @@ export class ProgramService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (version.status !== 'DRAFT')
         throw new ApiError('ALREADY_PUBLISHED', 409);
       const [nutrition] = await query(
@@ -270,14 +261,9 @@ export class ProgramService {
     return this.get(resourceId);
   }
 
-  async archive(
-    actor: Actor,
-    id: string,
-    idempotencyKey: string,
-    expectedVersion: number,
-  ) {
+  async archive(actor: Actor, id: string, idempotencyKey: string) {
     const scope = `program-archive:${id}`;
-    const command = { expectedVersion };
+    const command = {};
     await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -294,8 +280,6 @@ export class ProgramService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (program.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
       await query(m, `UPDATE programs SET archived=true WHERE id=$1`, [id]);
       await this.saveKey(m, actor, scope, idempotencyKey, command, id);
@@ -308,7 +292,6 @@ export class ProgramService {
     id: string,
     idempotencyKey: string,
     input: {
-      expectedVersion: number;
       originalText: string;
       structuredHints: Record<string, unknown>;
     },
@@ -326,8 +309,6 @@ export class ProgramService {
       if (!version) throw new ApiError('NOT_FOUND', 404);
       if (version.status !== 'DRAFT')
         throw new ApiError('PROGRAM_VERSION_IMMUTABLE', 409);
-      if (version.revision !== input.expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [last] = await query(
         m,
         `SELECT COALESCE(max(version),0)::integer AS version FROM program_hint_versions WHERE program_version_id=$1`,
@@ -368,10 +349,9 @@ export class ProgramService {
     id: string,
     hintId: string,
     idempotencyKey: string,
-    expectedVersion: number,
   ) {
     const scope = `program-hint-approve:${id}:${hintId}`;
-    const command = { expectedVersion };
+    const command = {};
     const approvedId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -384,8 +364,6 @@ export class ProgramService {
       if (!version) throw new ApiError('NOT_FOUND', 404);
       if (version.status !== 'DRAFT')
         throw new ApiError('PROGRAM_VERSION_IMMUTABLE', 409);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [hint] = await query(
         m,
         `UPDATE program_hint_versions SET status='APPROVED',approved_by=$3,approved_at=now() WHERE id=$1 AND program_version_id=$2 AND status='DRAFT' RETURNING *`,

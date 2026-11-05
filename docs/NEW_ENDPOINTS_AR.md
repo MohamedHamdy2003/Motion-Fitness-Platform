@@ -42,6 +42,10 @@
 في Bruno، قيمة المتغير البيئي `lookupTable` هي التي تحل محل `:table`؛ مثلًا اجعلها `allergens` ليصبح المسار `/admin/lookups/allergens`. وفي طلبَي التعديل والتعطيل، تحل قيمة `lookupCode` محل `:code`، مثل `/admin/lookups/fitness-levels/ADVANCED`. لا تستخدم `roles` مع أي طلب إداري؛ طلباته مرفوضة.
 لا يمكن تعطيل آخر قيمة نشطة في جدول مطلوب، ولا تعطيل منطقة إصابة أب لها مناطق فرعية نشطة.
 
+## سياسة التعديل
+
+طلبات التعديل لا تحتاج `expectedRevision` أو `expectedVersion`. إذا وصلت تعديلات متعددة لنفس السجل، ينفذها السيرفر بالتتابع ويكون آخر تعديل ناجح هو المعتمد. أرقام النسخ التي قد تظهر في الاستجابات داخلية للقراءة، ولا يرسلها التطبيق في الطلبات.
+
 ## إدارة المكونات والوجبات وعناصرها
 
 | Method | Route                              | ماذا يفعل؟                                    | ما يحتاجه؟                                                                                               |
@@ -49,18 +53,18 @@
 | GET    | `/admin/ingredients`               | يعرض قائمة المكونات وبياناتها.                | Admin؛ اختياري: `limit`, `offset`.                                                                       |
 | POST   | `/admin/ingredients`               | ينشئ مكونًا.                                  | Admin؛ body: `slug`, و`content` التي تشمل `title`, `dietaryTags`, `allergenCodes`, `verificationStatus`. |
 | GET    | `/admin/ingredients/:id`           | يعرض بيانات المكون وأكواد حساسياته.           | Admin؛ `id` للمكون.                                                                                      |
-| PATCH  | `/admin/ingredients/:id`           | يعدل المكون وينشئ revision جديدًا عند الحاجة. | Admin؛ body: `expectedRevision`, `content`.                                                              |
-| DELETE | `/admin/ingredients/:id`           | يؤرشف المكون مع حفظ البيانات السابقة.         | Admin؛ body: `expectedRevision`.                                                                         |
+| PATCH  | `/admin/ingredients/:id`           | يعدل المكون وينشئ revision جديدًا عند الحاجة. | Admin؛ body: `content`.                                                                                  |
+| DELETE | `/admin/ingredients/:id`           | يؤرشف المكون مع حفظ البيانات السابقة.         | Admin؛ بلا body.                                                                                         |
 | GET    | `/admin/meals`                     | يعرض الوجبات وإصداراتها الحالية.              | Admin؛ اختياري: `limit`, `offset`.                                                                       |
 | POST   | `/admin/meals`                     | ينشئ وجبة مع عناصرها.                         | Admin؛ body: `slug`, `sectionId`, `title`, و`items` (قائمة عناصر الوجبة).                                |
 | GET    | `/admin/meals/:id`                 | يعرض الوجبة وكل إصداراتها وعناصر كل إصدار.    | Admin؛ `id` للوجبة.                                                                                      |
-| PATCH  | `/admin/meals/:id`                 | يعدل بيانات الوجبة وقائمة عناصرها.            | Admin؛ body: `expectedRevision`, `sectionId`, `title`, `items`.                                          |
-| POST   | `/admin/meals/:id/publish`         | ينشر مسودة الوجبة لتظهر في المراجع العامة.    | Admin؛ body: `expectedRevision`.                                                                         |
-| DELETE | `/admin/meals/:id`                 | يؤرشف الوجبة.                                 | Admin؛ body: `expectedRevision`.                                                                         |
-| GET    | `/admin/meals/:id/items`           | يعرض عناصر أحدث إصدار من الوجبة ورقم مراجعته. | Admin؛ لا body.                                                                                          |
+| PATCH  | `/admin/meals/:id`                 | يعدل بيانات الوجبة وقائمة عناصرها.            | Admin؛ body: `sectionId`, `title`, `items`.                                                              |
+| POST   | `/admin/meals/:id/publish`         | ينشر مسودة الوجبة لتظهر في المراجع العامة.    | Admin؛ بلا body.                                                                                         |
+| DELETE | `/admin/meals/:id`                 | يؤرشف الوجبة.                                 | Admin؛ بلا body.                                                                                         |
+| GET    | `/admin/meals/:id/items`           | يعرض عناصر أحدث إصدار من الوجبة وحالته.       | Admin؛ لا body.                                                                                          |
 | GET    | `/admin/meals/:id/items/:position` | يعرض عنصرًا واحدًا حسب ترتيبه في الوجبة.      | Admin؛ `position` ترتيب العنصر؛ لا body.                                                                 |
-| POST   | `/admin/meals/:id/items`           | يضيف عنصرًا للوجبة.                           | Admin؛ body: `expectedRevision`, `item:{memberId,exchangeUnits,position}`.                               |
-| PATCH  | `/admin/meals/:id/items/:position` | يعدل مكون العنصر أو وحداته أو ترتيبه.         | Admin؛ body: `expectedRevision` وحقل واحد على الأقل من `memberId`, `exchangeUnits`, `position`.          |
-| DELETE | `/admin/meals/:id/items/:position` | يحذف عنصرًا من الوجبة.                        | Admin؛ body: `expectedRevision`.                                                                         |
+| POST   | `/admin/meals/:id/items`           | يضيف عنصرًا للوجبة.                           | Admin؛ body: `item:{memberId,exchangeUnits,position}`.                                                   |
+| PATCH  | `/admin/meals/:id/items/:position` | يعدل مكون العنصر أو وحداته أو ترتيبه.         | Admin؛ حقل واحد على الأقل من `memberId`, `exchangeUnits`, `position`.                                    |
+| DELETE | `/admin/meals/:id/items/:position` | يحذف عنصرًا من الوجبة.                        | Admin؛ بلا body.                                                                                         |
 
-تعديلات `meal_items` تتطلب أحدث `expectedRevision`. إذا كانت الوجبة منشورة، ينشئ السيرفر مسودة جديدة ويترك الإصدار المنشور كما هو. ملفات الطلبات الكاملة موجودة في مجموعة Bruno تحت `reference/References/` و`reference/Admin Lookups/` و`reference/Admin Food Library/`.
+تعديلات `meal_items` لا تتطلب رقم مراجعة من التطبيق. إذا كانت الوجبة منشورة، ينشئ السيرفر مسودة جديدة ويترك الإصدار المنشور كما هو. ملفات الطلبات الكاملة موجودة في مجموعة Bruno تحت `reference/References/` و`reference/Admin Lookups/` و`reference/Admin Food Library/`.

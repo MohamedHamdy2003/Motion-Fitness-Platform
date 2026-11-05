@@ -6,9 +6,6 @@ export const slug = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   .max(120);
-export const expected = z
-  .object({ expectedRevision: z.number().int().positive() })
-  .strict();
 const source = z
   .object({ title: text, reference: text, licenseNotes: text })
   .strict();
@@ -126,11 +123,9 @@ export const meal = mealFields.refine(
 );
 export const foodSectionUpdate = foodSectionFields
   .omit({ slug: true })
-  .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueFoodVersions, 'Duplicate food version');
 export const mealUpdate = mealFields
   .omit({ slug: true })
-  .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueMealPositions, 'Duplicate meal item position');
 export const mealItem = z
   .object({
@@ -141,7 +136,6 @@ export const mealItem = z
   .strict();
 export const mealItemUpdate = z
   .object({
-    expectedRevision: z.number().int().positive(),
     memberId: uuid.optional(),
     exchangeUnits: z.number().positive().max(10000).optional(),
     position: z.number().int().min(0).max(1000).optional(),

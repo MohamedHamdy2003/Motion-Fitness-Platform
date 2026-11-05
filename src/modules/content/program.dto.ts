@@ -134,14 +134,7 @@ function programChecks<T extends z.ZodObject>(schema: T) {
 }
 
 export const programAggregate = programChecks(programFields);
-export const aggregateEdit = programChecks(
-  programFields.omit({ slug: true }).extend({
-    expectedVersion: z.number().int().positive(),
-  }),
-);
-export const expectedVersion = z
-  .object({ expectedVersion: z.number().int().positive() })
-  .strict();
+export const aggregateEdit = programChecks(programFields.omit({ slug: true }));
 export const programList = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -151,11 +144,8 @@ export const programList = z
   .strict();
 export const hintDraft = z
   .object({
-    expectedVersion: z.number().int().positive(),
     originalText: text,
     structuredHints: z.record(z.string(), z.unknown()),
   })
   .strict();
-export const hintApproval = expectedVersion;
-
 export type ProgramAggregate = z.infer<typeof programAggregate>;

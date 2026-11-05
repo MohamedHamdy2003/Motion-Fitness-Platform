@@ -10,7 +10,6 @@ import { encrypt, decrypt } from '../../src/common/crypto';
 describe('mobile contracts', () => {
   it('accepts lookup-code shapes and requires a gender during onboarding', () => {
     const body = {
-      expectedRevision: 0,
       name: 'Athlete',
       gender: 'FEMALE',
       height_cm: 170,
@@ -43,22 +42,18 @@ describe('mobile contracts', () => {
       { target_weight_kg: 0 },
       { role: 'ADMIN' },
     ])
-      expect(() =>
-        parse(profilePatch, { expectedRevision: 0, ...patch }),
-      ).toThrow(ApiError);
+      expect(() => parse(profilePatch, { ...patch })).toThrow(ApiError);
   });
   it('requires actual calendar date, timezone and positive measurements', () => {
     expect(timezone.safeParse('Africa/Cairo').success).toBe(true);
     expect(timezone.safeParse('Invented/Zone').success).toBe(false);
     expect(
       profilePatch.safeParse({
-        expectedRevision: 0,
         date_of_birth: '2001-02-30',
       }).success,
     ).toBe(false);
     expect(
       profilePatch.safeParse({
-        expectedRevision: 0,
         weight_kg: 0,
       }).success,
     ).toBe(false);
@@ -66,13 +61,11 @@ describe('mobile contracts', () => {
   it('rejects empty edits and removed measurement fields', () => {
     expect(
       profilePatch.safeParse({
-        expectedRevision: 0,
         measured_at: '2020-01-01T00:00:00Z',
       }).success,
     ).toBe(false);
     expect(
       profilePatch.safeParse({
-        expectedRevision: 0,
         weight_kg: 80,
         body_fat_percent: 20,
         body_fat_method: 'BIA',

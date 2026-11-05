@@ -48,7 +48,7 @@ ipconfig
 npm run dev:grant-admin -- athlete@example.test
 ```
 
-افتح مجلد bruno كـCollection واختر local. طلبات الإدارة داخل Admin exercises وAdmin foods وAdmin ingredients وAdmin Media. استخدم accessToken للحساب، ومعرفات النتائج، وأحدث expectedRevision. الطلبات الإدارية لا تعمل بحساب Athlete عادي. [دليل F03](F03_CONTENT_AR.md).
+افتح مجلد bruno كـCollection واختر local. طلبات الإدارة داخل Admin exercises وAdmin foods وAdmin ingredients وAdmin Media. استخدم accessToken للحساب، ومعرفات النتائج. الطلبات الإدارية لا تعمل بحساب Athlete عادي. [دليل F03](F03_CONTENT_AR.md).
 
 الإعداد الافتراضي capture لا يرسل بريدًا خارجيًا. لتجربة Google ضَع GOOGLE_CLIENT_IDS في .env، واضبط Web client كـserverClientId في Android مع package وSHA-1 صحيحين. أعد تشغيل السيرفر بعد تعديل .env. [إعداد OTP وOAuth](OTP_OAUTH_SETUP_AR.md).
 

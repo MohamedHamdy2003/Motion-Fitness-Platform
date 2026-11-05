@@ -18,6 +18,7 @@ import { ContentService } from './content.service';
 import { NutritionLibraryService } from './nutrition-library.service';
 import * as dto from './content.dto';
 const kindSchema = z.enum(['exercises', 'foods']);
+const emptyBody = z.object({}).strict().optional();
 @Controller('admin')
 @UseGuards(AuthGuard, ContentGuard)
 export class ContentController {
@@ -43,18 +44,12 @@ export class ContentController {
     const b = parse(
       z
         .object({
-          expectedRevision: z.number().int().positive(),
           content: dto.ingredient,
         })
         .strict(),
       body,
     );
-    return this.content.saveIngredient(
-      b.content,
-      undefined,
-      parse(uuid, id),
-      b.expectedRevision,
-    );
+    return this.content.saveIngredient(b.content, undefined, parse(uuid, id));
   }
   @Get('ingredients/:id') getIngredient(@Param('id') id: string) {
     return this.content.getIngredient(parse(uuid, id));
@@ -74,7 +69,6 @@ export class ContentController {
     const b = parse(dto.foodSectionUpdate, body);
     return this.nutrition.reviseFoodSection(
       parse(uuid, id),
-      b.expectedRevision,
       b.title,
       b.members,
     );
@@ -86,19 +80,15 @@ export class ContentController {
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.nutrition.publishFoodSection(
-      parse(uuid, id),
-      parse(dto.expected, body).expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.nutrition.publishFoodSection(parse(uuid, id));
   }
   @Delete('food-sections/:id') archiveFoodSection(
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.nutrition.archiveFoodSection(
-      parse(uuid, id),
-      parse(dto.expected, body).expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.nutrition.archiveFoodSection(parse(uuid, id));
   }
   @Get('meal-sections') mealSections(@Query() q: unknown) {
     const p = parse(dto.page, q);
@@ -136,7 +126,6 @@ export class ContentController {
     const b = parse(dto.mealUpdate, body);
     return this.nutrition.reviseMeal(
       parse(uuid, id),
-      b.expectedRevision,
       b.sectionId,
       b.title,
       b.items,
@@ -161,17 +150,12 @@ export class ContentController {
     const b = parse(
       z
         .object({
-          expectedRevision: z.number().int().positive(),
           item: dto.mealItem,
         })
         .strict(),
       body,
     );
-    return this.nutrition.addMealItem(
-      parse(uuid, id),
-      b.expectedRevision,
-      b.item,
-    );
+    return this.nutrition.addMealItem(parse(uuid, id), b.item);
   }
   @Patch('meals/:id/items/:position') updateMealItem(
     @Param('id') id: string,
@@ -182,7 +166,6 @@ export class ContentController {
     return this.nutrition.updateMealItem(
       parse(uuid, id),
       parse(dto.mealItemPosition, position),
-      b.expectedRevision,
       b,
     );
   }
@@ -191,10 +174,10 @@ export class ContentController {
     @Param('position') position: string,
     @Body() body: unknown,
   ) {
+    parse(emptyBody, body);
     return this.nutrition.deleteMealItem(
       parse(uuid, id),
       parse(dto.mealItemPosition, position),
-      parse(dto.expected, body).expectedRevision,
     );
   }
   @Get('meals/:id') getMeal(@Param('id') id: string) {
@@ -204,28 +187,22 @@ export class ContentController {
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.nutrition.publishMeal(
-      parse(uuid, id),
-      parse(dto.expected, body).expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.nutrition.publishMeal(parse(uuid, id));
   }
   @Delete('meals/:id') archiveMeal(
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.nutrition.archiveMeal(
-      parse(uuid, id),
-      parse(dto.expected, body).expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.nutrition.archiveMeal(parse(uuid, id));
   }
   @Delete('ingredients/:id') archiveIngredient(
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    return this.content.archiveIngredient(
-      parse(uuid, id),
-      parse(dto.expected, body).expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.content.archiveIngredient(parse(uuid, id));
   }
   @Get(':kind') list(@Param('kind') kind: string, @Query() q: unknown) {
     const p = parse(dto.page, q);
@@ -256,29 +233,22 @@ export class ContentController {
     const b = parse(
       z
         .object({
-          expectedRevision: z.number().int().positive(),
           content: k === 'exercises' ? dto.exercise : dto.food,
         })
         .strict(),
       body,
     );
-    return this.content.revise(
-      k,
-      parse(uuid, id),
-      b.expectedRevision,
-      b.content,
-    );
+    return this.content.revise(k, parse(uuid, id), b.content);
   }
   @Post(':kind/:id/publish') publish(
     @Param('kind') kind: string,
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    const b = parse(dto.expected, body);
+    parse(emptyBody, body);
     return this.content.revise(
       parse(kindSchema, kind),
       parse(uuid, id),
-      b.expectedRevision,
       undefined,
       true,
     );
@@ -288,11 +258,7 @@ export class ContentController {
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    const b = parse(dto.expected, body);
-    return this.content.archive(
-      parse(kindSchema, kind),
-      parse(uuid, id),
-      b.expectedRevision,
-    );
+    parse(emptyBody, body);
+    return this.content.archive(parse(kindSchema, kind), parse(uuid, id));
   }
 }
