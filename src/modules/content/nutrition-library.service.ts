@@ -273,6 +273,237 @@ export class NutritionLibraryService {
     return { ...meal, versions };
   }
 
+  async listCurrentMealItems(mealId: string) {
+    const [version] = await query(
+      this.db,
+      `SELECT v.* FROM meals m JOIN LATERAL(SELECT * FROM meal_versions WHERE meal_id=m.id ORDER BY version DESC LIMIT 1) v ON true WHERE m.id=$1`,
+      [mealId],
+    );
+    if (!version) throw new ApiError('NOT_FOUND', 404);
+    return this.mealItemsForVersion(this.db, mealId, version);
+  }
+
+  async getCurrentMealItem(mealId: string, position: number) {
+    const result = await this.listCurrentMealItems(mealId);
+    const item = result.items.find(
+      (row: { position: number }) => row.position === position,
+    );
+    if (!item) throw new ApiError('NOT_FOUND', 404);
+    return {
+      mealId: result.mealId,
+      mealVersionId: result.mealVersionId,
+      version: result.version,
+      revision: result.revision,
+      status: result.status,
+      item,
+    };
+  }
+
+  addMealItem(mealId: string, expectedRevision: number, item: MealItemInput) {
+    return this.db.transaction(async (m) => {
+      const version = await this.prepareMealItemEdit(
+        m,
+        mealId,
+        expectedRevision,
+      );
+      await this.assertMealMemberExists(m, item.memberId);
+      try {
+        await query(
+          m,
+          `INSERT INTO meal_items(meal_version_id,default_exchange_member_id,exchange_units,position) VALUES($1,$2,$3,$4)`,
+          [version.id, item.memberId, item.exchangeUnits, item.position],
+        );
+      } catch (error) {
+        if (this.pgCode(error) === '23505')
+          throw new ApiError('MEAL_ITEM_POSITION_EXISTS', 409);
+        throw error;
+      }
+      if (!version.createdFromPublished)
+        await query(
+          m,
+          `UPDATE meal_versions SET revision=revision+1 WHERE id=$1`,
+          [version.id],
+        );
+      const [updated] = await query(
+        m,
+        `SELECT * FROM meal_versions WHERE id=$1`,
+        [version.id],
+      );
+      return this.mealItemsForVersion(m, mealId, updated);
+    });
+  }
+
+  updateMealItem(
+    mealId: string,
+    position: number,
+    expectedRevision: number,
+    input: {
+      memberId?: string;
+      exchangeUnits?: number;
+      position?: number;
+    },
+  ) {
+    return this.db.transaction(async (m) => {
+      const version = await this.prepareMealItemEdit(
+        m,
+        mealId,
+        expectedRevision,
+      );
+      const fields: [string, unknown][] = [];
+      if (input.memberId !== undefined) {
+        await this.assertMealMemberExists(m, input.memberId);
+        fields.push(['default_exchange_member_id', input.memberId]);
+      }
+      if (input.exchangeUnits !== undefined)
+        fields.push(['exchange_units', input.exchangeUnits]);
+      if (input.position !== undefined)
+        fields.push(['position', input.position]);
+      try {
+        const result = await query(
+          m,
+          `UPDATE meal_items SET ${fields.map(([name], index) => `${name}=$${index + 3}`).join(',')} WHERE meal_version_id=$1 AND position=$2 RETURNING position`,
+          [version.id, position, ...fields.map(([, value]) => value)],
+        );
+        if (!result.length) throw new ApiError('NOT_FOUND', 404);
+      } catch (error) {
+        if (this.pgCode(error) === '23505')
+          throw new ApiError('MEAL_ITEM_POSITION_EXISTS', 409);
+        throw error;
+      }
+      if (!version.createdFromPublished)
+        await query(
+          m,
+          `UPDATE meal_versions SET revision=revision+1 WHERE id=$1`,
+          [version.id],
+        );
+      const [updated] = await query(
+        m,
+        `SELECT * FROM meal_versions WHERE id=$1`,
+        [version.id],
+      );
+      return this.mealItemsForVersion(m, mealId, updated);
+    });
+  }
+
+  deleteMealItem(mealId: string, position: number, expectedRevision: number) {
+    return this.db.transaction(async (m) => {
+      const version = await this.prepareMealItemEdit(
+        m,
+        mealId,
+        expectedRevision,
+      );
+      const result = await query(
+        m,
+        `DELETE FROM meal_items WHERE meal_version_id=$1 AND position=$2 RETURNING position`,
+        [version.id, position],
+      );
+      if (!result.length) throw new ApiError('NOT_FOUND', 404);
+      if (!version.createdFromPublished)
+        await query(
+          m,
+          `UPDATE meal_versions SET revision=revision+1 WHERE id=$1`,
+          [version.id],
+        );
+      const [updated] = await query(
+        m,
+        `SELECT * FROM meal_versions WHERE id=$1`,
+        [version.id],
+      );
+      return this.mealItemsForVersion(m, mealId, updated);
+    });
+  }
+
+  private async prepareMealItemEdit(
+    m: EntityManager,
+    mealId: string,
+    expectedRevision: number,
+  ) {
+    const [meal] = await query(
+      m,
+      `SELECT * FROM meals WHERE id=$1 FOR UPDATE`,
+      [mealId],
+    );
+    if (!meal) throw new ApiError('NOT_FOUND', 404);
+    if (meal.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
+    const [current] = await query(
+      m,
+      `SELECT * FROM meal_versions WHERE meal_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+      [mealId],
+    );
+    if (!current) throw new ApiError('NOT_FOUND', 404);
+    if (current.revision !== expectedRevision)
+      throw new ApiError('REVISION_CONFLICT', 409);
+    if (current.status !== 'PUBLISHED')
+      return { ...current, createdFromPublished: false };
+
+    const id = randomUUID();
+    const [draft] = await query(
+      m,
+      `INSERT INTO meal_versions(id,meal_id,version,revision,section_id,title,availability_status) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        id,
+        mealId,
+        current.version + 1,
+        current.revision + 1,
+        current.section_id,
+        current.title,
+        current.availability_status,
+      ],
+    );
+    await query(
+      m,
+      `INSERT INTO meal_items(meal_version_id,default_exchange_member_id,exchange_units,position) SELECT $1,default_exchange_member_id,exchange_units,position FROM meal_items WHERE meal_version_id=$2`,
+      [id, current.id],
+    );
+    return { ...draft, createdFromPublished: true };
+  }
+
+  private async assertMealMemberExists(m: EntityManager, memberId: string) {
+    const [member] = await query(
+      m,
+      `SELECT id FROM food_exchange_members WHERE id=$1`,
+      [memberId],
+    );
+    if (!member)
+      throw new ApiError(
+        'FOOD_SECTION_MEMBER_NOT_FOUND',
+        422,
+        `Food exchange member "${memberId}" is unavailable. Fetch GET /admin/food-sections to see available food members.`,
+        { member_id: memberId },
+      );
+  }
+
+  private async mealItemsForVersion(
+    m: EntityManager | DataSource,
+    mealId: string,
+    version: {
+      id: string;
+      version: number;
+      revision: number;
+      status: string;
+    },
+  ) {
+    const items = await query(
+      m,
+      `SELECT i.position,i.exchange_units,m.id AS member_id,m.group_version_id,m.food_version_id,m.portion_g_per_unit,m.display_portion,f.content->>'title' AS food_title,f.status AS food_status FROM meal_items i JOIN food_exchange_members m ON m.id=i.default_exchange_member_id JOIN food_versions f ON f.id=m.food_version_id WHERE i.meal_version_id=$1 ORDER BY i.position`,
+      [version.id],
+    );
+    return {
+      mealId,
+      mealVersionId: version.id,
+      version: version.version,
+      revision: version.revision,
+      status: version.status,
+      items,
+    };
+  }
+
+  private pgCode(error: unknown) {
+    return typeof error === 'object' && error && 'code' in error
+      ? (error as { code?: string }).code
+      : undefined;
+  }
+
   createMeal(
     slug: string,
     sectionId: string,
@@ -285,7 +516,13 @@ export class NutritionLibraryService {
         `SELECT id FROM meal_sections WHERE id=$1 AND NOT archived FOR SHARE`,
         [sectionId],
       );
-      if (!section) throw new ApiError('MEAL_SECTION_UNAVAILABLE', 422);
+      if (!section)
+        throw new ApiError(
+          'MEAL_SECTION_UNAVAILABLE',
+          422,
+          `Meal section "${sectionId}" is unavailable or archived. Fetch GET /admin/meal-sections to see available sections.`,
+          { section_id: sectionId },
+        );
       const id = randomUUID();
       const versionId = randomUUID();
       await query(m, `INSERT INTO meals(id,slug) VALUES($1,$2)`, [id, slug]);
@@ -325,7 +562,13 @@ export class NutritionLibraryService {
         `SELECT id FROM meal_sections WHERE id=$1 AND NOT archived FOR SHARE`,
         [sectionId],
       );
-      if (!section) throw new ApiError('MEAL_SECTION_UNAVAILABLE', 422);
+      if (!section)
+        throw new ApiError(
+          'MEAL_SECTION_UNAVAILABLE',
+          422,
+          `Meal section "${sectionId}" is unavailable or archived. Fetch GET /admin/meal-sections to see available sections.`,
+          { section_id: sectionId },
+        );
       const [current] = await query(
         m,
         `SELECT * FROM meal_versions WHERE meal_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
@@ -453,7 +696,13 @@ export class NutritionLibraryService {
         `SELECT id FROM food_versions WHERE id=$1`,
         [member.foodVersionId],
       );
-      if (!food) throw new ApiError('FOOD_VERSION_NOT_FOUND', 422);
+      if (!food)
+        throw new ApiError(
+          'FOOD_VERSION_NOT_FOUND',
+          422,
+          `Food version "${member.foodVersionId}" is unavailable. Fetch GET /admin/foods to see available foods.`,
+          { food_version_id: member.foodVersionId },
+        );
       await query(
         m,
         `INSERT INTO food_exchange_members(id,group_version_id,food_version_id,portion_g_per_unit,display_portion) VALUES($1,$2,$3,$4,$5)`,
@@ -479,7 +728,13 @@ export class NutritionLibraryService {
         `SELECT id FROM food_exchange_members WHERE id=$1`,
         [item.memberId],
       );
-      if (!member) throw new ApiError('FOOD_SECTION_MEMBER_NOT_FOUND', 422);
+      if (!member)
+        throw new ApiError(
+          'FOOD_SECTION_MEMBER_NOT_FOUND',
+          422,
+          `Food exchange member "${item.memberId}" is unavailable. Fetch GET /admin/food-sections to see available food members.`,
+          { member_id: item.memberId },
+        );
       await query(
         m,
         `INSERT INTO meal_items(meal_version_id,default_exchange_member_id,exchange_units,position) VALUES($1,$2,$3,$4)`,

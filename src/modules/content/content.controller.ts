@@ -142,6 +142,61 @@ export class ContentController {
       b.items,
     );
   }
+  @Get('meals/:id/items') mealItems(@Param('id') id: string) {
+    return this.nutrition.listCurrentMealItems(parse(uuid, id));
+  }
+  @Get('meals/:id/items/:position') mealItem(
+    @Param('id') id: string,
+    @Param('position') position: string,
+  ) {
+    return this.nutrition.getCurrentMealItem(
+      parse(uuid, id),
+      parse(dto.mealItemPosition, position),
+    );
+  }
+  @Post('meals/:id/items') addMealItem(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const b = parse(
+      z
+        .object({
+          expectedRevision: z.number().int().positive(),
+          item: dto.mealItem,
+        })
+        .strict(),
+      body,
+    );
+    return this.nutrition.addMealItem(
+      parse(uuid, id),
+      b.expectedRevision,
+      b.item,
+    );
+  }
+  @Patch('meals/:id/items/:position') updateMealItem(
+    @Param('id') id: string,
+    @Param('position') position: string,
+    @Body() body: unknown,
+  ) {
+    const b = parse(dto.mealItemUpdate, body);
+    return this.nutrition.updateMealItem(
+      parse(uuid, id),
+      parse(dto.mealItemPosition, position),
+      b.expectedRevision,
+      b,
+    );
+  }
+  @Delete('meals/:id/items/:position') deleteMealItem(
+    @Param('id') id: string,
+    @Param('position') position: string,
+    @Body() body: unknown,
+  ) {
+    return this.nutrition.deleteMealItem(
+      parse(uuid, id),
+      parse(dto.mealItemPosition, position),
+      parse(dto.expected, body).expectedRevision,
+    );
+  }
   @Get('meals/:id') getMeal(@Param('id') id: string) {
     return this.nutrition.getMeal(parse(uuid, id));
   }

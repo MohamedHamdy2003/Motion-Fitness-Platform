@@ -212,7 +212,7 @@ export class ContentService {
       const codes = [...new Set(data.allergenCodes)];
       const known = await query(
         m,
-        `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
+        `SELECT code FROM allergens WHERE active AND code=ANY($1::text[])`,
         [codes],
       );
       const knownCodes = new Set(
@@ -223,7 +223,7 @@ export class ContentService {
         throw new ApiError(
           'ALLERGEN_CODE_NOT_FOUND',
           422,
-          `Allergen code "${unknown}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+          `Allergen value "${unknown}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
           { allergen_code: unknown },
         );
       if (id) {

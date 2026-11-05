@@ -10,6 +10,7 @@ import { ProfileTargetWeight1793448009000 } from './migrations/1793448009000-Pro
 import { PrimaryGoalLookups1793448010000 } from './migrations/1793448010000-PrimaryGoalLookups';
 import { UserAdminRoles1793448011000 } from './migrations/1793448011000-UserAdminRoles';
 import { RenameBodyAreasInjuries1793448012000 } from './migrations/1793448012000-RenameBodyAreasInjuries';
+import { EditableLookups1793448013000 } from './migrations/1793448013000-EditableLookups';
 import { EmailOtp1793448001000 } from './migrations/1793448001000-EmailOtp';
 import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
@@ -61,6 +62,7 @@ export function databaseOptions(): DataSourceOptions {
       PrimaryGoalLookups1793448010000,
       UserAdminRoles1793448011000,
       RenameBodyAreasInjuries1793448012000,
+      EditableLookups1793448013000,
     ],
     synchronize: false,
     migrationsRun: false,

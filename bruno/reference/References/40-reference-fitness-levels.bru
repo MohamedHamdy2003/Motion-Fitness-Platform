@@ -1,0 +1,19 @@
+meta {
+  name: Reference fitness levels
+  type: http
+  seq: 40
+}
+
+get {
+  url: {{baseUrl}}/references/fitness-levels
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Returns active fitness-level rows. The codes are stable identifiers; Admin can edit label/order and deactivate a value, but cannot rename the code.
+}

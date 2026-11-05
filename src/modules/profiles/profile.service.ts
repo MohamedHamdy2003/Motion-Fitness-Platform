@@ -77,31 +77,45 @@ export class ProfileService {
     input: Record<string, unknown>,
     expected: number,
   ) {
+    if (input.gender) {
+      const [gender] = await query(
+        m,
+        `SELECT code FROM genders WHERE code=$1 AND active`,
+        [input.gender],
+      );
+      if (!gender)
+        throw new ApiError(
+          'GENDER_NOT_FOUND',
+          422,
+          `Gender value "${input.gender}" is unavailable or inactive. Fetch GET /references/genders for currently available values.`,
+          { gender: input.gender },
+        );
+    }
     if (input.fitness_level) {
       const [level] = await query(
         m,
-        `SELECT code FROM fitness_levels WHERE code=$1`,
+        `SELECT code FROM fitness_levels WHERE code=$1 AND active`,
         [input.fitness_level],
       );
       if (!level)
         throw new ApiError(
           'FITNESS_LEVEL_NOT_FOUND',
           422,
-          `Fitness level "${input.fitness_level}" is not registered. Fetch GET /references/onboarding to see valid values.`,
+          `Fitness level value "${input.fitness_level}" is unavailable or inactive. Fetch GET /references/fitness-levels for currently available values.`,
           { fitness_level: input.fitness_level },
         );
     }
     if (input.primary_goal) {
       const [goal] = await query(
         m,
-        `SELECT code FROM primary_goals WHERE code=$1`,
+        `SELECT code FROM primary_goals WHERE code=$1 AND active`,
         [input.primary_goal],
       );
       if (!goal)
         throw new ApiError(
           'PRIMARY_GOAL_NOT_FOUND',
           422,
-          `Primary goal "${input.primary_goal}" is not registered. Fetch GET /references/onboarding to see valid values.`,
+          `Primary goal value "${input.primary_goal}" is unavailable or inactive. Fetch GET /references/primary-goals for currently available values.`,
           { primary_goal: input.primary_goal },
         );
     }
@@ -313,14 +327,16 @@ export class ProfileService {
     );
     if (!p) throw new ApiError('REVISION_CONFLICT', 409);
     for (const code of new Set(input.allergen_codes)) {
-      const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
-        code,
-      ]);
+      const [a] = await query(
+        m,
+        `SELECT code FROM allergens WHERE code=$1 AND active`,
+        [code],
+      );
       if (!a)
         throw new ApiError(
           'ALLERGEN_CODE_NOT_FOUND',
           422,
-          `Allergen code "${code}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+          `Allergen value "${code}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
           { allergen_code: code },
         );
     }
@@ -333,8 +349,15 @@ export class ProfileService {
         `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
         [all],
       );
-      if (rows.length !== all.length)
-        throw new ApiError('INVALID_FOOD_REFERENCE');
+      const knownIds = new Set(rows.map((row: { id: string }) => row.id));
+      const unavailableIds = all.filter((foodId) => !knownIds.has(foodId));
+      if (unavailableIds.length)
+        throw new ApiError(
+          'INVALID_FOOD_REFERENCE',
+          422,
+          `Food reference ID(s) ${unavailableIds.join(', ')} are unavailable. Fetch GET /references/foods for currently available values.`,
+          { food_ids: unavailableIds },
+        );
     }
     await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
     await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
@@ -371,10 +394,16 @@ export class ProfileService {
   async bodyArea(m: EntityManager, code: string) {
     const [area] = await query(
       m,
-      `SELECT code FROM body_areas_injuries WHERE code=$1`,
+      `SELECT code FROM body_areas_injuries WHERE code=$1 AND active`,
       [code],
     );
-    if (!area) throw new ApiError('INVALID_BODY_AREA');
+    if (!area)
+      throw new ApiError(
+        'INVALID_BODY_AREA',
+        422,
+        `Body area value "${code}" is unavailable or inactive. Fetch GET /references/body-areas for currently available values.`,
+        { body_area_code: code },
+      );
   }
   async injuryRevision(m: EntityManager, id: string) {
     const [s] = await query(

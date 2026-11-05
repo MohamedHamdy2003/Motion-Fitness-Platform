@@ -1,0 +1,25 @@
+meta {
+  name: Reference ingredients
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{baseUrl}}/references/ingredients
+  body: none
+}
+
+params:query {
+  search:
+  limit: 30
+  offset: 0
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body; supports search, limit and offset. Returns active ingredient rows with dietary tags, verification state and allergen codes. GET /references/ingredients/{{ingredientId}} returns one active ingredient.
+}

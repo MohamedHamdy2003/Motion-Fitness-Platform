@@ -1,0 +1,31 @@
+meta {
+  name: Edit lookup value
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/admin/lookups/fitness-levels/ADVANCED_PLUS
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "label": "Advanced",
+    "display_order": 4
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin only. Updates label, display_order, and body-area parent_code when applicable. Send active:true to restore an inactive value. Use DELETE to deactivate. The lookup code cannot be changed; create a new code and deactivate the old one instead. For roles, only USER or ADMIN label/display_order can be edited.
+}

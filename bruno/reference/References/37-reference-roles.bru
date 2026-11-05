@@ -1,0 +1,19 @@
+meta {
+  name: Reference roles
+  type: http
+  seq: 37
+}
+
+get {
+  url: {{baseUrl}}/references/roles
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Lists active role values. The built-in USER and ADMIN roles are protected from deletion; role values are not assigned to users by this lookup API.
+}

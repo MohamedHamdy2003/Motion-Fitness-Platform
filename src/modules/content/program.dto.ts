@@ -5,12 +5,14 @@ import { slug } from './content.dto';
 const text = z.string().trim().min(1).max(4000);
 const level = z
   .string()
-  .regex(/^[A-Z_]+$/)
-  .max(40);
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9_]{1,49}$/);
 const goal = z
   .string()
-  .regex(/^[A-Z_]+$/)
-  .max(40);
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9_]{1,49}$/);
 const tags = z.array(z.string().trim().min(1).max(100)).max(50);
 
 const prescription = z.discriminatedUnion('mode', [
@@ -76,9 +78,9 @@ const programFields = z
     slug,
     title: text.max(160),
     primaryGoal: goal,
-    supportedGoals: z.array(goal).max(2),
+    supportedGoals: z.array(goal).max(50),
     idealLevel: level,
-    supportedLevels: z.array(level).min(1).max(3),
+    supportedLevels: z.array(level).min(1).max(50),
     trainingDaysPerWeek: z.union([
       z.literal(2),
       z.literal(3),

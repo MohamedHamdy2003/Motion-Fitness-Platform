@@ -1,0 +1,19 @@
+meta {
+  name: Reference meal get
+  type: http
+  seq: 45
+}
+
+get {
+  url: {{baseUrl}}/references/meals/{{mealId}}
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Returns only a published, available meal and its published meal_items. Draft and archived meal versions are never included. Use an ID returned by GET /references/meals.
+}

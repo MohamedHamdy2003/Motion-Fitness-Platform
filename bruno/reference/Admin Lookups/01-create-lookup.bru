@@ -1,0 +1,32 @@
+meta {
+  name: Create lookup value
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/lookups/fitness-levels
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "code": "ADVANCED_PLUS",
+    "label": "Advanced Plus",
+    "display_order": 4
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin only. POST supports genders, primary-goals, fitness-levels, allergens and body-areas-injuries. It requires code, label and display_order; body areas may also include parent_code. Motion supports only the built-in USER and ADMIN roles, so roles cannot be created or deleted. Codes are immutable after creation. Seeded values edited or deactivated by Admin are not overwritten by later lookup seeding.
+}

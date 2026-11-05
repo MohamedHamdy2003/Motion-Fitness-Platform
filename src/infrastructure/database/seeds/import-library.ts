@@ -102,7 +102,7 @@ export async function importLibrary(db: DataSource, path: string) {
         (
           await query(
             m,
-            `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
+            `SELECT code FROM allergens WHERE active AND code=ANY($1::text[])`,
             [codes],
           )
         ).length !== codes.length

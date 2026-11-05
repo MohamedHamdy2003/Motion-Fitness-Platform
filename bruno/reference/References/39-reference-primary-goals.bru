@@ -1,0 +1,19 @@
+meta {
+  name: Reference primary goals
+  type: http
+  seq: 39
+}
+
+get {
+  url: {{baseUrl}}/references/primary-goals
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Returns active primary-goal rows. The codes are stable identifiers; Admin can edit label/order and deactivate a value, but cannot rename the code.
+}
