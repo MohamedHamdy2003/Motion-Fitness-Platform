@@ -8,7 +8,7 @@ import {
 } from '../../src/modules/profiles/profile.dto';
 import { encrypt, decrypt } from '../../src/common/crypto';
 describe('mobile contracts', () => {
-  it('accepts the declared gender choices and requires one during onboarding', () => {
+  it('accepts lookup-code shapes and requires a gender during onboarding', () => {
     const body = {
       expectedRevision: 0,
       name: 'Athlete',
@@ -29,9 +29,9 @@ describe('mobile contracts', () => {
       },
     };
     expect(onboarding.safeParse(body).success).toBe(true);
-    expect(onboarding.safeParse({ ...body, gender: 'UNKNOWN' }).success).toBe(
-      false,
-    );
+    const dynamicValue = onboarding.safeParse({ ...body, gender: 'unknown' });
+    expect(dynamicValue.success).toBe(true);
+    if (dynamicValue.success) expect(dynamicValue.data.gender).toBe('UNKNOWN');
     expect(onboarding.safeParse({ ...body, gender: undefined }).success).toBe(
       false,
     );
@@ -40,7 +40,6 @@ describe('mobile contracts', () => {
     for (const patch of [
       { training_days_per_week: ['SUNDAY'] },
       { training_days_per_week: ['SUNDAY', 'SUNDAY'] },
-      { gender: 'NON_BINARY' },
       { target_weight_kg: 0 },
       { role: 'ADMIN' },
     ])
