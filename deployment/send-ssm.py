@@ -83,7 +83,10 @@ def safe_remote_output(value):
 
 def report_remote_failure(invocation):
     response_code = invocation.get("ResponseCode")
+    status_details = invocation.get("StatusDetails")
     print(f"SSM response code: {response_code}", flush=True)
+    if status_details:
+        print(f"SSM status details: {safe_remote_output(status_details)}", flush=True)
     for label, key in (
         ("stdout", "StandardOutputContent"),
         ("stderr", "StandardErrorContent"),
