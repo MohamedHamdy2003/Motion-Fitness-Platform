@@ -5,7 +5,7 @@ meta {
 }
 
 delete {
-  url: {{baseUrl}}/admin/lookups/fitness-levels/ADVANCED_PLUS
+  url: {{baseUrl}}/admin/lookups/{{lookupTable}}/{{lookupCode}}
   body: none
   auth: bearer
 }
@@ -20,5 +20,5 @@ tests {
 }
 
 docs {
-  Admin only. Soft-deletes the lookup value by setting active=false. Existing profiles/program references are retained, but new requests cannot select the inactive code. Built-in USER and ADMIN roles cannot be removed.
+  Admin only. Set lookupTable to genders, primary-goals, fitness-levels, allergens or body-areas-injuries, and lookupCode to the value's code. Soft-deletes the lookup value by setting active=false. Existing profiles/program references are retained, but new requests cannot select the inactive code. Roles are fixed and cannot be modified through admin lookup endpoints.
 }

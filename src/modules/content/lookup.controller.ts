@@ -63,13 +63,13 @@ export class LookupAdminController {
     @Body() body: unknown,
   ) {
     const table = parse(tableSchema, inputTable);
-    const value = parse(createValue, body);
     if (table === 'roles')
       throw new ApiError(
         'LOOKUP_VALUE_PROTECTED',
         409,
-        'Motion supports only the built-in USER and ADMIN roles.',
+        'Roles cannot be modified through admin lookup endpoints.',
       );
+    const value = parse(createValue, body);
     this.assertParentField(table, value.parent_code);
     if (table === 'body-areas-injuries')
       await this.validateParent(value.parent_code, value.code);
@@ -102,6 +102,12 @@ export class LookupAdminController {
     @Body() body: unknown,
   ) {
     const table = parse(tableSchema, inputTable);
+    if (table === 'roles')
+      throw new ApiError(
+        'LOOKUP_VALUE_PROTECTED',
+        409,
+        'Roles cannot be modified through admin lookup endpoints.',
+      );
     const key = parse(code, inputCode);
     const value = parse(updateValue, body);
     if (value.active === false)
@@ -143,13 +149,13 @@ export class LookupAdminController {
     @Param('code') inputCode: string,
   ) {
     const table = parse(tableSchema, inputTable);
-    const key = parse(code, inputCode);
-    if (table === 'roles' && ['USER', 'ADMIN'].includes(key))
+    if (table === 'roles')
       throw new ApiError(
         'LOOKUP_VALUE_PROTECTED',
         409,
-        `The built-in role "${key}" cannot be removed.`,
+        'Roles cannot be modified through admin lookup endpoints.',
       );
+    const key = parse(code, inputCode);
     if (
       [
         'genders',
