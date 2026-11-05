@@ -16,7 +16,6 @@ auth:bearer {
 
 body:json {
   {
-    "expectedRevision": 1,
     "item": {
       "memberId": "{{foodMemberId}}",
       "exchangeUnits": 1,
@@ -31,5 +30,5 @@ tests {
 }
 
 docs {
-  Admin-only POST. Adds an item at a unique position. If the current meal version was published, the API creates a draft copy before editing it. Supply expectedRevision from the latest meal version.
+  Admin-only POST. Adds an item at a unique position. If the current meal version was published, the API creates a draft copy before editing it.
 }

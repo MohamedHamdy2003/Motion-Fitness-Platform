@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   Body,
   Controller,
@@ -17,6 +18,7 @@ import { ApiRequest, parse, uuid } from '../../common/http';
 import { ContentGuard } from './content.guard';
 import * as dto from './program.dto';
 import { ProgramService } from './program.service';
+const emptyBody = z.object({}).strict().optional();
 
 @Controller('admin/programs')
 @UseGuards(AuthGuard, ContentGuard)
@@ -69,12 +71,8 @@ export class ProgramController {
     @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
-    return this.programs.publish(
-      req.principal,
-      parse(uuid, id),
-      key || '',
-      parse(dto.expectedVersion, body).expectedVersion,
-    );
+    parse(emptyBody, body);
+    return this.programs.publish(req.principal, parse(uuid, id), key || '');
   }
 
   @Delete(':id')
@@ -84,12 +82,8 @@ export class ProgramController {
     @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
-    return this.programs.archive(
-      req.principal,
-      parse(uuid, id),
-      key || '',
-      parse(dto.expectedVersion, body).expectedVersion,
-    );
+    parse(emptyBody, body);
+    return this.programs.archive(req.principal, parse(uuid, id), key || '');
   }
 
   @Post(':id/hints')
@@ -116,12 +110,12 @@ export class ProgramController {
     @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
+    parse(emptyBody, body);
     return this.programs.approveHint(
       req.principal,
       parse(uuid, id),
       parse(uuid, hintId),
       key || '',
-      parse(dto.hintApproval, body).expectedVersion,
     );
   }
 }

@@ -21,25 +21,25 @@
 
 كل المسارات تتطلب حسابًا مؤكدًا ودور `ADMIN`. استخدم فولدر `Admin Food Library` داخل Bruno.
 
-| Method | Endpoint                           | ماذا يفعل                       | متطلبات/ملاحظات                                                     |
-| ------ | ---------------------------------- | ------------------------------- | ------------------------------------------------------------------- |
-| GET    | `/admin/food-sections`             | يعرض أقسام بدائل الطعام         | يدعم `limit` و`offset`                                              |
-| POST   | `/admin/food-sections`             | ينشئ قسمًا كمسودة مع أعضاء وحصص | كل عضو يشير إلى `foodVersionId`                                     |
-| PATCH  | `/admin/food-sections/:id`         | يعدل المسودة أو ينشئ نسخة جديدة | يتطلب `expectedRevision`                                            |
-| GET    | `/admin/food-sections/:id`         | يعرض القسم ونسخه وأعضائها       | يعرض حالة نسخة الطعام المرتبطة                                      |
-| POST   | `/admin/food-sections/:id/publish` | ينشر أحدث نسخة                  | يتطلب بديلين على الأقل وأطعمة منشورة، مع `expectedRevision`         |
-| DELETE | `/admin/food-sections/:id`         | يؤرشف القسم                     | يتطلب `expectedRevision`                                            |
-| GET    | `/admin/meal-sections`             | يعرض أقسام الوجبات              | القسم مثل إفطار أو وجبات رئيسية؛ ليس ضمانًا لتكافؤ التغذية          |
-| POST   | `/admin/meal-sections`             | ينشئ قسم وجبات                  | `slug` فريد و`title`                                                |
-| GET    | `/admin/meal-sections/:id`         | يعرض قسم الوجبات                | —                                                                   |
-| PATCH  | `/admin/meal-sections/:id`         | يعدل اسم وعنوان القسم           | —                                                                   |
-| DELETE | `/admin/meal-sections/:id`         | يؤرشف القسم                     | —                                                                   |
-| GET    | `/admin/meals`                     | يعرض أحدث نسخة من كل وجبة       | يدعم `limit` و`offset`                                              |
-| POST   | `/admin/meals`                     | ينشئ وجبة مسودة وعناصرها        | العناصر تشير لأعضاء أقسام الطعام المنشورة قبل نشر الوجبة            |
-| PATCH  | `/admin/meals/:id`                 | يعدل المسودة أو ينشئ نسخة جديدة | يتطلب `expectedRevision`                                            |
-| GET    | `/admin/meals/:id`                 | يعرض الوجبة ونسخها وعناصرها     | يتضمن الحصة وحالة الطعام والقسم                                     |
-| POST   | `/admin/meals/:id/publish`         | ينشر أحدث نسخة من الوجبة        | يتطلب عناصر وقسمًا وأقسام طعام وأطعمة منشورة، مع `expectedRevision` |
-| DELETE | `/admin/meals/:id`                 | يؤرشف الوجبة                    | يتطلب `expectedRevision`                                            |
+| Method | Endpoint                           | ماذا يفعل                       | متطلبات/ملاحظات                                            |
+| ------ | ---------------------------------- | ------------------------------- | ---------------------------------------------------------- |
+| GET    | `/admin/food-sections`             | يعرض أقسام بدائل الطعام         | يدعم `limit` و`offset`                                     |
+| POST   | `/admin/food-sections`             | ينشئ قسمًا كمسودة مع أعضاء وحصص | كل عضو يشير إلى `foodVersionId`                            |
+| PATCH  | `/admin/food-sections/:id`         | يعدل المسودة أو ينشئ نسخة جديدة | لا يتطلب رقم مراجعة من التطبيق                             |
+| GET    | `/admin/food-sections/:id`         | يعرض القسم ونسخه وأعضائها       | يعرض حالة نسخة الطعام المرتبطة                             |
+| POST   | `/admin/food-sections/:id/publish` | ينشر أحدث نسخة                  | يتطلب بديلين على الأقل وأطعمة منشورة،                      |
+| DELETE | `/admin/food-sections/:id`         | يؤرشف القسم                     | لا يتطلب رقم مراجعة من التطبيق                             |
+| GET    | `/admin/meal-sections`             | يعرض أقسام الوجبات              | القسم مثل إفطار أو وجبات رئيسية؛ ليس ضمانًا لتكافؤ التغذية |
+| POST   | `/admin/meal-sections`             | ينشئ قسم وجبات                  | `slug` فريد و`title`                                       |
+| GET    | `/admin/meal-sections/:id`         | يعرض قسم الوجبات                | —                                                          |
+| PATCH  | `/admin/meal-sections/:id`         | يعدل اسم وعنوان القسم           | —                                                          |
+| DELETE | `/admin/meal-sections/:id`         | يؤرشف القسم                     | —                                                          |
+| GET    | `/admin/meals`                     | يعرض أحدث نسخة من كل وجبة       | يدعم `limit` و`offset`                                     |
+| POST   | `/admin/meals`                     | ينشئ وجبة مسودة وعناصرها        | العناصر تشير لأعضاء أقسام الطعام المنشورة قبل نشر الوجبة   |
+| PATCH  | `/admin/meals/:id`                 | يعدل المسودة أو ينشئ نسخة جديدة | لا يتطلب رقم مراجعة من التطبيق                             |
+| GET    | `/admin/meals/:id`                 | يعرض الوجبة ونسخها وعناصرها     | يتضمن الحصة وحالة الطعام والقسم                            |
+| POST   | `/admin/meals/:id/publish`         | ينشر أحدث نسخة من الوجبة        | يتطلب عناصر وقسمًا وأقسام طعام وأطعمة منشورة،              |
+| DELETE | `/admin/meals/:id`                 | يؤرشف الوجبة                    | لا يتطلب رقم مراجعة من التطبيق                             |
 
 في عناصر الوجبة `exchangeUnits` عدد وحدات العضو المختار. وعند عرض كميات التغذية مستقبلًا، الكمية بالجرام تحسب من `portionGPerUnit × exchangeUnits`، ثم المغذيات من القيم لكل 100 غرام. الخادم لا يخترع حصصًا ولا يقرر أن بديلين متساويان غذائيًا.
 

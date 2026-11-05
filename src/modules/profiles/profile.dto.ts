@@ -66,9 +66,8 @@ export const profileFields = {
 export const profilePatch = z
   .object(profileFields)
   .partial()
-  .extend({ expectedRevision: z.number().int().nonnegative() })
   .strict()
-  .refine((v) => Object.keys(v).length > 1);
+  .refine((v) => Object.keys(v).length > 0);
 export const onboarding = z
   .object({
     name: profileFields.name,
@@ -82,7 +81,6 @@ export const onboarding = z
     timezone,
     locale: profileFields.locale,
     date_of_birth: date,
-    expectedRevision: z.number().int().nonnegative(),
     food_preferences: z
       .object({
         allergen_codes: z.array(lookupCode).max(100),
@@ -100,12 +98,9 @@ export const injuryFields = {
 export const injury = z
   .object({ ...injuryFields, confirmed: z.literal(true) })
   .strict();
-export const injuryEdit = injury.extend({
-  expectedVersion: z.number().int().positive(),
-});
+export const injuryEdit = injury;
 export const preferences = z
   .object({
-    expectedRevision: z.number().int().nonnegative(),
     allergen_codes: z.array(lookupCode).max(100),
     disliked_food_ids: z.array(uuid).max(200),
     excluded_food_ids: z.array(uuid).max(200),
@@ -113,7 +108,6 @@ export const preferences = z
   .strict();
 export const settings = z
   .object({
-    expectedVersion: z.number().int().nonnegative(),
     reminders: z.boolean().optional(),
     theme: z.enum(['SYSTEM', 'LIGHT', 'DARK']).optional(),
     quiet_hours: z
@@ -126,7 +120,7 @@ export const settings = z
       .optional(),
   })
   .strict()
-  .refine((v) => Object.keys(v).length > 1);
+  .refine((v) => Object.keys(v).length > 0);
 export const listQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(30),

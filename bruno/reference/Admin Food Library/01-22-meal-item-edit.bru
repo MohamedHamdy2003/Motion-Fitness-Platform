@@ -16,7 +16,6 @@ auth:bearer {
 
 body:json {
   {
-    "expectedRevision": 1,
     "exchangeUnits": 1.5
   }
 }
@@ -27,5 +26,5 @@ tests {
 }
 
 docs {
-  Admin-only PATCH. Any combination of memberId, exchangeUnits and position may be changed. expectedRevision prevents overwriting a newer edit. Published meals are copied into a new draft before modification.
+  Admin-only PATCH. Any combination of memberId, exchangeUnits and position may be changed.  Published meals are copied into a new draft before modification.
 }
