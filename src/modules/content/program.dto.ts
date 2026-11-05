@@ -3,8 +3,14 @@ import { uuid } from '../../common/http';
 import { slug } from './content.dto';
 
 const text = z.string().trim().min(1).max(4000);
-const level = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
-const goal = z.enum(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']);
+const level = z
+  .string()
+  .regex(/^[A-Z_]+$/)
+  .max(40);
+const goal = z
+  .string()
+  .regex(/^[A-Z_]+$/)
+  .max(40);
 const tags = z.array(z.string().trim().min(1).max(100)).max(50);
 
 const prescription = z.discriminatedUnion('mode', [

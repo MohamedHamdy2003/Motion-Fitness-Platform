@@ -14,7 +14,7 @@ export class HealthController {
       await query(this.db, 'SELECT 1');
       const [lookup] = await query(
         this.db,
-        `SELECT code FROM roles WHERE code='ATHLETE'`,
+        `SELECT code FROM roles WHERE code='USER'`,
       );
       if (!lookup) throw Error();
       const pending = await this.db.showMigrations();

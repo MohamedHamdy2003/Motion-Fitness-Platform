@@ -199,16 +199,58 @@ describe('foundation against PostgreSQL', () => {
   });
   it('runs reversible migrations and transactional, idempotent lookup seeds', async () => {
     await seedLookups(db);
-    const before = await db.query('SELECT * FROM body_areas ORDER BY code');
-    await seedLookups(db);
-    expect(await db.query('SELECT * FROM body_areas ORDER BY code')).toEqual(
-      before,
+    const before = await db.query(
+      'SELECT * FROM body_areas_injuries ORDER BY code',
     );
+    await seedLookups(db);
+    expect(
+      await db.query('SELECT * FROM body_areas_injuries ORDER BY code'),
+    ).toEqual(before);
     await seedContent(db);
     await seedContent(db);
     expect((await db.query('SELECT count(*)::int AS n FROM users'))[0].n).toBe(
       0,
     );
+  });
+  it('serves seeded onboarding, allergen, and injury-area lookups via GET', async () => {
+    const account = await register();
+    const headers = bearer(account.accessToken);
+    const onboarding = await api
+      .get(prefix + '/references/onboarding')
+      .set(headers);
+    expect(onboarding.status, onboarding.text).toBe(200);
+    expect(
+      onboarding.body.primary_goals.map((item: { code: string }) => item.code),
+    ).toEqual(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']);
+    expect(
+      onboarding.body.fitness_levels.map((item: { code: string }) => item.code),
+    ).toEqual(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+    expect(onboarding.body.genders).toEqual(['FEMALE', 'MALE']);
+
+    const allergens = await api
+      .get(prefix + '/references/allergens')
+      .set(headers);
+    expect(allergens.status, allergens.text).toBe(200);
+    expect(
+      allergens.body.items.map((item: { code: string }) => item.code),
+    ).toContain('MILK');
+
+    const areas = await api.get(prefix + '/references/body-areas').set(headers);
+    expect(areas.status, areas.text).toBe(200);
+    expect(
+      areas.body.items.map((item: { code: string }) => item.code),
+    ).toContain('KNEE');
+    expect(
+      (await db.query("SELECT to_regclass('public.body_areas') AS old_name"))[0]
+        .old_name,
+    ).toBeNull();
+    expect(
+      (
+        await db.query(
+          "SELECT to_regclass('public.body_areas_injuries') AS new_name",
+        )
+      )[0].new_name,
+    ).toBe('body_areas_injuries');
   });
   it('serves readiness and safe errors with unique server request IDs', async () => {
     const r = await api.get(prefix + '/health/ready');
@@ -861,6 +903,12 @@ describe('profiles, onboarding and injuries', () => {
       date_of_birth: '1998-03-14',
       expectedRevision: 0,
       weight_kg: 80,
+      target_weight_kg: 72,
+      food_preferences: {
+        allergen_codes: [],
+        disliked_food_ids: [],
+        excluded_food_ids: [],
+      },
     };
     const first = await api
       .put(prefix + '/me/onboarding')
@@ -885,6 +933,35 @@ describe('profiles, onboarding and injuries', () => {
     expect(Number(saved.weight_kg)).toBe(80);
     expect(saved.gender).toBe('FEMALE');
     expect(saved.profile_revision).toBe(1);
+  });
+  it('rejects profile lookup codes that are not seeded', async () => {
+    const user = await register();
+    const input = {
+      name: 'Athlete',
+      gender: 'FEMALE',
+      height_cm: 175,
+      weight_kg: 80,
+      target_weight_kg: 72,
+      primary_goal: 'UNREGISTERED_GOAL',
+      fitness_level: 'BEGINNER',
+      training_days_per_week: ['SUNDAY', 'TUESDAY'],
+      timezone: 'Africa/Cairo',
+      locale: 'ar',
+      date_of_birth: '1998-03-14',
+      expectedRevision: 0,
+      food_preferences: {
+        allergen_codes: [],
+        disliked_food_ids: [],
+        excluded_food_ids: [],
+      },
+    };
+    const response = await api
+      .put(prefix + '/me/onboarding')
+      .set(bearer(user.accessToken))
+      .set('idempotency-key', 'invalid-goal-test')
+      .send(input);
+    expect(response.status, response.text).toBe(422);
+    expect(response.body.code).toBe('PRIMARY_GOAL_NOT_FOUND');
   });
   it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
     const r = await register();
@@ -1169,9 +1246,7 @@ describe('F03 content library', () => {
     const [user] = await db.query(
       `SELECT id FROM users WHERE email_normalized='athlete@example.test'`,
     );
-    await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-      user.id,
-    ]);
+    await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.id]);
     const content = {
       title: 'Fixture exercise',
       description: 'Synthetic test only',
@@ -1221,7 +1296,7 @@ describe('F03 content library', () => {
       ]),
     ).rejects.toThrow('Published content is immutable');
     await db.query(
-      `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+      `DELETE FROM user_roles WHERE user_id=$1 AND role_code='ADMIN'`,
       [user.id],
     );
     expect(
@@ -1257,6 +1332,18 @@ describe('F03 content library', () => {
       .set(headers)
       .send({ slug: 'fixture-ingredient', content: ingredient });
     expect(added.status, added.text).toBe(201);
+    const ingredientList = await api
+      .get(prefix + '/admin/ingredients')
+      .set(headers);
+    expect(ingredientList.status, ingredientList.text).toBe(200);
+    expect(ingredientList.body.map((row: { id: string }) => row.id)).toContain(
+      added.body.id,
+    );
+    const ingredientDetails = await api
+      .get(prefix + `/admin/ingredients/${added.body.id}`)
+      .set(headers);
+    expect(ingredientDetails.status, ingredientDetails.text).toBe(200);
+    expect(ingredientDetails.body.id).toBe(added.body.id);
     const content = {
       title: 'Fixture food',
       preparation: 'Test only',
@@ -1391,9 +1478,7 @@ it('seeds the USDA food and meal catalog as idempotent drafts', async () => {
 it('creates and publishes an admin food section and a meal from published foods', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const ingredient = await api
     .post(prefix + '/admin/ingredients')
     .set(headers)
@@ -1536,9 +1621,7 @@ it('creates and publishes an admin food section and a meal from published foods'
 it('saves an atomic paired program draft, publishes it, and versions later edits', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const exercise = await api
     .post(prefix + '/admin/exercises')
     .set(headers)
@@ -1874,9 +1957,7 @@ it('does not send captured messages when switching to SMTP', async () => {
 it('keeps food drafts private and serializes competing editorial writes', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const ing = await api
     .post(prefix + '/admin/ingredients')
     .set(headers)
@@ -1974,9 +2055,7 @@ it('keeps food drafts private and serializes competing editorial writes', async 
 it('finalizes shared video atomically, protects referenced media and blocks athlete access', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const id = crypto.randomUUID();
   await db.query(
     `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status,library_asset) VALUES($1,$2,$3,$3,'video/mp4',16,'PENDING',true)`,
@@ -2086,7 +2165,7 @@ it('finalizes shared video atomically, protects referenced media and blocks athl
     ).status,
   ).toBe(404);
   await db.query(
-    `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+    `DELETE FROM user_roles WHERE user_id=$1 AND role_code='ADMIN'`,
     [user.user.id],
   );
   expect((await api.get(prefix + '/admin/media').set(headers)).status).toBe(

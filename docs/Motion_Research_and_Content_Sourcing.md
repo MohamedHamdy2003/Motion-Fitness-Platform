@@ -42,7 +42,7 @@ Prepare real, source-backed foods, meals, exercises and programs for Motion. Do 
 
 ## Two-Stage Seeding Contract
 
-1. seed-lookups.ts: populate modeled static reference tables, such as roles, body areas, allergens, genders and legal restriction codes where stored as tables. Keep fixed goal/fitness-level/weekday enums as enums unless a real table is justified. Use stable codes/IDs; no fake users or personal assignments.
+1. `seed-lookups.ts`: populate modeled static reference tables, including roles, injury body areas, allergens, genders, fitness levels and primary goals. Weekdays stay validated fixed values. Use stable codes/IDs; no fake users or personal assignments.
 2. seed-content.ts: verify lookup versions/keys, then load sourced exercises, ingredients/foods, food sections, meals/meal sections, and combined workout-program/nutrition aggregates in dependency order. Matching configuration follows its referenced programs. Records reference existing lookup keys and shared library records.
 
 The content stage is separate from lookup initialization. Missing dependencies fail before writes. Each stage is transactional and idempotent; content-stage failure rolls back that stage while preserving an already committed lookup stage. Program and paired nutrition creation remain atomic. Seed execution reads versioned local data and performs no live research, scraping, model calls or media downloads.

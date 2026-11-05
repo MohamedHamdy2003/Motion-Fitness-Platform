@@ -5,9 +5,10 @@ Breaking: verify-email takes email and six-digit code instead of a link token. P
 ## Unreleased on `dev` — onboarding weekday schedule, gender and exercise media
 
 - `PUT /me/onboarding` accepts gender `MALE` or `FEMALE`, seeded in the new `genders` lookup table and linked by a foreign key. Existing values other than these two become null. `training_days_per_week` is now an array of 2–5 unique weekday codes, such as `['SUNDAY','TUESDAY']`; profile storage retains the selected weekdays and derives the count. Existing count-only records must choose weekdays again. `/references/onboarding` advertises the supported values. Old onboarding idempotency keys are cleared because the request shape changed.
-- `fitness_level` is a fixed enum: `BEGINNER`, `INTERMEDIATE`, or `ADVANCED`.
+- `fitness_level` references the seeded `fitness_levels` lookup (currently `BEGINNER`, `INTERMEDIATE`, `ADVANCED`). Program supported levels also use a relational join table. Onboarding now accepts food preferences; later edits use `PUT /me/food-preferences`.
+- `primary_goal` references the seeded `primary_goals` lookup with `FAT_LOSS` and `STRENGTH_HYPERTROPHY`; program supported goals are stored through a relational join table.
 - Unknown allergy codes return 422 `ALLERGEN_CODE_NOT_FOUND` with the rejected code and a hint to GET `/references/allergens`.
-- The profile has no target-weight field. It stores only current weight, with no measurement date or history.
+- Onboarding now requires positive `target_weight_kg`; both current and target weights live on the profile without measurement dates or history. Existing profiles remain nullable until updated.
 - A dedicated exercise seeder imports draft content. `exercise_revisions.media_id` links a video asset in `media_assets`; the video object itself remains in private S3.
 
 # API contract changes
