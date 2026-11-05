@@ -8,6 +8,8 @@ import re
 import shlex
 import subprocess
 import time
+from contextlib import redirect_stdout
+from io import StringIO
 
 
 def required(name, pattern):
@@ -59,6 +61,38 @@ def aws(*arguments):
     return json.loads(result.stdout)
 
 
+def safe_remote_output(value):
+    """Redact common credentials before exposing a bounded SSM log excerpt."""
+    if not value:
+        return ""
+    value = re.sub(
+        r"(?i)(password|passwd|secret|token|access[_-]?key|client[_-]?secret)"
+        r"(\s*[:=]\s*)([^\s,;]+)",
+        r"\1\2[REDACTED]",
+        value,
+    )
+    value = re.sub(r"\bAKIA[0-9A-Z]{16}\b", "[AWS_ACCESS_KEY_REDACTED]", value)
+    value = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", value)
+    value = re.sub(
+        r"(?i)postgres(?:ql)?://[^\s'\"]+",
+        "postgresql://[REDACTED]",
+        value,
+    )
+    return value[-12000:]
+
+
+def report_remote_failure(invocation):
+    response_code = invocation.get("ResponseCode")
+    print(f"SSM response code: {response_code}", flush=True)
+    for label, key in (
+        ("stdout", "StandardOutputContent"),
+        ("stderr", "StandardErrorContent"),
+    ):
+        excerpt = safe_remote_output(invocation.get(key, ""))
+        if excerpt:
+            print(f"Remote {label} (redacted, last 12 KB):\n{excerpt}", flush=True)
+
+
 def main():
     payload = command_payload()
     response = aws("send-command", "--cli-input-json", json.dumps(payload))
@@ -83,6 +117,7 @@ def main():
             print("Remote command completed. See the recorded deployed SHA on EC2.")
             return
         if status not in {"Pending", "InProgress", "Delayed"}:
+            report_remote_failure(invocation or {})
             raise RuntimeError(
                 f"Deployment {status}; inspect command {command_id} in the AWS SSM console."
             )
