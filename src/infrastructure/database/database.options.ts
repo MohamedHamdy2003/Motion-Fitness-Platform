@@ -5,6 +5,11 @@ import { ProgramBuilder1793448004000 } from './migrations/1793448004000-ProgramB
 import { ProfileGender1793448005000 } from './migrations/1793448005000-ProfileGender';
 import { ExerciseMediaConsistency1793448006000 } from './migrations/1793448006000-ExerciseMediaConsistency';
 import { OnboardingWeekdays1793448007000 } from './migrations/1793448007000-OnboardingWeekdays';
+import { FitnessLevelLookups1793448008000 } from './migrations/1793448008000-FitnessLevelLookups';
+import { ProfileTargetWeight1793448009000 } from './migrations/1793448009000-ProfileTargetWeight';
+import { PrimaryGoalLookups1793448010000 } from './migrations/1793448010000-PrimaryGoalLookups';
+import { UserAdminRoles1793448011000 } from './migrations/1793448011000-UserAdminRoles';
+import { RenameBodyAreasInjuries1793448012000 } from './migrations/1793448012000-RenameBodyAreasInjuries';
 import { EmailOtp1793448001000 } from './migrations/1793448001000-EmailOtp';
 import { ContentLibrary1793448000000 } from './migrations/1793448000000-ContentLibrary';
 import { DataSourceOptions } from 'typeorm';
@@ -51,6 +56,11 @@ export function databaseOptions(): DataSourceOptions {
       ProfileGender1793448005000,
       ExerciseMediaConsistency1793448006000,
       OnboardingWeekdays1793448007000,
+      FitnessLevelLookups1793448008000,
+      ProfileTargetWeight1793448009000,
+      PrimaryGoalLookups1793448010000,
+      UserAdminRoles1793448011000,
+      RenameBodyAreasInjuries1793448012000,
     ],
     synchronize: false,
     migrationsRun: false,
