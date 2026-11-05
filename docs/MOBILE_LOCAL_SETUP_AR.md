@@ -42,10 +42,10 @@ npm run test:integration
 ipconfig
 ```
 
-لتجربة F03: سجل حسابًا محليًا أولًا، ثم امنحه صلاحية محرر محتوى على قاعدة تطوير محلية فقط:
+لتجربة F03: سجل حسابًا محليًا أولًا، ثم امنحه دور ADMIN على قاعدة تطوير محلية فقط:
 
 ```powershell
-npm run dev:grant-editor -- athlete@example.test
+npm run dev:grant-admin -- athlete@example.test
 ```
 
 افتح مجلد bruno كـCollection واختر local. طلبات الإدارة داخل Admin exercises وAdmin foods وAdmin ingredients وAdmin Media. استخدم accessToken للحساب، ومعرفات النتائج، وأحدث expectedRevision. الطلبات الإدارية لا تعمل بحساب Athlete عادي. [دليل F03](F03_CONTENT_AR.md).

@@ -14,7 +14,7 @@ async function main() {
   await db.initialize();
   const rows = await query(
     db,
-    `INSERT INTO user_roles(user_id,role_code) SELECT id,'CONTENT_EDITOR' FROM users WHERE email_normalized=$1 AND status='ACTIVE' ON CONFLICT DO NOTHING RETURNING user_id`,
+    `INSERT INTO user_roles(user_id,role_code) SELECT id,'ADMIN' FROM users WHERE email_normalized=$1 AND status='ACTIVE' ON CONFLICT DO NOTHING RETURNING user_id`,
     [address],
   );
   const [user] = await db.query(
@@ -24,14 +24,14 @@ async function main() {
   if (!user) throw Error('Register a local account first');
   process.stdout.write(
     rows.length
-      ? 'Local content-editor role granted\n'
-      : 'Local content-editor role already present\n',
+      ? 'Local admin role granted\n'
+      : 'Local admin role already present\n',
   );
 }
 void main()
   .catch(() => {
     process.stderr.write(
-      'Unable to grant local editor role; check environment, account and lookup seeds\n',
+      'Unable to grant local admin role; check environment, account and lookup seeds\n',
     );
     process.exitCode = 1;
   })

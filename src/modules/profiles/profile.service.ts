@@ -77,6 +77,34 @@ export class ProfileService {
     input: Record<string, unknown>,
     expected: number,
   ) {
+    if (input.fitness_level) {
+      const [level] = await query(
+        m,
+        `SELECT code FROM fitness_levels WHERE code=$1`,
+        [input.fitness_level],
+      );
+      if (!level)
+        throw new ApiError(
+          'FITNESS_LEVEL_NOT_FOUND',
+          422,
+          `Fitness level "${input.fitness_level}" is not registered. Fetch GET /references/onboarding to see valid values.`,
+          { fitness_level: input.fitness_level },
+        );
+    }
+    if (input.primary_goal) {
+      const [goal] = await query(
+        m,
+        `SELECT code FROM primary_goals WHERE code=$1`,
+        [input.primary_goal],
+      );
+      if (!goal)
+        throw new ApiError(
+          'PRIMARY_GOAL_NOT_FOUND',
+          422,
+          `Primary goal "${input.primary_goal}" is not registered. Fetch GET /references/onboarding to see valid values.`,
+          { primary_goal: input.primary_goal },
+        );
+    }
     if (input.date_of_birth || input.timezone) {
       const [current] = await query(
         m,
@@ -149,6 +177,10 @@ export class ProfileService {
       }
       const { expectedRevision, ...profile } = input;
       const p = await this.updateProfile(m, id, profile, expectedRevision);
+      await this.savePreferences(m, id, {
+        ...input.food_preferences,
+        expectedRevision: 0,
+      });
       await query(
         m,
         `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
@@ -266,57 +298,64 @@ export class ProfileService {
   async putPreferences(id: string, input: z.infer<typeof dto.preferences>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const [p] = await query(
-        m,
-        `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 AND revision=$2 RETURNING revision`,
-        [id, input.expectedRevision],
-      );
-      if (!p) throw new ApiError('REVISION_CONFLICT', 409);
-      for (const code of new Set(input.allergen_codes)) {
-        const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
-          code,
-        ]);
-        if (!a)
-          throw new ApiError(
-            'ALLERGEN_CODE_NOT_FOUND',
-            422,
-            `Allergen code "${code}" is not registered. Fetch GET /references/allergens to see valid codes.`,
-            { allergen_code: code },
-          );
-      }
-      const all = [
-        ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),
-      ];
-      if (all.length) {
-        const rows = await query(
-          m,
-          `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
-          [all],
+      return this.savePreferences(m, id, input);
+    });
+  }
+  private async savePreferences(
+    m: EntityManager,
+    id: string,
+    input: z.infer<typeof dto.preferences>,
+  ) {
+    const [p] = await query(
+      m,
+      `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 AND revision=$2 RETURNING revision`,
+      [id, input.expectedRevision],
+    );
+    if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+    for (const code of new Set(input.allergen_codes)) {
+      const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
+        code,
+      ]);
+      if (!a)
+        throw new ApiError(
+          'ALLERGEN_CODE_NOT_FOUND',
+          422,
+          `Allergen code "${code}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+          { allergen_code: code },
         );
-        if (rows.length !== all.length)
-          throw new ApiError('INVALID_FOOD_REFERENCE');
-      }
-      await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
-      await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
-      for (const code of new Set(input.allergen_codes))
+    }
+    const all = [
+      ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),
+    ];
+    if (all.length) {
+      const rows = await query(
+        m,
+        `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
+        [all],
+      );
+      if (rows.length !== all.length)
+        throw new ApiError('INVALID_FOOD_REFERENCE');
+    }
+    await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
+    await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
+    for (const code of new Set(input.allergen_codes))
+      await query(
+        m,
+        `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
+        [id, code],
+      );
+    for (const [kind, ids] of [
+      ['DISLIKE', input.disliked_food_ids],
+      ['EXCLUSION', input.excluded_food_ids],
+    ] as const)
+      for (const food of new Set(ids))
         await query(
           m,
-          `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
-          [id, code],
+          `INSERT INTO user_food_exclusions(user_id,food_id,kind) VALUES($1,$2,$3)`,
+          [id, food, kind],
         );
-      for (const [kind, ids] of [
-        ['DISLIKE', input.disliked_food_ids],
-        ['EXCLUSION', input.excluded_food_ids],
-      ] as const)
-        for (const food of new Set(ids))
-          await query(
-            m,
-            `INSERT INTO user_food_exclusions(user_id,food_id,kind) VALUES($1,$2,$3)`,
-            [id, food, kind],
-          );
-      await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
-      return this.getPreferences(id, m);
-    });
+    await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
+    return this.getPreferences(id, m);
   }
   async injuries(id: string, limit: number, offset: number) {
     return {
@@ -330,9 +369,11 @@ export class ProfileService {
     };
   }
   async bodyArea(m: EntityManager, code: string) {
-    const [area] = await query(m, `SELECT code FROM body_areas WHERE code=$1`, [
-      code,
-    ]);
+    const [area] = await query(
+      m,
+      `SELECT code FROM body_areas_injuries WHERE code=$1`,
+      [code],
+    );
     if (!area) throw new ApiError('INVALID_BODY_AREA');
   }
   async injuryRevision(m: EntityManager, id: string) {

@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Admin-only GET with no body; optional limit and offset query parameters. Lists ingredient lookup/content rows with slug, title, dietary tags, allergen codes, verification status and revision metadata. For one row use GET /admin/ingredients/{{ingredientId}}. Allergen codes come from GET /references/allergens.
   Never commit populated credentials or runtime tokens.
 }

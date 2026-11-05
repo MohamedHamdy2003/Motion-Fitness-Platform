@@ -14,7 +14,7 @@ export class ContentGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<ApiRequest>();
     const rows = await query(
       this.db,
-      `SELECT role_code FROM user_roles WHERE user_id=$1 AND role_code IN ('ADMIN','CONTENT_EDITOR')`,
+      `SELECT role_code FROM user_roles WHERE user_id=$1 AND role_code='ADMIN'`,
       [req.principal.userId],
     );
     if (!rows.length) throw new ApiError('CONTENT_ACCESS_DENIED', 403);

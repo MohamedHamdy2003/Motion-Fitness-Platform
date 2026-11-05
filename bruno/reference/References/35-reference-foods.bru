@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: GET with no body; optional query parameters search, limit (1-100, default 30), offset (default 0). Returns matching published food and ingredient choices as {"items":[{"id":"<uuid>","name":"Chicken breast","kind":"FOOD"}],"limit":30,"offset":0,"contentStatus":"READY"}. Use returned IDs for food preference dislikes/exclusions.
   Never commit populated credentials or runtime tokens.
 }

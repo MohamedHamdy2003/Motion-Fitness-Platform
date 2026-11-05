@@ -216,7 +216,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Workout execution | `workout_sessions`: user_id, scheduled_day_id, workout_revision_id, status, started_at, completed_at, active_duration_seconds |
 | Exercise execution | `session_exercises`: session_id, workout_exercise_id, status, completion_mode, fitting_run_id nullable; `set_logs`: session_exercise_id, set_number, status, actual_reps, weight_kg, duration_seconds, client_event_id |
 | Month completion | `month_completions`: enrollment_id, monthly_plan_id, completed_at |
-| Reference lookups | `roles`, `body_areas`, `allergens`, and `genders` have stable codes and are populated by `npm run seed:lookups`; `food_reference_items` is populated by the versioned nutrition library importer. Fixed fitness levels and weekdays remain validated enums/constants, not lookup tables. |
+| Reference lookups | `roles`, `body_areas_injuries`, `allergens`, and `genders` have stable codes and are populated by `npm run seed:lookups`; `food_reference_items` is populated by the versioned nutrition library importer. Fixed fitness levels and weekdays remain validated enums/constants, not lookup tables. |
 | Ingredients and allergens | `ingredients`: dietary_tags, metadata_version; `allergens`, `ingredient_allergens`; ingredient/allergen/dietary metadata status: `UNKNOWN/VERIFIED`; policy-versioned dietary restriction codes map to verified ingredient tags, unknown metadata is returned explicitly, never assumed compatible |
 | Food catalog | `foods`: slug; `food_versions`: food_id, version, title, preparation, preparation_state, prep_minutes, media_id, status, availability_status, energy_kcal_100g, protein_g_100g, carbohydrate_g_100g, fat_g_100g, fiber_g_100g nullable, nutrient_source, review_status; `food_ingredients`: food_version_id, ingredient_id, quantity_g |
 | Food safety metadata | `food_safety_metadata`: food_version_id UNIQUE, revision, verification_status; `food_allergen_declarations`: food_version_id, allergen_id, declaration CONTAINS/MAY_CONTAIN; combine with ingredient-level allergen data |
@@ -230,7 +230,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Food substitution history | `meal_item_substitutions`: scheduled_meal_item_id, from_member_id, to_member_id, resulting_item_version, portion_g, nutrient_snapshot, preference_id, idempotency_key_id, created_at; append-only |
 | Whole-meal substitution history | `meal_substitutions`: scheduled_meal_id, from_meal_version_id, to_meal_version_id, previous_selection_version, resulting_selection_version, preference_id, idempotency_key_id, created_at; append-only |
 | Restriction state | `user_restriction_states`: user_id UNIQUE, injury_revision; food preferences have their own `(user_id, revision)` counter; lock the user row when allocating either revision |
-| Injury records | `body_areas`: code, parent_id nullable; `user_injuries`: user_id, body_area_id, side nullable, description (final user-confirmed text only), version, status, confirmed_at, removed_at nullable |
+| Injury records | `body_areas_injuries`: code, parent_id nullable; `user_injuries`: user_id, body_area_id, side nullable, description (final user-confirmed text only), version, status, confirmed_at, removed_at nullable |
 | Program hints | `program_hint_versions`: program_version_id, version, original_text, structured_hints, rewrite_ai_run_id nullable, status, approved_by nullable; published program pins one approved hint version |
 | AI audit | `ai_runs`: component, user_id nullable, instruction_version, provider, model_id, schema_version, input_revision_refs, minimized_input_snapshot, validated_output, status, duration_ms, failure_code; `recommendation_runs` references ai_run_id UNIQUE |
 | Workout evaluations | `daily_fitting_runs`: user_id, scheduled_day_id, injury_revision, content_hash, policy_version, ai_run_id nullable, status, lease_expires_at nullable, attempt_count, attempt_token nullable; workout-only, no nutrition FK/domain/preferences; NOT_REQUIRED is a valid local no-AI result |
@@ -416,8 +416,8 @@ erDiagram
 erDiagram
     users ||..o| user_restriction_states : user_id
     users ||..o{ user_injuries : user_id
-    body_areas ||..o{ user_injuries : body_area_id
-    body_areas o|..o{ body_areas : parent_id
+    body_areas_injuries ||..o{ user_injuries : body_area_id
+    body_areas_injuries o|..o{ body_areas_injuries : parent_id
     users o|..o{ ai_runs : user_id
     ai_runs o|..o| recommendation_runs : ai_run_id
     ai_runs o|..o{ program_hint_versions : rewrite_ai_run_id

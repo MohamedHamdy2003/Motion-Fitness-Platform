@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Request: GET with no body. Returns {"items":[{"code":"ANKLE","parent_code":null}]}. These codes come from the body_areas_injuries lookup table and are accepted by POST/PATCH /me/injuries. The public route remains /references/body-areas for API compatibility.
   Never commit populated credentials or runtime tokens.
 }

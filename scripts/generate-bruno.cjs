@@ -541,7 +541,7 @@ process.stdout.write(
   `Generated ${n} reference requests and ${s} PostgreSQL smoke requests\n`,
 );
 
-// F03 administration: these requests require a current ADMIN or CONTENT_EDITOR role.
+// F03 administration: these requests require a current ADMIN role.
 const contentFixture = {
   title: 'Draft exercise',
   description: 'Replace with sourced editorial content',

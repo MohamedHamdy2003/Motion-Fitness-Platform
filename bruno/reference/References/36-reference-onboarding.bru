@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Response example: {"primary_goals":["FAT_LOSS","STRENGTH_HYPERTROPHY"],"genders":["FEMALE","MALE"],"fitness_levels":["BEGINNER","INTERMEDIATE","ADVANCED"],"training_days_per_week":["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"],"training_days_per_week_count":[2,3,4,5],"minimum_age":18,"minimum_age_inclusive":false,"policyStatus":"CONFIGURED"}. Gender values are read from the seeded genders lookup. Select 2-5 unique weekday values for onboarding. This is application setup data; it does not collect or return health-check answers.
+  Response example: {"primary_goals":[{"code":"FAT_LOSS","label":"Fat loss","display_order":1},{"code":"STRENGTH_HYPERTROPHY","label":"Strength & hypertrophy","display_order":2}],"genders":["FEMALE","MALE"],"fitness_levels":[{"code":"BEGINNER","label":"Beginner","display_order":1},{"code":"INTERMEDIATE","label":"Intermediate","display_order":2},{"code":"ADVANCED","label":"Advanced","display_order":3}],"training_days_per_week":["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"],"training_days_per_week_count":[2,3,4,5],"minimum_age":18,"minimum_age_inclusive":false,"policyStatus":"CONFIGURED"}. Gender, primary-goal and fitness-level values are read from seeded lookup tables. Select a primary goal and fitness level by code and 2-5 unique weekdays for onboarding.
   Never commit populated credentials or runtime tokens.
 }

@@ -62,7 +62,7 @@ export class ProgramService {
   async list(limit: number, offset: number, status?: string) {
     return query(
       this.db,
-      `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,pv.ideal_level,pv.supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true WHERE NOT p.archived AND ($3::text IS NULL OR pv.status=$3) ORDER BY p.slug LIMIT $1 OFFSET $2`,
+      `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true WHERE NOT p.archived AND ($3::text IS NULL OR pv.status=$3) ORDER BY p.slug LIMIT $1 OFFSET $2`,
       [limit, offset, status ?? null],
     );
   }
@@ -70,7 +70,7 @@ export class ProgramService {
   async get(id: string) {
     const [program] = await query(
       this.db,
-      `SELECT p.*,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,pv.supported_goals,pv.ideal_level,pv.supported_levels,pv.training_days_per_week,pv.editorial_priority,pv.description,pv.required_equipment,pv.intended_audience,pv.nutrition_plan_version_id,pv.approved_hint_version_id,npv.duration_days FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE p.id=$1`,
+      `SELECT p.*,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.editorial_priority,pv.description,pv.required_equipment,pv.intended_audience,pv.nutrition_plan_version_id,pv.approved_hint_version_id,npv.duration_days FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE p.id=$1`,
       [id],
     );
     if (!program) throw new ApiError('NOT_FOUND', 404);
@@ -432,16 +432,14 @@ export class ProgramService {
     );
     await query(
       m,
-      `INSERT INTO program_versions(id,program_id,version,title,primary_goal,supported_goals,ideal_level,supported_levels,training_days_per_week,editorial_priority,description,required_equipment,intended_audience,nutrition_plan_version_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      `INSERT INTO program_versions(id,program_id,version,title,primary_goal,ideal_level,training_days_per_week,editorial_priority,description,required_equipment,intended_audience,nutrition_plan_version_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         versionId,
         programId,
         version,
         input.title,
         input.primaryGoal,
-        input.supportedGoals,
         input.idealLevel,
-        input.supportedLevels,
         input.trainingDaysPerWeek,
         input.editorialPriority,
         input.description,
@@ -450,6 +448,18 @@ export class ProgramService {
         nutritionVersionId,
       ],
     );
+    for (const goal of input.supportedGoals)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
+        [versionId, goal],
+      );
+    for (const level of input.supportedLevels)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
+        [versionId, level],
+      );
     await this.insertSchedule(m, versionId, nutritionVersionId, input);
     return versionId;
   }
@@ -461,14 +471,12 @@ export class ProgramService {
   ) {
     await query(
       m,
-      `UPDATE program_versions SET title=$2,primary_goal=$3,supported_goals=$4,ideal_level=$5,supported_levels=$6,training_days_per_week=$7,editorial_priority=$8,description=$9,required_equipment=$10,intended_audience=$11,approved_hint_version_id=NULL WHERE id=$1`,
+      `UPDATE program_versions SET title=$2,primary_goal=$3,ideal_level=$4,training_days_per_week=$5,editorial_priority=$6,description=$7,required_equipment=$8,intended_audience=$9,approved_hint_version_id=NULL WHERE id=$1`,
       [
         id,
         input.title,
         input.primaryGoal,
-        input.supportedGoals,
         input.idealLevel,
-        input.supportedLevels,
         input.trainingDaysPerWeek,
         input.editorialPriority,
         input.description,
@@ -476,6 +484,28 @@ export class ProgramService {
         input.intendedAudience,
       ],
     );
+    await query(
+      m,
+      `DELETE FROM program_version_supported_goals WHERE program_version_id=$1`,
+      [id],
+    );
+    for (const goal of input.supportedGoals)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
+        [id, goal],
+      );
+    await query(
+      m,
+      `DELETE FROM program_version_supported_levels WHERE program_version_id=$1`,
+      [id],
+    );
+    for (const level of input.supportedLevels)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
+        [id, level],
+      );
   }
 
   private async clearSchedule(
@@ -526,6 +556,24 @@ export class ProgramService {
     input: Omit<ProgramAggregate, 'slug'>,
     publication: boolean,
   ) {
+    const goalCodes = new Set([input.primaryGoal, ...input.supportedGoals]);
+    const goals = await query(
+      m,
+      `SELECT code FROM primary_goals WHERE code=ANY($1::text[])`,
+      [[...goalCodes]],
+    );
+    if (goals.length !== goalCodes.size)
+      throw new ApiError('PRIMARY_GOAL_NOT_FOUND', 422);
+    const levels = await query(
+      m,
+      `SELECT code FROM fitness_levels WHERE code=ANY($1::text[])`,
+      [[...new Set([input.idealLevel, ...input.supportedLevels])]],
+    );
+    if (
+      levels.length !==
+      new Set([input.idealLevel, ...input.supportedLevels]).size
+    )
+      throw new ApiError('FITNESS_LEVEL_NOT_FOUND', 422);
     for (const month of input.months)
       for (const week of month.weeks) {
         const trainingDays = week.days.filter((d) => d.kind === 'TRAINING');
