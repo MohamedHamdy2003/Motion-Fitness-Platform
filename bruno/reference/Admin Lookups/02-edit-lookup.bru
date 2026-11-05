@@ -5,7 +5,7 @@ meta {
 }
 
 patch {
-  url: {{baseUrl}}/admin/lookups/fitness-levels/ADVANCED_PLUS
+  url: {{baseUrl}}/admin/lookups/{{lookupTable}}/{{lookupCode}}
   body: json
   auth: bearer
 }
@@ -27,5 +27,5 @@ tests {
 }
 
 docs {
-  Admin only. Updates label, display_order, and body-area parent_code when applicable. Send active:true to restore an inactive value. Use DELETE to deactivate. The lookup code cannot be changed; create a new code and deactivate the old one instead. For roles, only USER or ADMIN label/display_order can be edited.
+  Admin only. Set lookupTable to genders, primary-goals, fitness-levels, allergens or body-areas-injuries, and lookupCode to the value's code. Updates label, display_order, and body-area parent_code when applicable. Send active:true to restore an inactive value. Use DELETE to deactivate. The lookup code cannot be changed; create a new code and deactivate the old one instead. Roles are fixed and cannot be modified through admin lookup endpoints.
 }

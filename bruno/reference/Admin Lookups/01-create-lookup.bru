@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/admin/lookups/fitness-levels
+  url: {{baseUrl}}/admin/lookups/{{lookupTable}}
   body: json
   auth: bearer
 }
@@ -28,5 +28,5 @@ tests {
 }
 
 docs {
-  Admin only. POST supports genders, primary-goals, fitness-levels, allergens and body-areas-injuries. It requires code, label and display_order; body areas may also include parent_code. Motion supports only the built-in USER and ADMIN roles, so roles cannot be created or deleted. Codes are immutable after creation. Seeded values edited or deactivated by Admin are not overwritten by later lookup seeding.
+  Admin only. Set the environment variable lookupTable to genders, primary-goals, fitness-levels, allergens or body-areas-injuries. It requires code, label and display_order; body areas may also include parent_code. Roles are fixed and cannot be modified through admin lookup endpoints. Codes are immutable after creation. Seeded values edited or deactivated by Admin are not overwritten by later lookup seeding.
 }
