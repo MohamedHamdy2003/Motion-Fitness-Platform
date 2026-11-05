@@ -1280,7 +1280,7 @@ describe('F03 content library', () => {
     expect(changed.status, changed.text).toBe(200);
     const read = await api.get(prefix + `/admin/exercises/${id}`).set(headers);
     expect(read.body.versions).toHaveLength(2);
-    expect(read.body.versions[1].content.title).toBe('New fixture');
+    expect(read.body.versions[0].content.title).toBe('New fixture');
     await expect(
       db.query(`UPDATE exercise_revisions SET content='{}' WHERE id=$1`, [
         created.body.id,
