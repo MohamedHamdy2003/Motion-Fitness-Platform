@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { AuthGuard } from '../../common/auth.guard';
 import { parse } from '../../common/http';
-import { FitnessLevel, listQuery, TrainingWeekday } from './profile.dto';
+import { listQuery, TrainingWeekday } from './profile.dto';
 import { minimumAge } from './profile.policy';
 @Controller('references')
 @UseGuards(AuthGuard)
@@ -14,7 +14,7 @@ export class ReferenceController {
     return {
       items: await query(
         this.db,
-        `SELECT code,parent_code FROM body_areas ORDER BY code`,
+        `SELECT code,parent_code FROM body_areas_injuries ORDER BY code`,
       ),
     };
   }
@@ -51,11 +51,17 @@ export class ReferenceController {
   }
   @Get('onboarding') async options() {
     return {
-      primary_goals: ['FAT_LOSS', 'STRENGTH_HYPERTROPHY'],
+      primary_goals: await query(
+        this.db,
+        `SELECT code,label FROM primary_goals ORDER BY display_order,code`,
+      ),
       genders: (
         await query(this.db, `SELECT code FROM genders ORDER BY code`)
       ).map((row: { code: string }) => row.code),
-      fitness_levels: Object.values(FitnessLevel),
+      fitness_levels: await query(
+        this.db,
+        `SELECT code,label FROM fitness_levels ORDER BY display_order,code`,
+      ),
       training_days_per_week: Object.values(TrainingWeekday),
       training_days_per_week_count: [2, 3, 4, 5],
       minimum_age: minimumAge,

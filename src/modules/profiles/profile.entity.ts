@@ -9,6 +9,7 @@ export const ProfileSchema = new EntitySchema({
     phone: { type: 'text', nullable: true },
     height_cm: { type: 'numeric', nullable: true },
     weight_kg: { type: 'numeric', nullable: true },
+    target_weight_kg: { type: 'numeric', nullable: true },
     primary_goal: { type: 'text', nullable: true },
     fitness_level: { type: 'text', nullable: true },
     training_days_per_week: { type: 'integer', nullable: true },

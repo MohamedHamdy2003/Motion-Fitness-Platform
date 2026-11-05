@@ -85,7 +85,7 @@ Table user_settings {
   user_id uuid [pk]
 }
 
-Table body_areas {
+Table body_areas_injuries {
   code text [pk, note: 'Seeded body-area reference codes']
   parent_code text
 }
@@ -396,10 +396,10 @@ Ref: user_profiles.user_id - users.id [delete: cascade]
 Ref: user_profiles.gender > genders.code
 Ref: user_profiles.avatar_media_id > media_assets.id [delete: set null]
 Ref: user_settings.user_id - users.id [delete: cascade]
-Ref: body_areas.parent_code > body_areas.code
+Ref: body_areas_injuries.parent_code > body_areas_injuries.code
 Ref: user_restriction_states.user_id - users.id [delete: cascade]
 Ref: user_injuries.user_id > users.id [delete: cascade]
-Ref: user_injuries.body_area_code > body_areas.code
+Ref: user_injuries.body_area_code > body_areas_injuries.code
 Ref: user_food_preferences.user_id - users.id [delete: cascade]
 Ref: user_allergies.user_id > users.id [delete: cascade]
 Ref: user_allergies.allergen_code > allergens.code

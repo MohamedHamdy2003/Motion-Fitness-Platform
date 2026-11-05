@@ -19,7 +19,7 @@
 
 ## واجهات إدارة المكتبة
 
-كل المسارات تتطلب حسابًا مؤكدًا ودور `ADMIN` أو `CONTENT_EDITOR`. استخدم فولدر `Admin Food Library` داخل Bruno.
+كل المسارات تتطلب حسابًا مؤكدًا ودور `ADMIN`. استخدم فولدر `Admin Food Library` داخل Bruno.
 
 | Method | Endpoint                           | ماذا يفعل                       | متطلبات/ملاحظات                                                     |
 | ------ | ---------------------------------- | ------------------------------- | ------------------------------------------------------------------- |
@@ -57,7 +57,7 @@
 npm run migration:run
 npm run seed:lookups
 npm run seed:content
-npm run dev:grant-editor
+npm run dev:grant-admin -- user@example.com
 npm run dev
 ```
 

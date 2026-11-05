@@ -26,7 +26,7 @@ export class AuthService {
       await query(m, `INSERT INTO ${table}(user_id) VALUES($1)`, [userId]);
     await query(
       m,
-      `INSERT INTO user_roles(user_id,role_code) VALUES($1,'ATHLETE')`,
+      `INSERT INTO user_roles(user_id,role_code) VALUES($1,'USER')`,
       [userId],
     );
   }

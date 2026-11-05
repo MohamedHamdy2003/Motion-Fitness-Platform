@@ -25,10 +25,10 @@ npm run dev
 
 عنوان الـAPI المحلي: `http://localhost:3100/api/v1`.
 
-لإنشاء مستخدم محرر محتوى محلي، سجّل حسابًا ثم نفّذ:
+لإنشاء مستخدم ADMIN محلي، سجّل حسابًا ثم نفّذ:
 
 ```powershell
-npm run dev:grant-editor -- user@example.com
+npm run dev:grant-admin -- user@example.com
 ```
 
 ملف `.env` محلي ومُستبعد من Git. الإعداد المحلي يلتقط رسائل البريد للاختبار ولا يرسلها إلى Gmail.

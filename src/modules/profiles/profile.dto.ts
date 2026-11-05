@@ -1,10 +1,5 @@
 import { z } from 'zod';
 import { uuid } from '../../common/http';
-export enum FitnessLevel {
-  BEGINNER = 'BEGINNER',
-  INTERMEDIATE = 'INTERMEDIATE',
-  ADVANCED = 'ADVANCED',
-}
 export enum TrainingWeekday {
   SUNDAY = 'SUNDAY',
   MONDAY = 'MONDAY',
@@ -45,8 +40,15 @@ export const profileFields = {
     .nullable(),
   height_cm: z.number().positive().max(1000),
   weight_kg: z.number().positive().max(10000),
-  primary_goal: z.enum(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']),
-  fitness_level: z.enum(FitnessLevel),
+  target_weight_kg: z.number().positive().max(10000),
+  primary_goal: z
+    .string()
+    .regex(/^[A-Z_]+$/)
+    .max(40),
+  fitness_level: z
+    .string()
+    .regex(/^[A-Z_]+$/)
+    .max(40),
   training_days_per_week: z
     .array(z.enum(TrainingWeekday))
     .min(2)
@@ -74,6 +76,7 @@ export const onboarding = z
     gender: profileFields.gender,
     height_cm: profileFields.height_cm,
     weight_kg: profileFields.weight_kg,
+    target_weight_kg: profileFields.target_weight_kg,
     primary_goal: profileFields.primary_goal,
     fitness_level: profileFields.fitness_level,
     training_days_per_week: profileFields.training_days_per_week,
@@ -81,6 +84,13 @@ export const onboarding = z
     locale: profileFields.locale,
     date_of_birth: date,
     expectedRevision: z.number().int().nonnegative(),
+    food_preferences: z
+      .object({
+        allergen_codes: z.array(z.string().regex(/^[A-Z_]+$/)).max(100),
+        disliked_food_ids: z.array(uuid).max(200),
+        excluded_food_ids: z.array(uuid).max(200),
+      })
+      .strict(),
   })
   .strict();
 export const injuryFields = {
