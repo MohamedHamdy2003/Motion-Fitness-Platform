@@ -7,9 +7,15 @@ import { ContentGuard } from './content.guard';
 import { NutritionLibraryService } from './nutrition-library.service';
 import { ProgramController } from './program.controller';
 import { ProgramService } from './program.service';
+import { LookupAdminController } from './lookup.controller';
 @Module({
   imports: [MediaModule],
-  controllers: [ContentMediaController, ProgramController, ContentController],
+  controllers: [
+    ContentMediaController,
+    ProgramController,
+    ContentController,
+    LookupAdminController,
+  ],
   providers: [
     ContentService,
     ContentGuard,

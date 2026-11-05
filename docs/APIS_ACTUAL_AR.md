@@ -83,32 +83,49 @@ https://13.49.114.20/api/v1
 
 هذه الواجهات تتطلب دور `ADMIN`. أمثلة Bruno في `Admin Food Library`. GET لا يرسل body؛ قائمة الوجبات تعرض النسخة الأحدث، وتفاصيل `/admin/meals/:id` تشمل نسخها وعناصرها المرتبطة من `meal_items`.
 
-| Method | Endpoint                           | الوظيفة                                        | شروط النشر                                               |
-| ------ | ---------------------------------- | ---------------------------------------------- | -------------------------------------------------------- |
-| GET    | `/admin/food-sections`             | قائمة مجموعات بدائل الطعام وحالة النسخة الأحدث | يدعم `limit` و`offset`                                   |
-| POST   | `/admin/food-sections`             | إنشاء قسم مسودة بحصص ونسخ أطعمة                | يحتاج foodVersionId لكل عضو                              |
-| GET    | `/admin/food-sections/:id`         | تفاصيل القسم والنسخ والأعضاء                   | يعرض حالة كل نسخة طعام                                   |
-| POST   | `/admin/food-sections/:id/publish` | نشر نسخة القسم الأحدث                          | بديلان على الأقل وكل نسخ الطعام منشورة                   |
-| GET    | `/admin/meal-sections`             | قائمة أنواع/أقسام الوجبات                      | breakfast وmain-meals أمثلة وليست تكافؤًا غذائيًا        |
-| POST   | `/admin/meal-sections`             | إنشاء قسم وجبات                                | slug فريد                                                |
-| GET    | `/admin/meals`                     | قائمة الوجبات وآخر نسخة                        | يدعم `limit` و`offset`                                   |
-| POST   | `/admin/meals`                     | إنشاء وجبة مسودة بعناصر وحصص                   | كل عنصر يشير إلى عضو في قسم طعام                         |
-| GET    | `/admin/meals/:id`                 | تفاصيل الوجبة والنسخ والعناصر                  | —                                                        |
-| POST   | `/admin/meals/:id/publish`         | نشر نسخة الوجبة الأحدث                         | القسم والأطعمة وأقسام الطعام منشورة والوجبة تحتوي عنصرًا |
+| Method | Endpoint                           | الوظيفة                                        | شروط النشر                                                                     |
+| ------ | ---------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| GET    | `/admin/food-sections`             | قائمة مجموعات بدائل الطعام وحالة النسخة الأحدث | يدعم `limit` و`offset`                                                         |
+| POST   | `/admin/food-sections`             | إنشاء قسم مسودة بحصص ونسخ أطعمة                | يحتاج foodVersionId لكل عضو                                                    |
+| GET    | `/admin/food-sections/:id`         | تفاصيل القسم والنسخ والأعضاء                   | يعرض حالة كل نسخة طعام                                                         |
+| POST   | `/admin/food-sections/:id/publish` | نشر نسخة القسم الأحدث                          | بديلان على الأقل وكل نسخ الطعام منشورة                                         |
+| GET    | `/admin/meal-sections`             | قائمة أنواع/أقسام الوجبات                      | breakfast وmain-meals أمثلة وليست تكافؤًا غذائيًا                              |
+| POST   | `/admin/meal-sections`             | إنشاء قسم وجبات                                | slug فريد                                                                      |
+| GET    | `/admin/meals`                     | قائمة الوجبات وآخر نسخة                        | يدعم `limit` و`offset`                                                         |
+| POST   | `/admin/meals`                     | إنشاء وجبة مسودة بعناصر وحصص                   | كل عنصر يشير إلى عضو في قسم طعام                                               |
+| GET    | `/admin/meals/:id`                 | تفاصيل الوجبة والنسخ والعناصر                  | —                                                                              |
+| POST   | `/admin/meals/:id/publish`         | نشر نسخة الوجبة الأحدث                         | القسم والأطعمة وأقسام الطعام منشورة والوجبة تحتوي عنصرًا                       |
+| GET    | `/admin/meals/:id/items`           | يعرض عناصر النسخة الحالية ومراجعتها.           | Bearer token ودور ADMIN؛ Bruno `Admin Food Library/01-19`.                     |
+| GET    | `/admin/meals/:id/items/:position` | يعرض عنصرًا واحدًا حسب موقعه داخل الوجبة.      | Bearer token ودور ADMIN؛ Bruno `Admin Food Library/01-20`.                     |
+| POST   | `/admin/meals/:id/items`           | يضيف عنصرًا للنسخة الحالية.                    | Bearer token ودور ADMIN و`expectedRevision`؛ Bruno `Admin Food Library/01-21`. |
+| PATCH  | `/admin/meals/:id/items/:position` | يعدل المكون أو الكمية أو الموضع.               | Bearer token ودور ADMIN و`expectedRevision`؛ Bruno `Admin Food Library/01-22`. |
+| DELETE | `/admin/meals/:id/items/:position` | يحذف عنصرًا من النسخة الحالية.                 | Bearer token ودور ADMIN و`expectedRevision`؛ Bruno `Admin Food Library/01-23`. |
 
 ## الإصابات والمراجع
 
-| Method | Endpoint                 | الوظيفة                                                                | المتطلبات والاختبار                                                                                                                                           |
-| ------ | ------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/me/injuries`           | يعرض الإصابات النشطة مع pagination.                                    | Bearer token؛ Bruno `Injuries/28`.                                                                                                                            |
-| POST   | `/me/injuries/rewrite`   | يطلب معاينة إعادة صياغة وصف الإصابة؛ لا يحفظ المعاينة.                 | Bearer token. **غير متاح في الإنتاج حاليًا** لأن `AI_REWRITE_URL` أو موافقة الاحتفاظ غير مهيأة؛ المتوقع `503 AI_REWRITE_NOT_CONFIGURED`. Bruno `Injuries/29`. |
-| POST   | `/me/injuries`           | يحفظ وصف إصابة أكده المستخدم.                                          | Bearer token، body area صالح و`confirmed:true`؛ يمكن إرسال Idempotency-Key. Bruno `Injuries/30`.                                                              |
-| PATCH  | `/me/injuries/:id`       | يعدّل الإصابة مع `expectedVersion`.                                    | Bearer token وملكية السجل؛ Bruno `Injuries/31`.                                                                                                               |
-| DELETE | `/me/injuries/:id`       | يزيل/يعطّل الإصابة بعد تأكيد المستخدم وإرسال النسخة المتوقعة.          | Bearer token و`confirmed:true` و`expectedVersion`؛ Bruno `Injuries/32`.                                                                                       |
-| GET    | `/references/body-areas` | يعيد أكواد مناطق الجسم وارتباطها الهرمي من جدول `body_areas_injuries`. | Bearer token؛ بدون body؛ Bruno `References/33`.                                                                                                               |
-| GET    | `/references/allergens`  | يعيد أكواد الحساسية الابتدائية.                                        | Bearer token؛ Bruno `References/34`. الأكواد مرجعية للتطبيق وليست مراجعة طبية معتمدة.                                                                         |
-| GET    | `/references/foods`      | يبحث في الأطعمة المرجعية المنشورة ويدعم pagination.                    | Bearer token؛ Bruno `References/35`. القائمة فارغة حتى إدخال/نشر بيانات معتمدة.                                                                               |
-| GET    | `/references/onboarding` | يعيد الخيارات والسياسة، ومنها الحد الأدنى للعمر.                       | Bearer token؛ Bruno `References/36`.                                                                                                                          |
+| Method | Endpoint                                                                  | الوظيفة                                                                       | المتطلبات والاختبار                                                                                                                                           |
+| ------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/me/injuries`                                                            | يعرض الإصابات النشطة مع pagination.                                           | Bearer token؛ Bruno `Injuries/28`.                                                                                                                            |
+| POST   | `/me/injuries/rewrite`                                                    | يطلب معاينة إعادة صياغة وصف الإصابة؛ لا يحفظ المعاينة.                        | Bearer token. **غير متاح في الإنتاج حاليًا** لأن `AI_REWRITE_URL` أو موافقة الاحتفاظ غير مهيأة؛ المتوقع `503 AI_REWRITE_NOT_CONFIGURED`. Bruno `Injuries/29`. |
+| POST   | `/me/injuries`                                                            | يحفظ وصف إصابة أكده المستخدم.                                                 | Bearer token، body area صالح و`confirmed:true`؛ يمكن إرسال Idempotency-Key. Bruno `Injuries/30`.                                                              |
+| PATCH  | `/me/injuries/:id`                                                        | يعدّل الإصابة مع `expectedVersion`.                                           | Bearer token وملكية السجل؛ Bruno `Injuries/31`.                                                                                                               |
+| DELETE | `/me/injuries/:id`                                                        | يزيل/يعطّل الإصابة بعد تأكيد المستخدم وإرسال النسخة المتوقعة.                 | Bearer token و`confirmed:true` و`expectedVersion`؛ Bruno `Injuries/32`.                                                                                       |
+| GET    | `/references/body-areas`                                                  | يعيد مناطق الجسم النشطة وارتباطها الهرمي.                                     | عام؛ بدون body؛ Bruno `References/33`.                                                                                                                        |
+| GET    | `/references/allergens`                                                   | يعيد الحساسيّات النشطة.                                                       | عام؛ Bruno `References/34`. الأكواد مرجعية للتطبيق وليست مراجعة طبية معتمدة.                                                                                  |
+| GET    | `/references/foods`                                                       | يبحث في الأطعمة المنشورة ويدعم pagination.                                    | عام؛ Bruno `References/35`.                                                                                                                                   |
+| GET    | `/references/onboarding`                                                  | يعيد الخيارات النشطة والسياسة، ومنها الحد الأدنى للعمر.                       | عام؛ Bruno `References/36`.                                                                                                                                   |
+| GET    | `/references/roles`، `/genders`، `/primary-goals`، `/fitness-levels`      | يعيد lookup values النشطة.                                                    | عامة؛ Bruno `References/37`–`40`.                                                                                                                             |
+| GET    | `/references/ingredients` و`/references/ingredients/:id`                  | يعرض المكونات غير المؤرشفة.                                                   | عامة؛ بحث وpagination للقائمة؛ Bruno `References/41`–`42`.                                                                                                    |
+| GET    | `/references/meal-sections`، `/references/meals`، `/references/meals/:id` | يعرض أقسام الوجبات والنسخ المنشورة والمتاحة؛ تفاصيل الوجبة تشمل `meal_items`. | عامة؛ Bruno `References/43`–`45`.                                                                                                                             |
+
+### إدارة قيم lookup
+
+| Method | Endpoint                                                                                  | الوظيفة                                          | المتطلبات والاختبار                                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/admin/lookups/{genders\|primary-goals\|fitness-levels\|allergens\|body-areas-injuries}` | يضيف قيمة مرجعية جديدة.                          | Bearer token ودور ADMIN؛ body يتضمن `code`, `label`, `display_order`، ومناطق الجسم تقبل `parent_code`. Bruno `Admin Lookups/01`. |
+| PATCH  | `/admin/lookups/{table}/{code}`                                                           | يعدل الاسم والترتيب، أو parent لمناطق الجسم.     | Bearer token ودور ADMIN؛ code غير قابل للتغيير؛ Bruno `Admin Lookups/02`.                                                        |
+| DELETE | `/admin/lookups/{table}/{code}`                                                           | يعطل القيمة مع حفظ السجلات السابقة المرتبطة بها. | Bearer token ودور ADMIN؛ لا يحذف آخر خيار نشط ولا دور النظام؛ Bruno `Admin Lookups/03`.                                          |
+| PATCH  | `/admin/lookups/roles/{USER\|ADMIN}`                                                      | يعدل label أو display order للدور فقط.           | إضافة الأدوار أو حذفها مرفوضة لأن النظام محصور في `USER` و`ADMIN`.                                                               |
 
 ## الصور وملفات مكتبة المحتوى
 

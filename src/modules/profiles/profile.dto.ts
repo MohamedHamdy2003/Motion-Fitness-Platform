@@ -31,9 +31,14 @@ export const date = z
       v < new Date().toISOString().slice(0, 10)
     );
   });
+const lookupCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9_]{1,49}$/);
 export const profileFields = {
   name: z.string().trim().min(1).max(120),
-  gender: z.enum(['FEMALE', 'MALE']),
+  gender: lookupCode,
   phone: z
     .string()
     .regex(/^\+?[0-9 ()-]{6,30}$/)
@@ -41,14 +46,8 @@ export const profileFields = {
   height_cm: z.number().positive().max(1000),
   weight_kg: z.number().positive().max(10000),
   target_weight_kg: z.number().positive().max(10000),
-  primary_goal: z
-    .string()
-    .regex(/^[A-Z_]+$/)
-    .max(40),
-  fitness_level: z
-    .string()
-    .regex(/^[A-Z_]+$/)
-    .max(40),
+  primary_goal: lookupCode,
+  fitness_level: lookupCode,
   training_days_per_week: z
     .array(z.enum(TrainingWeekday))
     .min(2)
@@ -86,7 +85,7 @@ export const onboarding = z
     expectedRevision: z.number().int().nonnegative(),
     food_preferences: z
       .object({
-        allergen_codes: z.array(z.string().regex(/^[A-Z_]+$/)).max(100),
+        allergen_codes: z.array(lookupCode).max(100),
         disliked_food_ids: z.array(uuid).max(200),
         excluded_food_ids: z.array(uuid).max(200),
       })
@@ -94,10 +93,7 @@ export const onboarding = z
   })
   .strict();
 export const injuryFields = {
-  body_area_code: z
-    .string()
-    .regex(/^[A-Z_]+$/)
-    .max(50),
+  body_area_code: lookupCode,
   side: z.enum(['LEFT', 'RIGHT', 'BOTH', 'UNSPECIFIED']).nullable().optional(),
   description: z.string().trim().min(1).max(2000),
 };
@@ -110,7 +106,7 @@ export const injuryEdit = injury.extend({
 export const preferences = z
   .object({
     expectedRevision: z.number().int().nonnegative(),
-    allergen_codes: z.array(z.string().regex(/^[A-Z_]+$/)).max(100),
+    allergen_codes: z.array(lookupCode).max(100),
     disliked_food_ids: z.array(uuid).max(200),
     excluded_food_ids: z.array(uuid).max(200),
   })

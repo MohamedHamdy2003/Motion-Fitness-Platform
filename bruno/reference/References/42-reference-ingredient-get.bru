@@ -1,0 +1,19 @@
+meta {
+  name: Reference ingredient get
+  type: http
+  seq: 42
+}
+
+get {
+  url: {{baseUrl}}/references/ingredients/{{ingredientId}}
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Returns an active ingredient row and its allergen codes. Use an ID returned by GET /references/ingredients.
+}

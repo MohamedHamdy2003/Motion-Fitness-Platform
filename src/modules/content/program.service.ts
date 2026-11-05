@@ -559,21 +559,44 @@ export class ProgramService {
     const goalCodes = new Set([input.primaryGoal, ...input.supportedGoals]);
     const goals = await query(
       m,
-      `SELECT code FROM primary_goals WHERE code=ANY($1::text[])`,
+      `SELECT code FROM primary_goals WHERE active AND code=ANY($1::text[])`,
       [[...goalCodes]],
     );
-    if (goals.length !== goalCodes.size)
-      throw new ApiError('PRIMARY_GOAL_NOT_FOUND', 422);
+    const availableGoals = new Set(
+      goals.map((row: { code: string }) => row.code),
+    );
+    const unavailableGoals = [...goalCodes].filter(
+      (code) => !availableGoals.has(code),
+    );
+    if (unavailableGoals.length)
+      throw new ApiError(
+        'PRIMARY_GOAL_NOT_FOUND',
+        422,
+        `Primary goal value(s) ${unavailableGoals.join(', ')} are unavailable or inactive. Fetch GET /references/primary-goals for currently available values.`,
+        { primary_goal_codes: unavailableGoals },
+      );
     const levels = await query(
       m,
-      `SELECT code FROM fitness_levels WHERE code=ANY($1::text[])`,
+      `SELECT code FROM fitness_levels WHERE active AND code=ANY($1::text[])`,
       [[...new Set([input.idealLevel, ...input.supportedLevels])]],
     );
-    if (
-      levels.length !==
-      new Set([input.idealLevel, ...input.supportedLevels]).size
-    )
-      throw new ApiError('FITNESS_LEVEL_NOT_FOUND', 422);
+    const requestedLevels = new Set([
+      input.idealLevel,
+      ...input.supportedLevels,
+    ]);
+    const availableLevels = new Set(
+      levels.map((row: { code: string }) => row.code),
+    );
+    const unavailableLevels = [...requestedLevels].filter(
+      (code) => !availableLevels.has(code),
+    );
+    if (unavailableLevels.length)
+      throw new ApiError(
+        'FITNESS_LEVEL_NOT_FOUND',
+        422,
+        `Fitness level value(s) ${unavailableLevels.join(', ')} are unavailable or inactive. Fetch GET /references/fitness-levels for currently available values.`,
+        { fitness_level_codes: unavailableLevels },
+      );
     for (const month of input.months)
       for (const week of month.weeks) {
         const trainingDays = week.days.filter((d) => d.kind === 'TRAINING');
@@ -587,7 +610,13 @@ export class ProgramService {
                 `SELECT er.id FROM exercise_revisions er JOIN exercises e ON e.id=er.exercise_id WHERE er.id=$1 AND NOT e.archived AND ($2::boolean=false OR er.status='PUBLISHED') FOR SHARE OF er,e`,
                 [exercise.exerciseRevisionId, publication],
               );
-              if (!row) throw new ApiError('PROGRAM_EXERCISE_UNAVAILABLE', 422);
+              if (!row)
+                throw new ApiError(
+                  'PROGRAM_EXERCISE_UNAVAILABLE',
+                  422,
+                  `Exercise revision "${exercise.exerciseRevisionId}" is unavailable.`,
+                  { exercise_revision_id: exercise.exerciseRevisionId },
+                );
             }
           for (const slot of day.meals) {
             const [row] = await query(
@@ -595,7 +624,13 @@ export class ProgramService {
               `SELECT mv.id FROM meal_versions mv JOIN meals m ON m.id=mv.meal_id JOIN meal_sections ms ON ms.id=mv.section_id WHERE mv.id=$1 AND NOT m.archived AND NOT ms.archived AND ($2::boolean=false OR (mv.status='PUBLISHED' AND mv.availability_status='AVAILABLE')) FOR SHARE OF mv,m,ms`,
               [slot.mealVersionId, publication],
             );
-            if (!row) throw new ApiError('PROGRAM_MEAL_UNAVAILABLE', 422);
+            if (!row)
+              throw new ApiError(
+                'PROGRAM_MEAL_UNAVAILABLE',
+                422,
+                `Meal version "${slot.mealVersionId}" is unavailable.`,
+                { meal_version_id: slot.mealVersionId },
+              );
           }
         }
       }

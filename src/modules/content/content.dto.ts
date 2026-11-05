@@ -60,7 +60,15 @@ export const ingredient = z
   .object({
     title: text,
     dietaryTags: tags,
-    allergenCodes: tags,
+    allergenCodes: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z][A-Z0-9_]{1,49}$/),
+      )
+      .max(100),
     verificationStatus: z.enum(['UNKNOWN', 'VERIFIED']),
   })
   .strict();
@@ -124,6 +132,29 @@ export const mealUpdate = mealFields
   .omit({ slug: true })
   .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueMealPositions, 'Duplicate meal item position');
+export const mealItem = z
+  .object({
+    memberId: uuid,
+    exchangeUnits: z.number().positive().max(10000),
+    position: z.number().int().min(0).max(1000),
+  })
+  .strict();
+export const mealItemUpdate = z
+  .object({
+    expectedRevision: z.number().int().positive(),
+    memberId: uuid.optional(),
+    exchangeUnits: z.number().positive().max(10000).optional(),
+    position: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.memberId !== undefined ||
+      value.exchangeUnits !== undefined ||
+      value.position !== undefined,
+    'At least one meal item field must be supplied',
+  );
+export const mealItemPosition = z.coerce.number().int().min(0).max(1000);
 export const page = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(30),

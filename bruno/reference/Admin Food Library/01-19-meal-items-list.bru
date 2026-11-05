@@ -1,0 +1,24 @@
+meta {
+  name: 19-meal-items-list
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/admin/meals/{{mealId}}/items
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin-only GET. Returns the latest meal version, its revision/status and meal_items. Use expectedRevision from this response for each item mutation.
+}

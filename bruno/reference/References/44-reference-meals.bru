@@ -1,0 +1,24 @@
+meta {
+  name: Reference meals
+  type: http
+  seq: 44
+}
+
+get {
+  url: {{baseUrl}}/references/meals
+  body: none
+}
+
+params:query {
+  limit: 30
+  offset: 0
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body; supports limit and offset. Returns published and available meals only. Use GET /references/meals/{{mealId}} for the published version and its meal_items.
+}
