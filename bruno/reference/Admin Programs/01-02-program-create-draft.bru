@@ -470,7 +470,7 @@ body:json {
 }
 
 script:post-response {
-  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);
+  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id);
 }
 
 tests {

@@ -1,5 +1,5 @@
-// Ensure every literal Nest controller route has a versioned Bruno request.
-// This checks endpoint coverage, not request bodies or response contracts.
+// Ensure every literal Nest controller route has a versioned Bruno request,
+// and reject removed optimistic-concurrency request fields in the collection.
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
@@ -28,6 +28,11 @@ const requests = files(path.join(root, 'bruno'))
   .filter((f) => f.endsWith('.bru'))
   .flatMap((file) => {
     const text = fs.readFileSync(file, 'utf8');
+    if (/\bexpected(?:[_-]?revision|[_-]?versions?)\b/i.test(text)) {
+      throw new Error(
+        `Removed revision precondition remains in Bruno: ${file}`,
+      );
+    }
     const method = text.match(
       /^(get|post|patch|put|delete|head|options)\s*\{/m,
     )?.[1];
