@@ -37,7 +37,7 @@
 | ------ | ---------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | GET    | `/admin/ingredients`               | يعرض قائمة المكونات وبياناتها.                | Admin؛ اختياري: `limit`, `offset`.                                                                       |
 | POST   | `/admin/ingredients`               | ينشئ مكونًا.                                  | Admin؛ body: `slug`, و`content` التي تشمل `title`, `dietaryTags`, `allergenCodes`, `verificationStatus`. |
-| GET    | `/admin/ingredients/:id`           | يعرض بيانات المكون وأكواد حساسياته.             | Admin؛ `id` للمكون.                                                                                      |
+| GET    | `/admin/ingredients/:id`           | يعرض بيانات المكون وأكواد حساسياته.           | Admin؛ `id` للمكون.                                                                                      |
 | PATCH  | `/admin/ingredients/:id`           | يعدل المكون وينشئ revision جديدًا عند الحاجة. | Admin؛ body: `expectedRevision`, `content`.                                                              |
 | DELETE | `/admin/ingredients/:id`           | يؤرشف المكون مع حفظ البيانات السابقة.         | Admin؛ body: `expectedRevision`.                                                                         |
 | GET    | `/admin/meals`                     | يعرض الوجبات وإصداراتها الحالية.              | Admin؛ اختياري: `limit`, `offset`.                                                                       |
