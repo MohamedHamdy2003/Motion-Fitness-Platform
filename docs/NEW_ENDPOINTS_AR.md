@@ -28,7 +28,18 @@
 | PATCH  | `/admin/lookups/:table/:code` | يعدل الاسم أو ترتيب العرض؛ ويمكنه إعادة تفعيل قيمة بـ`active:true`. | Admin؛ body يتضمن الحقول المراد تعديلها. لا يمكن تغيير `code`.                          |
 | DELETE | `/admin/lookups/:table/:code` | يعطل القيمة مع الاحتفاظ بالسجلات المرتبطة بها.                      | Admin؛ لا body.                                                                         |
 
-القيم المدعومة في `:table`: `genders`, `primary-goals`, `fitness-levels`, `allergens`, `body-areas-injuries`. يمكن تعديل label والترتيب في `roles` فقط؛ لا يمكن إنشاء أو حذف الأدوار `USER` و`ADMIN`.
+القيم المقبولة في `:table` وأمثلتها:
+
+| `:table` value | مثال للمسار | العمليات المتاحة |
+| --- | --- | --- |
+| `genders` | `/admin/lookups/genders` | إضافة، تعديل، تعطيل |
+| `primary-goals` | `/admin/lookups/primary-goals` | إضافة، تعديل، تعطيل |
+| `fitness-levels` | `/admin/lookups/fitness-levels` | إضافة، تعديل، تعطيل |
+| `allergens` | `/admin/lookups/allergens` | إضافة، تعديل، تعطيل |
+| `body-areas-injuries` | `/admin/lookups/body-areas-injuries` | إضافة، تعديل، تعطيل؛ ويمكن تحديد `parent_code` عند الإضافة أو التعديل |
+| `roles` | `/admin/lookups/roles/USER` | تعديل `label` أو `display_order` للدورين `USER` و`ADMIN` فقط؛ لا يمكن إضافة هذين الدورين أو تعطيلهما |
+
+في Bruno، قيمة المتغير البيئي `lookupTable` هي التي تحل محل `:table`؛ مثلًا اجعلها `allergens` ليصبح المسار `/admin/lookups/allergens`. وفي طلبَي التعديل والتعطيل، تحل قيمة `lookupCode` محل `:code`، مثل `/admin/lookups/fitness-levels/ADVANCED`.
 لا يمكن تعطيل آخر قيمة نشطة في جدول مطلوب، ولا تعطيل منطقة إصابة أب لها مناطق فرعية نشطة.
 
 ## إدارة المكونات والوجبات وعناصرها
