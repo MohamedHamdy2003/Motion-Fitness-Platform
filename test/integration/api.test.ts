@@ -1481,6 +1481,7 @@ it('creates and publishes an admin food section and a meal from published foods'
       slug: 'f08-fixture-ingredient',
       content: {
         title: 'F08 fixture ingredient',
+        description: 'Ingredient details',
         dietaryTags: [],
         allergenCodes: [],
         verificationStatus: 'UNKNOWN',
@@ -1488,6 +1489,7 @@ it('creates and publishes an admin food section and a meal from published foods'
     });
   const foodContent = (title: string) => ({
     title,
+    description: 'Food display details',
     preparation: 'Fixture preparation',
     preparationState: 'COOKED',
     prepMinutes: 0,
@@ -1529,6 +1531,15 @@ it('creates and publishes an admin food section and a meal from published foods'
     (await api.get(prefix + '/references/foods').set(headers)).body
       .contentStatus,
   ).toBe('READY');
+  const display = await api
+    .get(prefix + '/references/foods?search=display%20details')
+    .set(headers);
+  expect(display.status).toBe(200);
+  expect(display.body.items).toHaveLength(2);
+  expect(display.body.items[0]).toMatchObject({
+    kind: 'FOOD',
+    description: 'Food display details',
+  });
   const section = await api
     .post(prefix + '/admin/food-sections')
     .set(headers)
@@ -1657,6 +1668,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
     });
   const foodContent = (title: string) => ({
     title,
+    description: 'Food display details',
     preparation: 'Fixture preparation',
     preparationState: 'COOKED',
     prepMinutes: 0,

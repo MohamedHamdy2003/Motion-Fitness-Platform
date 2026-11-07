@@ -118,6 +118,7 @@ Table user_allergies {
 
 Table food_reference_items {
   id uuid [pk]
+  description text
   name text
   kind text
 }

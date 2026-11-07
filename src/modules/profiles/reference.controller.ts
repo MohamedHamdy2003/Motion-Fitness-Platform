@@ -64,7 +64,7 @@ export class ReferenceController {
     const [items, status] = await Promise.all([
       query(
         this.db,
-        `SELECT id,name,kind FROM available_food_references WHERE name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3`,
+        `SELECT id,name,kind,description FROM available_food_references WHERE (name ILIKE $1 OR description ILIKE $1) ORDER BY name,id LIMIT $2 OFFSET $3`,
         ['%' + q.search + '%', q.limit, q.offset],
       ),
       query(
@@ -87,7 +87,7 @@ export class ReferenceController {
     const [items, count] = await Promise.all([
       query(
         this.db,
-        `SELECT i.id,i.slug,i.title,i.dietary_tags,i.verification_status,i.metadata_version,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE NOT i.archived AND i.title ILIKE $1 ORDER BY i.title,i.id LIMIT $2 OFFSET $3`,
+        `SELECT i.id,i.slug,i.title,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,i.dietary_tags,i.verification_status,i.metadata_version,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE NOT i.archived AND i.title ILIKE $1 ORDER BY i.title,i.id LIMIT $2 OFFSET $3`,
         [`%${q.search}%`, q.limit, q.offset],
       ),
       query(
@@ -102,7 +102,7 @@ export class ReferenceController {
     const id = parse(uuid, input);
     const [item] = await query(
       this.db,
-      `SELECT i.id,i.slug,i.title,i.dietary_tags,i.verification_status,i.metadata_version,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE i.id=$1 AND NOT i.archived`,
+      `SELECT i.id,i.slug,i.title,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,i.dietary_tags,i.verification_status,i.metadata_version,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE i.id=$1 AND NOT i.archived`,
       [id],
     );
     if (!item) throw new ApiError('NOT_FOUND', 404);

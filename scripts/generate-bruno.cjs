@@ -592,12 +592,14 @@ write('reference/Admin Media', '03-get', 'GET', '/admin/media/{{mediaId}}');
 
 const ingredientFixture = {
   title: 'Draft ingredient',
+  description: 'Optional ingredient details',
   dietaryTags: [],
   allergenCodes: [],
   verificationStatus: 'UNKNOWN',
 };
 const foodFixture = {
   title: 'Draft food',
+  description: 'Optional food details',
   preparation: 'Required preparation description',
   preparationState: 'RAW',
   prepMinutes: 0,
