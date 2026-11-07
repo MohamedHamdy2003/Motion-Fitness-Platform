@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Inject,
   Param,
   Patch,
@@ -40,15 +39,10 @@ export class ProfileController {
       parse(dto.profilePatch, b),
     );
   }
-  @Put('onboarding') onboard(
-    @Req() req: ApiRequest,
-    @Body() b: unknown,
-    @Headers('idempotency-key') key: string,
-  ) {
+  @Put('onboarding') onboard(@Req() req: ApiRequest, @Body() b: unknown) {
     return this.profiles.onboard(
       req.principal.userId,
       parse(dto.onboarding, b),
-      key || '',
     );
   }
   @Get('settings') settings(@Req() req: ApiRequest) {
@@ -80,16 +74,8 @@ export class ProfileController {
       query.offset,
     );
   }
-  @Post('injuries') injury(
-    @Req() req: ApiRequest,
-    @Body() b: unknown,
-    @Headers('idempotency-key') key: string,
-  ) {
-    return this.profiles.addInjury(
-      req.principal.userId,
-      parse(dto.injury, b),
-      key || '',
-    );
+  @Post('injuries') injury(@Req() req: ApiRequest, @Body() b: unknown) {
+    return this.profiles.addInjury(req.principal.userId, parse(dto.injury, b));
   }
   @Patch('injuries/:id') edit(
     @Req() req: ApiRequest,

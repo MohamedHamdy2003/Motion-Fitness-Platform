@@ -45,7 +45,6 @@ const variables = {
   programId: '',
   programHintId: '',
   exerciseRevisionId: '',
-  idempotencyKey: '',
   uploadUrl: '',
 };
 for (const env of ['local', 'staging', 'production'])
@@ -332,7 +331,6 @@ add(
     },
   },
   {
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     docs: 'Requires gender, age strictly greater than 18, 2-5 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching remains PENDING until F05.',
   },
 );
@@ -375,7 +373,6 @@ add(
   },
   {
     status: 201,
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     post: '  const b=res.getBody(); if(b.injury) bru.setVar("injuryId",b.injury.id);',
   },
 );
@@ -466,7 +463,6 @@ smoke(
   },
   {
     status: 201,
-    headers: { 'Idempotency-Key': 'bruno-injury-001' },
     post: '  bru.setVar("injuryId",res.getBody().injury.id);',
   },
 );
@@ -853,7 +849,6 @@ write(
   programAggregate,
   {
     status: 201,
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id);',
     docs: 'The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.',
   },
@@ -873,7 +868,6 @@ write(
   '/admin/programs/{{programId}}',
   programEdit,
   {
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     docs: 'Edit requests do not need a client revision; the latest successful write is retained. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
   },
 );
@@ -885,7 +879,6 @@ write(
   {},
   {
     status: 201,
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     docs: 'This sample expects an untouched draft. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.',
   },
 );
@@ -900,7 +893,6 @@ write(
   },
   {
     status: 201,
-    headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
     post: '  const b=res.getBody(); if(b.id) bru.setVar("programHintId",b.id);',
   },
 );
@@ -910,7 +902,7 @@ write(
   'POST',
   '/admin/programs/{{programId}}/hints/{{programHintId}}/approve',
   {},
-  { status: 201, headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
+  { status: 201 },
 );
 write(
   'reference/Admin Programs',
@@ -918,7 +910,7 @@ write(
   'DELETE',
   '/admin/programs/{{programId}}',
   {},
-  { headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
+  {},
 );
 write(
   'reference/Admin Food Library',

@@ -176,7 +176,7 @@ Cleanup waits for `DELETION_RETENTION_APPROVED=true`; completion is never report
 
 ## Idempotency and concurrency
 
-Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. The gender migration clears old onboarding keys because the required request body changed. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. Numeric JSON values must be numbers, not strings.
+Profile, injury, and program writes do not require idempotency headers. If a client retries after a timeout, it should fetch the current resource state before repeating a create action. Numeric JSON values must be numbers, not strings.
 
 Profile, settings, preferences, and injury writes do not require client revision/version fields. Writes serialize on the user row; the last successful write is retained. Returned revision/version values are informational server state. Model/provider calls stay outside DB transactions. Identity linking and deletion proofs are purpose-, session- and user-bound, single-use, and five minutes old at most.
 

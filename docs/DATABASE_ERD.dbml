@@ -139,12 +139,6 @@ Table account_deletions {
   tracking_hash text [unique]
 }
 
-Table idempotency_keys {
-  user_id uuid [pk]
-  scope text [pk]
-  key text [pk]
-  resource_id uuid [note: 'Polymorphic reference; intentionally has no FK']
-}
 
 Table domain_events {
   id uuid [pk]
@@ -409,7 +403,6 @@ Ref: user_disliked_foods.food_id > food_reference_items.id
 // User lifecycle and operational records
 Ref: jobs.user_id > users.id [delete: cascade]
 Ref: account_deletions.user_id - users.id [delete: set null]
-Ref: idempotency_keys.user_id > users.id [delete: cascade]
 Ref: domain_events.user_id > users.id [delete: cascade]
 Ref: ai_rewrite_runs.user_id > users.id [delete: cascade]
 

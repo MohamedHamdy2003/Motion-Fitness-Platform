@@ -24,7 +24,6 @@ users 1---N verification_tokens
 users 1---N media_assets (owner_user_id is optional for shared library media)
 users 1---N user_injuries
 users 1---N jobs (user_id is optional)
-users 1---N idempotency_keys
 users 1---N domain_events
 users 1---N ai_rewrite_runs
 users 1---0..1 account_deletions (user_id becomes NULL after account removal)
@@ -92,7 +91,6 @@ SUPPORT TABLES / NON-RELATIONAL REFERENCES
 -------------------------------------------
 rate_limits: composite key/value counters; no foreign keys.
 content_seed_imports: records imported dataset versions; no foreign keys.
-idempotency_keys.resource_id is polymorphic and intentionally has no foreign key.
 available_food_references is a VIEW over food_reference_items, foods,
 food_versions and ingredients; it is not a base table.
 
