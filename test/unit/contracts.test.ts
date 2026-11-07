@@ -24,10 +24,21 @@ describe('mobile contracts', () => {
       food_preferences: {
         allergen_codes: [],
         disliked_food_ids: [],
-        excluded_food_ids: [],
       },
     };
     expect(onboarding.safeParse(body).success).toBe(true);
+    expect(onboarding.safeParse({ ...body, expectedRevision: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      onboarding.safeParse({
+        ...body,
+        food_preferences: {
+          ...body.food_preferences,
+          excluded_food_ids: [],
+        },
+      }).success,
+    ).toBe(false);
     const dynamicValue = onboarding.safeParse({ ...body, gender: 'unknown' });
     expect(dynamicValue.success).toBe(true);
     if (dynamicValue.success) expect(dynamicValue.data.gender).toBe('UNKNOWN');

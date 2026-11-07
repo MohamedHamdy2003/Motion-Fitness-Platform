@@ -13,6 +13,7 @@ export class ProfileService {
   constructor(@Inject(DataSource) public db: DataSource) {}
   private profileResponse(row: Record<string, any>): Record<string, any> {
     const { training_weekdays, ...profile } = row;
+    delete profile.profile_revision;
     return {
       ...profile,
       // The integer column is retained internally for compatibility with existing records;
@@ -176,20 +177,14 @@ export class ProfileService {
       await this.lock(m, id);
       const previous = await this.idempotency(m, id, 'onboarding', key, input);
       if (previous) {
-        const [profile] = await query(
-          m,
-          `SELECT profile_revision FROM user_profiles WHERE user_id=$1`,
-          [id],
-        );
         return {
           status: 'COMPLETED',
-          profile_revision: profile.profile_revision,
           replayed: true,
           matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
         };
       }
       const { food_preferences, ...profile } = input;
-      const p = await this.updateProfile(m, id, profile);
+      await this.updateProfile(m, id, profile);
       await this.savePreferences(m, id, food_preferences);
       await query(
         m,
@@ -199,7 +194,6 @@ export class ProfileService {
       await this.recordKey(m, id, 'onboarding', key, input, null);
       return {
         status: 'COMPLETED',
-        profile_revision: p.profile_revision,
         matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
       };
     });
@@ -289,14 +283,7 @@ export class ProfileService {
       disliked_food_ids: (
         await query(
           m,
-          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='DISLIKE' ORDER BY food_id`,
-          [id],
-        )
-      ).map((r: any) => r.food_id),
-      excluded_food_ids: (
-        await query(
-          m,
-          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='EXCLUSION' ORDER BY food_id`,
+          `SELECT food_id FROM user_disliked_foods WHERE user_id=$1 ORDER BY food_id`,
           [id],
         )
       ).map((r: any) => r.food_id),
@@ -333,9 +320,7 @@ export class ProfileService {
           { allergen_code: code },
         );
     }
-    const all = [
-      ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),
-    ];
+    const all = [...new Set(input.disliked_food_ids)];
     if (all.length) {
       const rows = await query(
         m,
@@ -353,23 +338,19 @@ export class ProfileService {
         );
     }
     await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
-    await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
+    await query(m, `DELETE FROM user_disliked_foods WHERE user_id=$1`, [id]);
     for (const code of new Set(input.allergen_codes))
       await query(
         m,
         `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
         [id, code],
       );
-    for (const [kind, ids] of [
-      ['DISLIKE', input.disliked_food_ids],
-      ['EXCLUSION', input.excluded_food_ids],
-    ] as const)
-      for (const food of new Set(ids))
-        await query(
-          m,
-          `INSERT INTO user_food_exclusions(user_id,food_id,kind) VALUES($1,$2,$3)`,
-          [id, food, kind],
-        );
+    for (const food of new Set(input.disliked_food_ids))
+      await query(
+        m,
+        `INSERT INTO user_disliked_foods(user_id,food_id) VALUES($1,$2)`,
+        [id, food],
+      );
     await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
     return this.getPreferences(id, m);
   }

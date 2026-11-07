@@ -85,7 +85,6 @@ export const onboarding = z
       .object({
         allergen_codes: z.array(lookupCode).max(100),
         disliked_food_ids: z.array(uuid).max(200),
-        excluded_food_ids: z.array(uuid).max(200),
       })
       .strict(),
   })
@@ -103,7 +102,6 @@ export const preferences = z
   .object({
     allergen_codes: z.array(lookupCode).max(100),
     disliked_food_ids: z.array(uuid).max(200),
-    excluded_food_ids: z.array(uuid).max(200),
   })
   .strict();
 export const settings = z

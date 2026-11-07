@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Response shape: {user:{id,email,verified_at},profile:{name,gender,height_cm,weight_kg,target_weight_kg,primary_goal,fitness_level,training_days_per_week:["SUNDAY","TUESDAY"],timezone,locale,date_of_birth,avatar_media_id,profile_revision,onboarded_at},injuries:[],injury_revision,food_preferences:{revision,allergen_codes,disliked_food_ids,excluded_food_ids},matching:{status,reason}}. Existing accounts may have gender:null, target_weight_kg:null or training_days_per_week:null until they save those fields.
+  Response shape: {user:{id,email,verified_at},profile:{name,gender,height_cm,weight_kg,target_weight_kg,primary_goal,fitness_level,training_days_per_week:["SUNDAY","TUESDAY"],timezone,locale,date_of_birth,avatar_media_id,onboarded_at},injuries:[],injury_revision,food_preferences:{revision,allergen_codes,disliked_food_ids},matching:{status,reason}}. Profile revision counters remain server-internal. Existing accounts may have gender:null, target_weight_kg:null or training_days_per_week:null until they save those fields.
   Never commit populated credentials or runtime tokens.
 }

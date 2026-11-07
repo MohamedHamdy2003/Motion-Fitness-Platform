@@ -25,7 +25,6 @@
       "locale": "ar",
       "avatar_media_id": null,
       "date_of_birth": "1998-03-14",
-      "profile_revision": 2,
       "onboarded_at": null,
       "weight_kg": "80.5"
     },
@@ -46,8 +45,7 @@
     "food_preferences": {
       "revision": 1,
       "allergen_codes": ["MILK"],
-      "disliked_food_ids": [],
-      "excluded_food_ids": []
+      "disliked_food_ids": []
     },
     "matching": {
       "status": "NOT_STARTED",
@@ -62,7 +60,6 @@
   },
   "onboarding": {
     "status": "COMPLETED",
-    "profile_revision": 1,
     "matching": {
       "status": "PENDING",
       "reason": "F05_NOT_IMPLEMENTED"

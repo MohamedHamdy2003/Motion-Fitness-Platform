@@ -40,9 +40,8 @@ body_areas_injuries 1---N body_areas_injuries through parent_code (optional hier
 body_areas_injuries 1---N user_injuries
 allergens 1---N user_allergies
 users N---N allergens through user_allergies
-food_reference_items 1---N user_food_exclusions
-users N---N food_reference_items through user_food_exclusions
-  user_food_exclusions.kind distinguishes DISLIKE from EXCLUSION.
+food_reference_items 1---N user_disliked_foods
+users N---N food_reference_items through user_disliked_foods
 
 EXERCISE CONTENT
 ----------------
@@ -97,7 +96,7 @@ idempotency_keys.resource_id is polymorphic and intentionally has no foreign key
 available_food_references is a VIEW over food_reference_items, foods,
 food_versions and ingredients; it is not a base table.
 
-The user_roles, user_allergies, user_food_exclusions, ingredient_allergens,
+The user_roles, user_allergies, user_disliked_foods, ingredient_allergens,
 food_ingredients, program_version_supported_goals, program_version_supported_levels,
 workout_exercises and food_exchange_members tables are relationship/junction tables.
 */
