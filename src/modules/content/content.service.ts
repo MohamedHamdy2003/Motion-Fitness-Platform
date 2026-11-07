@@ -1,3 +1,4 @@
+import { foodDisplay } from './food-display';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { randomUUID } from 'node:crypto';
@@ -42,8 +43,16 @@ export class ContentService {
       if (kind === 'foods')
         await query(
           m,
-          `INSERT INTO food_reference_items(id,name,kind) VALUES($1,$2,'FOOD')`,
-          [id, content.title],
+          `INSERT INTO food_reference_items(id,name,kind,description) VALUES($1,$2,'FOOD',$3)`,
+          [
+            id,
+            ...Object.values(
+              foodDisplay(
+                content.title as string,
+                content.description as string | undefined,
+              ),
+            ),
+          ],
         );
       await query(m, `INSERT INTO ${tables[kind][0]}(id,slug) VALUES($1,$2)`, [
         id,
@@ -114,7 +123,6 @@ export class ContentService {
   async revise(
     kind: Kind,
     id: string,
-    expectedRevision: number,
     content?: Record<string, unknown>,
     publish = false,
   ) {
@@ -132,16 +140,19 @@ export class ContentService {
         `SELECT * FROM ${versions} WHERE ${fk}=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE`,
         [id],
       );
-      if (v.revision !== expectedRevision)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (publish) {
         if (v.status !== 'DRAFT') throw new ApiError('ALREADY_PUBLISHED', 409);
         await this.validateReferences(m, v.content, kind);
         if (kind === 'foods')
           await query(
             m,
-            `UPDATE food_reference_items SET name=$2 WHERE id=$1`,
-            [id, v.content.title],
+            `UPDATE food_reference_items SET name=$2,description=$3 WHERE id=$1`,
+            [
+              id,
+              ...Object.values(
+                foodDisplay(v.content.title, v.content.description),
+              ),
+            ],
           );
         return (
           await query(
@@ -176,21 +187,15 @@ export class ContentService {
       )[0];
     });
   }
-  async archive(kind: Kind, id: string, revision: number) {
+  async archive(kind: Kind, id: string) {
     return this.db.transaction(async (m) => {
-      const [items, versions, fk] = tables[kind];
+      const [items] = tables[kind];
       const [item] = await query(
         m,
         `SELECT * FROM ${items} WHERE id=$1 FOR UPDATE`,
         [id],
       );
       if (!item) throw new ApiError('NOT_FOUND', 404);
-      const [v] = await query(
-        m,
-        `SELECT revision FROM ${versions} WHERE ${fk}=$1 ORDER BY version DESC LIMIT 1`,
-        [id],
-      );
-      if (v.revision !== revision) throw new ApiError('REVISION_CONFLICT', 409);
       await query(m, `UPDATE ${items} SET archived=true WHERE id=$1`, [id]);
       return { id, archived: true };
     });
@@ -198,7 +203,7 @@ export class ContentService {
   async ingredientList(limit: number, offset: number) {
     return query(
       this.db,
-      `SELECT i.*,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i ORDER BY slug LIMIT $1 OFFSET $2`,
+      `SELECT i.*,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i ORDER BY slug LIMIT $1 OFFSET $2`,
       [limit, offset],
     );
   }
@@ -206,13 +211,12 @@ export class ContentService {
     data: z.infer<typeof dto.ingredient>,
     slug?: string,
     id?: string,
-    revision?: number,
   ) {
     return this.db.transaction(async (m) => {
       const codes = [...new Set(data.allergenCodes)];
       const known = await query(
         m,
-        `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
+        `SELECT code FROM allergens WHERE active AND code=ANY($1::text[])`,
         [codes],
       );
       const knownCodes = new Set(
@@ -223,7 +227,7 @@ export class ContentService {
         throw new ApiError(
           'ALLERGEN_CODE_NOT_FOUND',
           422,
-          `Allergen code "${unknown}" is not registered. Fetch GET /references/allergens to see valid codes.`,
+          `Allergen value "${unknown}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
           { allergen_code: unknown },
         );
       if (id) {
@@ -233,24 +237,23 @@ export class ContentService {
           [id],
         );
         if (!row) throw new ApiError('NOT_FOUND', 404);
-        if (row.metadata_version !== revision)
-          throw new ApiError('REVISION_CONFLICT', 409);
         if (row.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
         await query(
           m,
           `UPDATE ingredients SET title=$2,dietary_tags=$3,verification_status=$4,metadata_version=metadata_version+1 WHERE id=$1`,
           [id, data.title, data.dietaryTags, data.verificationStatus],
         );
-        await query(m, `UPDATE food_reference_items SET name=$2 WHERE id=$1`, [
-          id,
-          data.title,
-        ]);
+        await query(
+          m,
+          `UPDATE food_reference_items SET name=$2,description=$3 WHERE id=$1`,
+          [id, ...Object.values(foodDisplay(data.title, data.description))],
+        );
       } else {
         id = randomUUID();
         await query(
           m,
-          `INSERT INTO food_reference_items VALUES($1,$2,'INGREDIENT')`,
-          [id, data.title],
+          `INSERT INTO food_reference_items(id,name,kind,description) VALUES($1,$2,'INGREDIENT',$3)`,
+          [id, ...Object.values(foodDisplay(data.title, data.description))],
         );
         await query(
           m,
@@ -268,28 +271,40 @@ export class ContentService {
           id,
           code,
         ]);
-      return (await query(m, `SELECT * FROM ingredients WHERE id=$1`, [id]))[0];
+      return (
+        await query(
+          m,
+          `SELECT i.*,(SELECT description FROM food_reference_items WHERE id=i.id) AS description FROM ingredients i WHERE id=$1`,
+          [id],
+        )
+      )[0];
     });
   }
   async getIngredient(id: string) {
     const [row] = await query(
       this.db,
-      `SELECT i.*,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE id=$1`,
+      `SELECT i.*,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i WHERE id=$1`,
       [id],
     );
     if (!row) throw new ApiError('NOT_FOUND', 404);
     return row;
   }
-  async archiveIngredient(id: string, revision: number) {
-    const [row] = await query(
-      this.db,
-      `UPDATE ingredients SET archived=true,metadata_version=metadata_version+1 WHERE id=$1 AND metadata_version=$2 RETURNING *`,
-      [id, revision],
-    );
-    if (!row) {
-      await this.getIngredient(id);
-      throw new ApiError('REVISION_CONFLICT', 409);
-    }
-    return row;
+  async archiveIngredient(id: string) {
+    return this.db.transaction(async (m) => {
+      const [current] = await query(
+        m,
+        `SELECT * FROM ingredients WHERE id=$1 FOR UPDATE`,
+        [id],
+      );
+      if (!current) throw new ApiError('NOT_FOUND', 404);
+      if (current.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
+      return (
+        await query(
+          m,
+          `UPDATE ingredients SET archived=true,metadata_version=metadata_version+1 WHERE id=$1 RETURNING *`,
+          [id],
+        )
+      )[0];
+    });
   }
 }

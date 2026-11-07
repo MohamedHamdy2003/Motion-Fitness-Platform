@@ -3,6 +3,8 @@ import importlib.util
 from pathlib import Path
 import shlex
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
@@ -54,10 +56,23 @@ class DeploymentTest(unittest.TestCase):
     @patch.dict("os.environ", ENV)
     def test_remote_failure_fails_job(self):
         with patch.object(deploy, "aws", side_effect=[
-            {"Command": {"CommandId": "test-id"}}, {"Status": "Failed"},
+            {"Command": {"CommandId": "test-id"}},
+            {
+                "Status": "Failed",
+                "StatusDetails": "Execution failed due to worker IPC timeout",
+                "ResponseCode": 1,
+                "StandardOutputContent": "migration started",
+                "StandardErrorContent": "password=hunter2\nMigration failed",
+            },
         ]):
-            with self.assertRaisesRegex(RuntimeError, "Deployment Failed"):
-                deploy.main()
+            output = StringIO()
+            with redirect_stdout(output):
+                with self.assertRaisesRegex(RuntimeError, "Deployment Failed"):
+                    deploy.main()
+        self.assertIn("migration started", output.getvalue())
+        self.assertIn("worker IPC timeout", output.getvalue())
+        self.assertIn("password=[REDACTED]", output.getvalue())
+        self.assertNotIn("hunter2", output.getvalue())
 
 
 if __name__ == "__main__":

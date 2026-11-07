@@ -16,10 +16,10 @@ auth:bearer {
 
 body:json {
   {
-    "expectedRevision": 0,
     "gender": "MALE",
     "name": "Motion Athlete",
     "height_cm": 175,
+    "target_weight_kg": 72,
     "primary_goal": "STRENGTH_HYPERTROPHY",
     "fitness_level": "BEGINNER",
     "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
@@ -36,6 +36,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Send only fields to change plus expectedRevision. gender: MALE | FEMALE (seeded in the genders lookup table). fitness_level: BEGINNER | INTERMEDIATE | ADVANCED. training_days_per_week accepts 2-5 unique weekday codes (SUNDAY through SATURDAY); the returned profile exposes the same array. Success returns the full updated profile including profile_revision. 409 REVISION_CONFLICT means refetch GET /me and retry with the latest revision.
+  Send only fields to change. target_weight_kg is a positive number and can be updated here. gender: MALE | FEMALE (seeded in the genders lookup table). fitness_level: code from the fitness_levels lookup (currently BEGINNER | INTERMEDIATE | ADVANCED). training_days_per_week accepts 2-5 unique weekday codes (SUNDAY through SATURDAY); the returned profile exposes the same array. Profile revision counters remain internal and are not included in the response.
   Never commit populated credentials or runtime tokens.
 }

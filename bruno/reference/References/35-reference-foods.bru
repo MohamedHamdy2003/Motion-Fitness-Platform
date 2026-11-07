@@ -7,11 +7,6 @@ meta {
 get {
   url: {{baseUrl}}/references/foods
   body: none
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{accessToken}}
 }
 
 tests {
@@ -21,6 +16,7 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Public GET with no body; optional query parameters search, limit (1-100, default 30), offset (default 0). Returns matching published food and active ingredient choices as {"items":[{"id":"<uuid>","name":"Roasted chicken breast","kind":"FOOD","description":"Chicken breast, cooked, roasted"}],"limit":30,"offset":0,"contentStatus":"READY"}. Use returned food IDs for disliked_food_ids.
+  Render name verbatim; description is separate and nullable. Never split name on commas. kind is INGREDIENT or FOOD. Foods appear only after publication; seeded drafts are not listed. Search matches name and description.
   Never commit populated credentials or runtime tokens.
 }

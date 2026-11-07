@@ -1,0 +1,29 @@
+meta {
+  name: 23-meal-item-delete
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/admin/meals/{{mealId}}/items/{{mealItemPosition}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin-only DELETE. Removes the item from the current draft. If the meal is published, a new draft copy is created and the published version stays unchanged.
+}

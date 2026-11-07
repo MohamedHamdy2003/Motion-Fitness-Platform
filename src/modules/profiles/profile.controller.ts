@@ -107,20 +107,8 @@ export class ProfileController {
     @Param('id') id: string,
     @Body() b: unknown,
   ) {
-    const input = parse(
-      z
-        .object({
-          expectedVersion: z.number().int().positive(),
-          confirmed: z.literal(true),
-        })
-        .strict(),
-      b,
-    );
-    return this.profiles.removeInjury(
-      req.principal.userId,
-      parse(uuid, id),
-      input.expectedVersion,
-    );
+    parse(z.object({ confirmed: z.literal(true) }).strict(), b);
+    return this.profiles.removeInjury(req.principal.userId, parse(uuid, id));
   }
   @Post('injuries/rewrite') async rewrite(
     @Req() req: ApiRequest,

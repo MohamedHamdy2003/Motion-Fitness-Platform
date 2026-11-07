@@ -14,18 +14,18 @@
 
 ## واجهات المحرر
 
-كل المسارات تحتاج Bearer token لبريد مؤكد ودور `ADMIN` أو `CONTENT_EDITOR`. ابدأ من مجلد Bruno `reference/Admin Programs`.
+كل المسارات تحتاج Bearer token لبريد مؤكد ودور `ADMIN`. ابدأ من مجلد Bruno `reference/Admin Programs`.
 
-| الطريقة | المسار                                      | الاستخدام                                                                                                  |
-| ------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| GET     | `/admin/programs`                           | قائمة البرامج المنشورة والمسودات مع التصفية والصفحات.                                                      |
-| POST    | `/admin/programs`                           | إنشاء برنامج ونسخة تغذية ومسودة جدول كاملة ذريًا. يحتاج `Idempotency-Key`.                                 |
-| GET     | `/admin/programs/:id`                       | قراءة أحدث نسخة مع الأسابيع والأيام والتمارين ووجبات كل يوم.                                               |
-| PATCH   | `/admin/programs/:id`                       | استبدال محتوى المسودة كاملًا؛ يحتاج `expectedVersion` و`Idempotency-Key`. بعد النشر ينشئ نسخة مسودة جديدة. |
-| POST    | `/admin/programs/:id/publish`               | التحقق من البرنامج والتغذية ونشرهما ذريًا؛ يحتاج `expectedVersion` و`Idempotency-Key`.                     |
-| DELETE  | `/admin/programs/:id`                       | أرشفة البرنامج مع الاحتفاظ بالنسخ؛ يحتاج `expectedVersion` و`Idempotency-Key`.                             |
-| POST    | `/admin/programs/:id/hints`                 | إضافة مسودة تلميح منظمة؛ يحتاج `expectedVersion` و`Idempotency-Key`.                                       |
-| POST    | `/admin/programs/:id/hints/:hintId/approve` | اعتماد أحدث مسودة تلميح؛ يحتاج `expectedVersion` و`Idempotency-Key`.                                       |
+| الطريقة | المسار                                      | الاستخدام                                                                               |
+| ------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| GET     | `/admin/programs`                           | قائمة البرامج المنشورة والمسودات مع التصفية والصفحات.                                   |
+| POST    | `/admin/programs`                           | إنشاء برنامج ونسخة تغذية ومسودة جدول كاملة ذريًا. يحتاج `Idempotency-Key`.              |
+| GET     | `/admin/programs/:id`                       | قراءة أحدث نسخة مع الأسابيع والأيام والتمارين ووجبات كل يوم.                            |
+| PATCH   | `/admin/programs/:id`                       | استبدال محتوى المسودة كاملًا؛ يحتاج `Idempotency-Key`. بعد النشر ينشئ نسخة مسودة جديدة. |
+| POST    | `/admin/programs/:id/publish`               | التحقق من البرنامج والتغذية ونشرهما ذريًا؛ يحتاج `Idempotency-Key`.                     |
+| DELETE  | `/admin/programs/:id`                       | أرشفة البرنامج مع الاحتفاظ بالنسخ؛ يحتاج `Idempotency-Key`.                             |
+| POST    | `/admin/programs/:id/hints`                 | إضافة مسودة تلميح منظمة؛ يحتاج `Idempotency-Key`.                                       |
+| POST    | `/admin/programs/:id/hints/:hintId/approve` | اعتماد أحدث مسودة تلميح؛ يحتاج `Idempotency-Key`.                                       |
 
 مفتاح عدم التكرار من 8 إلى 128 حرفًا من الحروف الإنجليزية أو الأرقام أو `_` أو `-`. أعد استخدام المفتاح فقط عند إعادة إرسال نفس الطلب بعد انقطاع؛ المفتاح نفسه مع محتوى مختلف يرجع `IDEMPOTENCY_CONFLICT`.
 

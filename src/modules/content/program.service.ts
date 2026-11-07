@@ -62,7 +62,7 @@ export class ProgramService {
   async list(limit: number, offset: number, status?: string) {
     return query(
       this.db,
-      `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,pv.ideal_level,pv.supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true WHERE NOT p.archived AND ($3::text IS NULL OR pv.status=$3) ORDER BY p.slug LIMIT $1 OFFSET $2`,
+      `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true WHERE NOT p.archived AND ($3::text IS NULL OR pv.status=$3) ORDER BY p.slug LIMIT $1 OFFSET $2`,
       [limit, offset, status ?? null],
     );
   }
@@ -70,7 +70,7 @@ export class ProgramService {
   async get(id: string) {
     const [program] = await query(
       this.db,
-      `SELECT p.*,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,pv.supported_goals,pv.ideal_level,pv.supported_levels,pv.training_days_per_week,pv.editorial_priority,pv.description,pv.required_equipment,pv.intended_audience,pv.nutrition_plan_version_id,pv.approved_hint_version_id,npv.duration_days FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE p.id=$1`,
+      `SELECT p.*,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.editorial_priority,pv.description,pv.required_equipment,pv.intended_audience,pv.nutrition_plan_version_id,pv.approved_hint_version_id,npv.duration_days FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE p.id=$1`,
       [id],
     );
     if (!program) throw new ApiError('NOT_FOUND', 404);
@@ -160,7 +160,7 @@ export class ProgramService {
     actor: Actor,
     id: string,
     idempotencyKey: string,
-    input: Omit<ProgramAggregate, 'slug'> & { expectedVersion: number },
+    input: Omit<ProgramAggregate, 'slug'>,
   ) {
     const scope = `program-edit:${id}`;
     const resourceId = await this.db.transaction(async (m) => {
@@ -179,8 +179,6 @@ export class ProgramService {
         [id],
       );
       if (!current) throw new ApiError('NOT_FOUND', 404);
-      if (current.revision !== input.expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [nutrition] = await query(
         m,
         `SELECT * FROM nutrition_plan_versions WHERE id=$1 FOR UPDATE`,
@@ -213,14 +211,9 @@ export class ProgramService {
     return this.get(resourceId);
   }
 
-  async publish(
-    actor: Actor,
-    id: string,
-    idempotencyKey: string,
-    expectedVersion: number,
-  ) {
+  async publish(actor: Actor, id: string, idempotencyKey: string) {
     const scope = `program-publish:${id}`;
-    const command = { expectedVersion };
+    const command = {};
     const resourceId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -237,8 +230,6 @@ export class ProgramService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (version.status !== 'DRAFT')
         throw new ApiError('ALREADY_PUBLISHED', 409);
       const [nutrition] = await query(
@@ -270,14 +261,9 @@ export class ProgramService {
     return this.get(resourceId);
   }
 
-  async archive(
-    actor: Actor,
-    id: string,
-    idempotencyKey: string,
-    expectedVersion: number,
-  ) {
+  async archive(actor: Actor, id: string, idempotencyKey: string) {
     const scope = `program-archive:${id}`;
-    const command = { expectedVersion };
+    const command = {};
     await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -294,8 +280,6 @@ export class ProgramService {
         [id],
       );
       if (!version) throw new ApiError('NOT_FOUND', 404);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       if (program.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
       await query(m, `UPDATE programs SET archived=true WHERE id=$1`, [id]);
       await this.saveKey(m, actor, scope, idempotencyKey, command, id);
@@ -308,7 +292,6 @@ export class ProgramService {
     id: string,
     idempotencyKey: string,
     input: {
-      expectedVersion: number;
       originalText: string;
       structuredHints: Record<string, unknown>;
     },
@@ -326,8 +309,6 @@ export class ProgramService {
       if (!version) throw new ApiError('NOT_FOUND', 404);
       if (version.status !== 'DRAFT')
         throw new ApiError('PROGRAM_VERSION_IMMUTABLE', 409);
-      if (version.revision !== input.expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [last] = await query(
         m,
         `SELECT COALESCE(max(version),0)::integer AS version FROM program_hint_versions WHERE program_version_id=$1`,
@@ -368,10 +349,9 @@ export class ProgramService {
     id: string,
     hintId: string,
     idempotencyKey: string,
-    expectedVersion: number,
   ) {
     const scope = `program-hint-approve:${id}:${hintId}`;
-    const command = { expectedVersion };
+    const command = {};
     const approvedId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
       const repeated = await this.key(m, actor, scope, idempotencyKey, command);
@@ -384,8 +364,6 @@ export class ProgramService {
       if (!version) throw new ApiError('NOT_FOUND', 404);
       if (version.status !== 'DRAFT')
         throw new ApiError('PROGRAM_VERSION_IMMUTABLE', 409);
-      if (version.revision !== expectedVersion)
-        throw new ApiError('REVISION_CONFLICT', 409);
       const [hint] = await query(
         m,
         `UPDATE program_hint_versions SET status='APPROVED',approved_by=$3,approved_at=now() WHERE id=$1 AND program_version_id=$2 AND status='DRAFT' RETURNING *`,
@@ -432,16 +410,14 @@ export class ProgramService {
     );
     await query(
       m,
-      `INSERT INTO program_versions(id,program_id,version,title,primary_goal,supported_goals,ideal_level,supported_levels,training_days_per_week,editorial_priority,description,required_equipment,intended_audience,nutrition_plan_version_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      `INSERT INTO program_versions(id,program_id,version,title,primary_goal,ideal_level,training_days_per_week,editorial_priority,description,required_equipment,intended_audience,nutrition_plan_version_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         versionId,
         programId,
         version,
         input.title,
         input.primaryGoal,
-        input.supportedGoals,
         input.idealLevel,
-        input.supportedLevels,
         input.trainingDaysPerWeek,
         input.editorialPriority,
         input.description,
@@ -450,6 +426,18 @@ export class ProgramService {
         nutritionVersionId,
       ],
     );
+    for (const goal of input.supportedGoals)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
+        [versionId, goal],
+      );
+    for (const level of input.supportedLevels)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
+        [versionId, level],
+      );
     await this.insertSchedule(m, versionId, nutritionVersionId, input);
     return versionId;
   }
@@ -461,14 +449,12 @@ export class ProgramService {
   ) {
     await query(
       m,
-      `UPDATE program_versions SET title=$2,primary_goal=$3,supported_goals=$4,ideal_level=$5,supported_levels=$6,training_days_per_week=$7,editorial_priority=$8,description=$9,required_equipment=$10,intended_audience=$11,approved_hint_version_id=NULL WHERE id=$1`,
+      `UPDATE program_versions SET title=$2,primary_goal=$3,ideal_level=$4,training_days_per_week=$5,editorial_priority=$6,description=$7,required_equipment=$8,intended_audience=$9,approved_hint_version_id=NULL WHERE id=$1`,
       [
         id,
         input.title,
         input.primaryGoal,
-        input.supportedGoals,
         input.idealLevel,
-        input.supportedLevels,
         input.trainingDaysPerWeek,
         input.editorialPriority,
         input.description,
@@ -476,6 +462,28 @@ export class ProgramService {
         input.intendedAudience,
       ],
     );
+    await query(
+      m,
+      `DELETE FROM program_version_supported_goals WHERE program_version_id=$1`,
+      [id],
+    );
+    for (const goal of input.supportedGoals)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
+        [id, goal],
+      );
+    await query(
+      m,
+      `DELETE FROM program_version_supported_levels WHERE program_version_id=$1`,
+      [id],
+    );
+    for (const level of input.supportedLevels)
+      await query(
+        m,
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
+        [id, level],
+      );
   }
 
   private async clearSchedule(
@@ -526,6 +534,47 @@ export class ProgramService {
     input: Omit<ProgramAggregate, 'slug'>,
     publication: boolean,
   ) {
+    const goalCodes = new Set([input.primaryGoal, ...input.supportedGoals]);
+    const goals = await query(
+      m,
+      `SELECT code FROM primary_goals WHERE active AND code=ANY($1::text[])`,
+      [[...goalCodes]],
+    );
+    const availableGoals = new Set(
+      goals.map((row: { code: string }) => row.code),
+    );
+    const unavailableGoals = [...goalCodes].filter(
+      (code) => !availableGoals.has(code),
+    );
+    if (unavailableGoals.length)
+      throw new ApiError(
+        'PRIMARY_GOAL_NOT_FOUND',
+        422,
+        `Primary goal value(s) ${unavailableGoals.join(', ')} are unavailable or inactive. Fetch GET /references/primary-goals for currently available values.`,
+        { primary_goal_codes: unavailableGoals },
+      );
+    const levels = await query(
+      m,
+      `SELECT code FROM fitness_levels WHERE active AND code=ANY($1::text[])`,
+      [[...new Set([input.idealLevel, ...input.supportedLevels])]],
+    );
+    const requestedLevels = new Set([
+      input.idealLevel,
+      ...input.supportedLevels,
+    ]);
+    const availableLevels = new Set(
+      levels.map((row: { code: string }) => row.code),
+    );
+    const unavailableLevels = [...requestedLevels].filter(
+      (code) => !availableLevels.has(code),
+    );
+    if (unavailableLevels.length)
+      throw new ApiError(
+        'FITNESS_LEVEL_NOT_FOUND',
+        422,
+        `Fitness level value(s) ${unavailableLevels.join(', ')} are unavailable or inactive. Fetch GET /references/fitness-levels for currently available values.`,
+        { fitness_level_codes: unavailableLevels },
+      );
     for (const month of input.months)
       for (const week of month.weeks) {
         const trainingDays = week.days.filter((d) => d.kind === 'TRAINING');
@@ -539,7 +588,13 @@ export class ProgramService {
                 `SELECT er.id FROM exercise_revisions er JOIN exercises e ON e.id=er.exercise_id WHERE er.id=$1 AND NOT e.archived AND ($2::boolean=false OR er.status='PUBLISHED') FOR SHARE OF er,e`,
                 [exercise.exerciseRevisionId, publication],
               );
-              if (!row) throw new ApiError('PROGRAM_EXERCISE_UNAVAILABLE', 422);
+              if (!row)
+                throw new ApiError(
+                  'PROGRAM_EXERCISE_UNAVAILABLE',
+                  422,
+                  `Exercise revision "${exercise.exerciseRevisionId}" is unavailable.`,
+                  { exercise_revision_id: exercise.exerciseRevisionId },
+                );
             }
           for (const slot of day.meals) {
             const [row] = await query(
@@ -547,7 +602,13 @@ export class ProgramService {
               `SELECT mv.id FROM meal_versions mv JOIN meals m ON m.id=mv.meal_id JOIN meal_sections ms ON ms.id=mv.section_id WHERE mv.id=$1 AND NOT m.archived AND NOT ms.archived AND ($2::boolean=false OR (mv.status='PUBLISHED' AND mv.availability_status='AVAILABLE')) FOR SHARE OF mv,m,ms`,
               [slot.mealVersionId, publication],
             );
-            if (!row) throw new ApiError('PROGRAM_MEAL_UNAVAILABLE', 422);
+            if (!row)
+              throw new ApiError(
+                'PROGRAM_MEAL_UNAVAILABLE',
+                422,
+                `Meal version "${slot.mealVersionId}" is unavailable.`,
+                { meal_version_id: slot.mealVersionId },
+              );
           }
         }
       }

@@ -20,17 +20,21 @@ headers {
 
 body:json {
   {
-    "expectedRevision": 0,
     "name": "Motion Athlete",
     "gender": "FEMALE",
     "height_cm": 175,
+    "target_weight_kg": 72,
     "primary_goal": "FAT_LOSS",
     "fitness_level": "BEGINNER",
     "training_days_per_week": ["SUNDAY", "TUESDAY", "THURSDAY"],
     "timezone": "Africa/Cairo",
     "locale": "ar",
     "date_of_birth": "1998-03-14",
-    "weight_kg": 80
+    "weight_kg": 80,
+    "food_preferences": {
+      "allergen_codes": ["MILK"],
+      "disliked_food_ids": []
+    }
   }
 }
 
@@ -41,8 +45,8 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Required: expectedRevision, name, gender, height_cm, weight_kg, primary_goal, fitness_level, training_days_per_week, timezone, locale, date_of_birth. gender: MALE | FEMALE. primary_goal: FAT_LOSS | STRENGTH_HYPERTROPHY. fitness_level enum: BEGINNER | INTERMEDIATE | ADVANCED. training_days_per_week is an array of 2-5 unique weekdays: SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY. Example: ["SUNDAY","TUESDAY"]. Idempotency-Key is required (8-128 ASCII letters/digits/_/-). Age must be strictly over 18.
-  Success example: {"status":"COMPLETED","profile_revision":1,"matching":{"status":"PENDING","reason":"F05_NOT_IMPLEMENTED"}}. Matching remains PENDING until F05. Current weight only; no target weight, measurement date or history.
-  Onboarding fields are not food preferences or medical screening. Save food preferences separately with PUT /me/food-preferences. /health/ready is an operational server/database check, not a personal health check.
+  Required: name, gender, height_cm, weight_kg, target_weight_kg, primary_goal, fitness_level, training_days_per_week, timezone, locale, date_of_birth, food_preferences. target_weight_kg is a positive number and is editable later in PATCH /me. fitness_level must match a code returned by GET /references/onboarding; current seeded codes are BEGINNER, INTERMEDIATE, ADVANCED. food_preferences includes allergen_codes and disliked_food_ids; empty arrays mean no selections. Allergy codes come from GET /references/allergens and disliked food IDs from GET /references/foods. Preferences are saved atomically with onboarding and can later be edited through PUT /me/food-preferences. Idempotency-Key is required (8-128 ASCII letters/digits/_/-). Age must be strictly over 18.
+  Success example: {"status":"COMPLETED","matching":{"status":"PENDING","reason":"F05_NOT_IMPLEMENTED"}}. Matching remains PENDING until F05. Current and target weights are stored on the profile without measurement dates or history.
+  /health/ready is an operational server/database check, not a personal health check.
   Never commit populated credentials or runtime tokens.
 }

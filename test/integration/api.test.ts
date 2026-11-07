@@ -199,16 +199,58 @@ describe('foundation against PostgreSQL', () => {
   });
   it('runs reversible migrations and transactional, idempotent lookup seeds', async () => {
     await seedLookups(db);
-    const before = await db.query('SELECT * FROM body_areas ORDER BY code');
-    await seedLookups(db);
-    expect(await db.query('SELECT * FROM body_areas ORDER BY code')).toEqual(
-      before,
+    const before = await db.query(
+      'SELECT * FROM body_areas_injuries ORDER BY code',
     );
+    await seedLookups(db);
+    expect(
+      await db.query('SELECT * FROM body_areas_injuries ORDER BY code'),
+    ).toEqual(before);
     await seedContent(db);
     await seedContent(db);
     expect((await db.query('SELECT count(*)::int AS n FROM users'))[0].n).toBe(
       0,
     );
+  });
+  it('serves seeded onboarding, allergen, and injury-area lookups via GET', async () => {
+    const account = await register();
+    const headers = bearer(account.accessToken);
+    const onboarding = await api
+      .get(prefix + '/references/onboarding')
+      .set(headers);
+    expect(onboarding.status, onboarding.text).toBe(200);
+    expect(
+      onboarding.body.primary_goals.map((item: { code: string }) => item.code),
+    ).toEqual(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']);
+    expect(
+      onboarding.body.fitness_levels.map((item: { code: string }) => item.code),
+    ).toEqual(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+    expect(onboarding.body.genders).toEqual(['FEMALE', 'MALE']);
+
+    const allergens = await api
+      .get(prefix + '/references/allergens')
+      .set(headers);
+    expect(allergens.status, allergens.text).toBe(200);
+    expect(
+      allergens.body.items.map((item: { code: string }) => item.code),
+    ).toContain('MILK');
+
+    const areas = await api.get(prefix + '/references/body-areas').set(headers);
+    expect(areas.status, areas.text).toBe(200);
+    expect(
+      areas.body.items.map((item: { code: string }) => item.code),
+    ).toContain('KNEE');
+    expect(
+      (await db.query("SELECT to_regclass('public.body_areas') AS old_name"))[0]
+        .old_name,
+    ).toBeNull();
+    expect(
+      (
+        await db.query(
+          "SELECT to_regclass('public.body_areas_injuries') AS new_name",
+        )
+      )[0].new_name,
+    ).toBe('body_areas_injuries');
   });
   it('serves readiness and safe errors with unique server request IDs', async () => {
     const r = await api.get(prefix + '/health/ready');
@@ -770,7 +812,7 @@ describe('external adapter boundaries with fixture transports', () => {
         await api
           .patch(prefix + '/me')
           .set(bearer(other.accessToken))
-          .send({ expectedRevision: 0, avatar_media_id: id })
+          .send({ avatar_media_id: id })
       ).body.code,
     ).toBe('INVALID_AVATAR');
   });
@@ -839,7 +881,7 @@ describe('profiles, onboarding and injuries', () => {
     const r = await api
       .patch(prefix + '/me')
       .set(bearer(user.accessToken))
-      .send({ expectedRevision: 0, date_of_birth: '2020-01-01' });
+      .send({ date_of_birth: '2020-01-01' });
     expect(r.status).toBe(422);
     expect(r.body.code).toBe('AGE_NOT_ELIGIBLE');
     expect(
@@ -859,8 +901,12 @@ describe('profiles, onboarding and injuries', () => {
       timezone: 'Africa/Cairo',
       locale: 'ar',
       date_of_birth: '1998-03-14',
-      expectedRevision: 0,
       weight_kg: 80,
+      target_weight_kg: 72,
+      food_preferences: {
+        allergen_codes: [],
+        disliked_food_ids: [],
+      },
     };
     const first = await api
       .put(prefix + '/me/onboarding')
@@ -869,6 +915,7 @@ describe('profiles, onboarding and injuries', () => {
       .send(input);
     expect(first.status, first.text).toBe(200);
     expect(first.body.matching.status).toBe('PENDING');
+    expect(first.body).not.toHaveProperty('profile_revision');
     expect(
       (
         await api
@@ -886,29 +933,56 @@ describe('profiles, onboarding and injuries', () => {
     expect(saved.gender).toBe('FEMALE');
     expect(saved.profile_revision).toBe(1);
   });
-  it('atomically rejects concurrent profile revisions and unauthorized fields', async () => {
+  it('rejects profile lookup codes that are not seeded', async () => {
+    const user = await register();
+    const input = {
+      name: 'Athlete',
+      gender: 'FEMALE',
+      height_cm: 175,
+      weight_kg: 80,
+      target_weight_kg: 72,
+      primary_goal: 'UNREGISTERED_GOAL',
+      fitness_level: 'BEGINNER',
+      training_days_per_week: ['SUNDAY', 'TUESDAY'],
+      timezone: 'Africa/Cairo',
+      locale: 'ar',
+      date_of_birth: '1998-03-14',
+      food_preferences: {
+        allergen_codes: [],
+        disliked_food_ids: [],
+      },
+    };
+    const response = await api
+      .put(prefix + '/me/onboarding')
+      .set(bearer(user.accessToken))
+      .set('idempotency-key', 'invalid-goal-test')
+      .send(input);
+    expect(response.status, response.text).toBe(422);
+    expect(response.body.code).toBe('PRIMARY_GOAL_NOT_FOUND');
+  });
+  it('allows last successful profile write and rejects unauthorized fields', async () => {
     const r = await register();
     expect(
       (
         await api
           .patch(prefix + '/me')
           .set(bearer(r.accessToken))
-          .send({ expectedRevision: 0, role: 'ADMIN' })
+          .send({ role: 'ADMIN' })
       ).status,
     ).toBe(400);
     const responses = await Promise.all([
       api
         .patch(prefix + '/me')
         .set(bearer(r.accessToken))
-        .send({ expectedRevision: 0, name: 'First' }),
+        .send({ name: 'First' }),
       api
         .patch(prefix + '/me')
         .set(bearer(r.accessToken))
-        .send({ expectedRevision: 0, name: 'Second' }),
+        .send({ name: 'Second' }),
     ]);
-    expect(responses.map((x) => x.status).sort()).toEqual([200, 409]);
+    expect(responses.map((x) => x.status).sort()).toEqual([200, 200]);
   });
-  it('replaces current weight without dates/history and rejects stale or legacy writes', async () => {
+  it('replaces current weight without dates/history and rejects legacy fields', async () => {
     const user = await register();
     const headers = bearer(user.accessToken);
     expect(
@@ -916,7 +990,7 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .patch(prefix + '/me')
           .set(headers)
-          .send({ expectedRevision: 0, weight_kg: 80 })
+          .send({ weight_kg: 80 })
       ).status,
     ).toBe(200);
     expect(
@@ -924,15 +998,15 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .patch(prefix + '/me')
           .set(headers)
-          .send({ expectedRevision: 0, weight_kg: 81 })
+          .send({ weight_kg: 81 })
       ).status,
-    ).toBe(409);
+    ).toBe(200);
     expect(
       (
         await api
           .patch(prefix + '/me')
           .set(headers)
-          .send({ expectedRevision: 1, weight_kg: 82 })
+          .send({ weight_kg: 82 })
       ).status,
     ).toBe(200);
     for (const extra of [
@@ -945,7 +1019,7 @@ describe('profiles, onboarding and injuries', () => {
           await api
             .patch(prefix + '/me')
             .set(headers)
-            .send({ expectedRevision: 2, weight_kg: 83, ...extra })
+            .send({ weight_kg: 83, ...extra })
         ).status,
       ).toBe(400);
     const me = await api.get(prefix + '/me').set(headers);
@@ -969,7 +1043,7 @@ describe('profiles, onboarding and injuries', () => {
     expect(refs.body).not.toHaveProperty('measurement_max_age_days');
     expect(refs.body.genders).toEqual(['FEMALE', 'MALE']);
   });
-  it('requires explicit confirmation; prevents cross-user edits and stale concurrent injury updates', async () => {
+  it('requires explicit confirmation; prevents cross-user edits and allows last successful injury update', async () => {
     const r = await register();
     const other = await register('other@example.test');
     const input = {
@@ -999,7 +1073,7 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .patch(prefix + '/me/injuries/' + id)
           .set(bearer(other.accessToken))
-          .send({ ...input, expectedVersion: 1 })
+          .send({ ...input })
       ).status,
     ).toBe(404);
     const responses = await Promise.all([
@@ -1009,7 +1083,6 @@ describe('profiles, onboarding and injuries', () => {
         .send({
           ...input,
           description: 'Edited final description A',
-          expectedVersion: 1,
         }),
       api
         .patch(prefix + '/me/injuries/' + id)
@@ -1017,21 +1090,20 @@ describe('profiles, onboarding and injuries', () => {
         .send({
           ...input,
           description: 'Edited final description B',
-          expectedVersion: 1,
         }),
     ]);
-    expect(responses.map((x) => x.status).sort()).toEqual([200, 409]);
+    expect(responses.map((x) => x.status).sort()).toEqual([200, 200]);
     expect(
       (
         await api
           .delete(prefix + '/me/injuries/' + id)
           .set(bearer(r.accessToken))
-          .send({ expectedVersion: 2, confirmed: true })
+          .send({ confirmed: true })
       ).status,
     ).toBe(200);
     const me = await api.get(prefix + '/me').set(bearer(r.accessToken));
     expect(me.body.injuries).toEqual([]);
-    expect(me.body.injury_revision).toBe(3);
+    expect(me.body.injury_revision).toBe(4);
   });
   it('preview failure saves nothing; successful preview stores metadata only and echoes form version', async () => {
     const r = await register();
@@ -1095,14 +1167,17 @@ describe('profiles, onboarding and injuries', () => {
       (await db.query('SELECT count(*)::int AS n FROM user_injuries'))[0].n,
     ).toBe(0);
   });
-  it('preferences validate references, roll back errors and maintain an independent revision', async () => {
+  it('preferences validate references, reject removed exclusions and maintain an independent revision', async () => {
     const r = await register();
     const input = {
-      expectedRevision: 0,
       allergen_codes: ['MILK'],
       disliked_food_ids: [],
-      excluded_food_ids: [],
     };
+    const obsoleteField = await api
+      .put(prefix + '/me/food-preferences')
+      .set(bearer(r.accessToken))
+      .send({ ...input, excluded_food_ids: [] });
+    expect(obsoleteField.status).toBe(400);
     expect(
       (
         await api
@@ -1117,19 +1192,18 @@ describe('profiles, onboarding and injuries', () => {
       .send(input);
     expect(saved.status, saved.text).toBe(200);
     expect(saved.body.revision).toBe(1);
-    expect(
-      (
-        await api
-          .put(prefix + '/me/food-preferences')
-          .set(bearer(r.accessToken))
-          .send(input)
-      ).status,
-    ).toBe(409);
+    const replaced = await api
+      .put(prefix + '/me/food-preferences')
+      .set(bearer(r.accessToken))
+      .send(input);
+    expect(replaced.status, replaced.text).toBe(200);
+    expect(replaced.body.revision).toBe(2);
     const me = await api.get(prefix + '/me').set(bearer(r.accessToken));
     expect(me.body.injury_revision).toBe(0);
     expect(me.body.food_preferences.allergen_codes).toEqual(['MILK']);
+    expect(me.body.food_preferences).not.toHaveProperty('excluded_food_ids');
   });
-  it('settings are versioned and media fails honestly when storage is unavailable', async () => {
+  it('settings are updated and media fails honestly when storage is unavailable', async () => {
     const r = await register();
     expect(
       (
@@ -1137,7 +1211,6 @@ describe('profiles, onboarding and injuries', () => {
           .patch(prefix + '/me/settings')
           .set(bearer(r.accessToken))
           .send({
-            expectedVersion: 0,
             theme: 'DARK',
             quiet_hours: { start: '22:00', end: '07:00' },
           })
@@ -1148,9 +1221,9 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .patch(prefix + '/me/settings')
           .set(bearer(r.accessToken))
-          .send({ expectedVersion: 0, reminders: true })
+          .send({ reminders: true })
       ).status,
-    ).toBe(409);
+    ).toBe(200);
     const upload = await api
       .post(prefix + '/media/upload-intents')
       .set(bearer(r.accessToken))
@@ -1160,7 +1233,7 @@ describe('profiles, onboarding and injuries', () => {
 });
 
 describe('F03 content library', () => {
-  it('denies athletes and preserves published revisions with optimistic concurrency', async () => {
+  it('denies athletes and preserves published revisions while accepting simplified edits', async () => {
     const account = await register();
     const headers = bearer(account.accessToken);
     expect(
@@ -1169,9 +1242,7 @@ describe('F03 content library', () => {
     const [user] = await db.query(
       `SELECT id FROM users WHERE email_normalized='athlete@example.test'`,
     );
-    await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-      user.id,
-    ]);
+    await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.id]);
     const content = {
       title: 'Fixture exercise',
       description: 'Synthetic test only',
@@ -1194,34 +1265,33 @@ describe('F03 content library', () => {
     const published = await api
       .post(prefix + `/admin/exercises/${id}/publish`)
       .set(headers)
-      .send({ expectedRevision: 1 });
+      .send({});
     expect(published.status, published.text).toBe(201);
     expect(
       (
         await api
           .patch(prefix + `/admin/exercises/${id}`)
           .set(headers)
-          .send({ expectedRevision: 1, content })
+          .send({ content })
       ).status,
-    ).toBe(409);
+    ).toBe(200);
     const changed = await api
       .patch(prefix + `/admin/exercises/${id}`)
       .set(headers)
       .send({
-        expectedRevision: 2,
         content: { ...content, title: 'New fixture' },
       });
     expect(changed.status, changed.text).toBe(200);
     const read = await api.get(prefix + `/admin/exercises/${id}`).set(headers);
     expect(read.body.versions).toHaveLength(2);
-    expect(read.body.versions[1].content.title).toBe('Fixture exercise');
+    expect(read.body.versions[0].content.title).toBe('New fixture');
     await expect(
       db.query(`UPDATE exercise_revisions SET content='{}' WHERE id=$1`, [
         created.body.id,
       ]),
     ).rejects.toThrow('Published content is immutable');
     await db.query(
-      `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+      `DELETE FROM user_roles WHERE user_id=$1 AND role_code='ADMIN'`,
       [user.id],
     );
     expect(
@@ -1257,6 +1327,18 @@ describe('F03 content library', () => {
       .set(headers)
       .send({ slug: 'fixture-ingredient', content: ingredient });
     expect(added.status, added.text).toBe(201);
+    const ingredientList = await api
+      .get(prefix + '/admin/ingredients')
+      .set(headers);
+    expect(ingredientList.status, ingredientList.text).toBe(200);
+    expect(ingredientList.body.map((row: { id: string }) => row.id)).toContain(
+      added.body.id,
+    );
+    const ingredientDetails = await api
+      .get(prefix + `/admin/ingredients/${added.body.id}`)
+      .set(headers);
+    expect(ingredientDetails.status, ingredientDetails.text).toBe(200);
+    expect(ingredientDetails.body.id).toBe(added.body.id);
     const content = {
       title: 'Fixture food',
       preparation: 'Test only',
@@ -1286,7 +1368,7 @@ describe('F03 content library', () => {
         await api
           .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
           .set(headers)
-          .send({ expectedRevision: 1 })
+          .send({})
       ).status,
     ).toBe(201);
   });
@@ -1391,9 +1473,7 @@ it('seeds the USDA food and meal catalog as idempotent drafts', async () => {
 it('creates and publishes an admin food section and a meal from published foods', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const ingredient = await api
     .post(prefix + '/admin/ingredients')
     .set(headers)
@@ -1401,6 +1481,7 @@ it('creates and publishes an admin food section and a meal from published foods'
       slug: 'f08-fixture-ingredient',
       content: {
         title: 'F08 fixture ingredient',
+        description: 'Ingredient details',
         dietaryTags: [],
         allergenCodes: [],
         verificationStatus: 'UNKNOWN',
@@ -1408,6 +1489,7 @@ it('creates and publishes an admin food section and a meal from published foods'
     });
   const foodContent = (title: string) => ({
     title,
+    description: 'Food display details',
     preparation: 'Fixture preparation',
     preparationState: 'COOKED',
     prepMinutes: 0,
@@ -1442,13 +1524,22 @@ it('creates and publishes an admin food section and a meal from published foods'
         await api
           .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
           .set(headers)
-          .send({ expectedRevision: 1 })
+          .send({})
       ).status,
     ).toBe(201);
   expect(
     (await api.get(prefix + '/references/foods').set(headers)).body
       .contentStatus,
   ).toBe('READY');
+  const display = await api
+    .get(prefix + '/references/foods?search=display%20details')
+    .set(headers);
+  expect(display.status).toBe(200);
+  expect(display.body.items).toHaveLength(2);
+  expect(display.body.items[0]).toMatchObject({
+    kind: 'FOOD',
+    description: 'Food display details',
+  });
   const section = await api
     .post(prefix + '/admin/food-sections')
     .set(headers)
@@ -1466,7 +1557,6 @@ it('creates and publishes an admin food section and a meal from published foods'
     .patch(prefix + `/admin/food-sections/${section.body.id}`)
     .set(headers)
     .send({
-      expectedRevision: 1,
       title: 'Edited F08 fixture alternatives',
       members: [foodA, foodB].map((food) => ({
         foodVersionId: food.body.id,
@@ -1478,7 +1568,7 @@ it('creates and publishes an admin food section and a meal from published foods'
   const publishedSection = await api
     .post(prefix + `/admin/food-sections/${section.body.id}/publish`)
     .set(headers)
-    .send({ expectedRevision: 2 });
+    .send({});
   expect(publishedSection.status, publishedSection.text).toBe(201);
   const members = await api
     .get(prefix + `/admin/food-sections/${section.body.id}`)
@@ -1507,7 +1597,6 @@ it('creates and publishes an admin food section and a meal from published foods'
     .patch(prefix + `/admin/meals/${meal.body.id}`)
     .set(headers)
     .send({
-      expectedRevision: 1,
       sectionId: mealSection.body.id,
       title: 'Edited fixture meal',
       items: [
@@ -1524,7 +1613,7 @@ it('creates and publishes an admin food section and a meal from published foods'
       await api
         .post(prefix + `/admin/meals/${meal.body.id}/publish`)
         .set(headers)
-        .send({ expectedRevision: 2 })
+        .send({})
     ).status,
   ).toBe(201);
   expect(
@@ -1536,9 +1625,7 @@ it('creates and publishes an admin food section and a meal from published foods'
 it('saves an atomic paired program draft, publishes it, and versions later edits', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const exercise = await api
     .post(prefix + '/admin/exercises')
     .set(headers)
@@ -1564,7 +1651,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
       await api
         .post(prefix + `/admin/exercises/${exercise.body.exercise_id}/publish`)
         .set(headers)
-        .send({ expectedRevision: 1 })
+        .send({})
     ).status,
   ).toBe(201);
   const ingredient = await api
@@ -1581,6 +1668,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
     });
   const foodContent = (title: string) => ({
     title,
+    description: 'Food display details',
     preparation: 'Fixture preparation',
     preparationState: 'COOKED',
     prepMinutes: 0,
@@ -1614,7 +1702,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
         await api
           .post(prefix + `/admin/foods/${food.body.food_id}/publish`)
           .set(headers)
-          .send({ expectedRevision: 1 })
+          .send({})
       ).status,
     ).toBe(201);
   const section = await api
@@ -1635,7 +1723,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
       await api
         .post(prefix + `/admin/food-sections/${section.body.id}/publish`)
         .set(headers)
-        .send({ expectedRevision: 1 })
+        .send({})
     ).status,
   ).toBe(201);
   const sectionDetail = await api
@@ -1666,7 +1754,7 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
       await api
         .post(prefix + `/admin/meals/${meal.body.id}/publish`)
         .set(headers)
-        .send({ expectedRevision: 1 })
+        .send({})
     ).status,
   ).toBe(201);
   const publishedMeal = await api
@@ -1737,7 +1825,6 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
     .set(headers)
     .set('Idempotency-Key', 'f04-hint-create-001')
     .send({
-      expectedVersion: 1,
       originalText: 'Test-only guidance for the fixture program.',
       structuredHints: { suitabilityNotes: ['Test only'] },
     });
@@ -1749,13 +1836,13 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
     )
     .set(headers)
     .set('Idempotency-Key', 'f04-hint-approve-01')
-    .send({ expectedVersion: 2 });
+    .send({});
   expect(approvedHint.status, approvedHint.text).toBe(201);
   const published = await api
     .post(prefix + `/admin/programs/${created.body.id}/publish`)
     .set(headers)
     .set('Idempotency-Key', 'f04-publish-key-001')
-    .send({ expectedVersion: 3 });
+    .send({});
   expect(published.status, published.text).toBe(201);
   expect(published.body.status).toBe('PUBLISHED');
   const [pair] = await db.query(
@@ -1775,7 +1862,6 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
       ...Object.fromEntries(
         Object.entries(aggregate).filter(([key]) => key !== 'slug'),
       ),
-      expectedVersion: 4,
       title: 'Edited F04 fixture',
     });
   expect(nextDraft.status, nextDraft.text).toBe(200);
@@ -1871,12 +1957,10 @@ it('does not send captured messages when switching to SMTP', async () => {
   expect(sendMail).not.toHaveBeenCalled();
 });
 
-it('keeps food drafts private and serializes competing editorial writes', async () => {
+it('keeps food drafts private and accepts serialized editorial writes', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const ing = await api
     .post(prefix + '/admin/ingredients')
     .set(headers)
@@ -1923,18 +2007,17 @@ it('keeps food drafts private and serializes competing editorial writes', async 
         .patch(prefix + '/admin/foods/' + made.body.food_id)
         .set(headers)
         .send({
-          expectedRevision: 1,
           content: { ...content, title: 'Published fixture' },
         }),
     ),
   );
-  expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+  expect(edits.map((r) => r.status).sort()).toEqual([200, 200]);
   expect(
     (
       await api
         .post(prefix + '/admin/foods/' + made.body.food_id + '/publish')
         .set(headers)
-        .send({ expectedRevision: 2 })
+        .send({})
     ).status,
   ).toBe(201);
   expect(
@@ -1954,7 +2037,7 @@ it('keeps food drafts private and serializes competing editorial writes', async 
       await api
         .delete(prefix + '/admin/foods/' + made.body.food_id)
         .set(headers)
-        .send({ expectedRevision: 3 })
+        .send({})
     ).status,
   ).toBe(200);
   expect(
@@ -1967,16 +2050,14 @@ it('keeps food drafts private and serializes competing editorial writes', async 
       await api
         .patch(prefix + '/admin/foods/' + made.body.food_id)
         .set(headers)
-        .send({ expectedRevision: 3, content })
+        .send({ content })
     ).body.code,
   ).toBe('CONTENT_ARCHIVED');
 });
 it('finalizes shared video atomically, protects referenced media and blocks athlete access', async () => {
   const user = await register();
   const headers = bearer(user.accessToken);
-  await db.query(`INSERT INTO user_roles VALUES($1,'CONTENT_EDITOR')`, [
-    user.user.id,
-  ]);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
   const id = crypto.randomUUID();
   await db.query(
     `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status,library_asset) VALUES($1,$2,$3,$3,'video/mp4',16,'PENDING',true)`,
@@ -2063,7 +2144,7 @@ it('finalizes shared video atomically, protects referenced media and blocks athl
       await api
         .patch(prefix + '/admin/exercises/' + exercise.body.exercise_id)
         .set(headers)
-        .send({ expectedRevision: 1, content: { ...content, mediaId: null } })
+        .send({ content: { ...content, mediaId: null } })
     ).status,
   ).toBe(200);
   expect(
@@ -2086,7 +2167,7 @@ it('finalizes shared video atomically, protects referenced media and blocks athl
     ).status,
   ).toBe(404);
   await db.query(
-    `DELETE FROM user_roles WHERE user_id=$1 AND role_code='CONTENT_EDITOR'`,
+    `DELETE FROM user_roles WHERE user_id=$1 AND role_code='ADMIN'`,
     [user.user.id],
   );
   expect((await api.get(prefix + '/admin/media').set(headers)).status).toBe(

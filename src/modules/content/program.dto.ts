@@ -3,8 +3,16 @@ import { uuid } from '../../common/http';
 import { slug } from './content.dto';
 
 const text = z.string().trim().min(1).max(4000);
-const level = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
-const goal = z.enum(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']);
+const level = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9_]{1,49}$/);
+const goal = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9_]{1,49}$/);
 const tags = z.array(z.string().trim().min(1).max(100)).max(50);
 
 const prescription = z.discriminatedUnion('mode', [
@@ -70,9 +78,9 @@ const programFields = z
     slug,
     title: text.max(160),
     primaryGoal: goal,
-    supportedGoals: z.array(goal).max(2),
+    supportedGoals: z.array(goal).max(50),
     idealLevel: level,
-    supportedLevels: z.array(level).min(1).max(3),
+    supportedLevels: z.array(level).min(1).max(50),
     trainingDaysPerWeek: z.union([
       z.literal(2),
       z.literal(3),
@@ -126,14 +134,7 @@ function programChecks<T extends z.ZodObject>(schema: T) {
 }
 
 export const programAggregate = programChecks(programFields);
-export const aggregateEdit = programChecks(
-  programFields.omit({ slug: true }).extend({
-    expectedVersion: z.number().int().positive(),
-  }),
-);
-export const expectedVersion = z
-  .object({ expectedVersion: z.number().int().positive() })
-  .strict();
+export const aggregateEdit = programChecks(programFields.omit({ slug: true }));
 export const programList = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -143,11 +144,8 @@ export const programList = z
   .strict();
 export const hintDraft = z
   .object({
-    expectedVersion: z.number().int().positive(),
     originalText: text,
     structuredHints: z.record(z.string(), z.unknown()),
   })
   .strict();
-export const hintApproval = expectedVersion;
-
 export type ProgramAggregate = z.infer<typeof programAggregate>;

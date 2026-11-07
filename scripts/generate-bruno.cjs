@@ -43,13 +43,8 @@ const variables = {
   mealId: '',
   mealVersionId: '',
   programId: '',
-  programRevision: '1',
   programHintId: '',
   exerciseRevisionId: '',
-  profileRevision: '0',
-  preferenceRevision: '0',
-  injuryVersion: '1',
-  settingsVersion: '0',
   idempotencyKey: '',
   uploadUrl: '',
 };
@@ -304,11 +299,8 @@ add('Link Apple identity', 'POST', '/auth/identities/apple/link', {
   challengeId: '{{linkChallengeId}}',
   reauthenticationToken: '{{reauthenticationToken}}',
 });
-add('Get me', 'GET', '/me', undefined, {
-  post: '  const b=res.getBody(); if(b.profile) bru.setVar("profileRevision",String(b.profile.profile_revision));',
-});
+add('Get me', 'GET', '/me', undefined, {});
 add('Patch profile', 'PATCH', '/me', {
-  expectedRevision: 0,
   name: 'Motion Athlete',
   height_cm: 175,
   primary_goal: 'STRENGTH_HYPERTROPHY',
@@ -323,7 +315,6 @@ add(
   'PUT',
   '/me/onboarding',
   {
-    expectedRevision: 0,
     name: 'Motion Athlete',
     gender: 'FEMALE',
     height_cm: 175,
@@ -334,25 +325,27 @@ add(
     locale: 'ar',
     date_of_birth: '1998-03-14',
     weight_kg: 80,
+    target_weight_kg: 72,
+    food_preferences: {
+      allergen_codes: ['MILK'],
+      disliked_food_ids: [],
+    },
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires gender, age strictly greater than 18 and 2-5 unique fixed weekdays. Current weight only; no measurement date or history. Use current profile revision. Matching remains PENDING until F05.',
+    docs: 'Requires gender, age strictly greater than 18, 2-5 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
 add('Patch settings', 'PATCH', '/me/settings', {
-  expectedVersion: 0,
   reminders: true,
   theme: 'SYSTEM',
   quiet_hours: { start: '22:00', end: '07:00' },
 });
 add('Get food preferences', 'GET', '/me/food-preferences');
 add('Replace food preferences', 'PUT', '/me/food-preferences', {
-  expectedRevision: 0,
   allergen_codes: ['MILK'],
   disliked_food_ids: [],
-  excluded_food_ids: [],
 });
 add('List injuries', 'GET', '/me/injuries?limit=30&offset=0');
 add(
@@ -391,11 +384,9 @@ add('Edit injury', 'PATCH', '/me/injuries/{{injuryId}}', {
   side: 'LEFT',
   description: 'Edited final user-confirmed description',
   confirmed: true,
-  expectedVersion: 1,
 });
 add('Remove injury', 'DELETE', '/me/injuries/{{injuryId}}', {
   confirmed: true,
-  expectedVersion: 2,
 });
 for (const route of ['body-areas', 'allergens', 'foods', 'onboarding'])
   add('Reference ' + route, 'GET', '/references/' + route);
@@ -447,7 +438,6 @@ smoke('Register ephemeral athlete', 'POST', '/auth/register', local, {
 smoke('Login', 'POST', '/auth/login', local, { auth: false, post: saveTokens });
 smoke('Aggregate profile', 'GET', '/me');
 smoke('Patch profile', 'PATCH', '/me', {
-  expectedRevision: 0,
   name: 'Bruno Athlete',
   height_cm: 175,
   primary_goal: 'FAT_LOSS',
@@ -457,7 +447,6 @@ smoke('Patch profile', 'PATCH', '/me', {
   locale: 'en',
 });
 smoke('Update current weight', 'PATCH', '/me', {
-  expectedRevision: 1,
   weight_kg: 80,
 });
 smoke('Read current weight', 'GET', '/me', undefined, {
@@ -482,37 +471,31 @@ smoke(
   },
 );
 smoke(
-  'Reject stale injury edit',
+  'Update injury without a version field',
   'PATCH',
   '/me/injuries/{{injuryId}}',
   {
     body_area_code: 'KNEE',
     side: 'LEFT',
-    description: 'Stale change',
+    description: 'Last successful change',
     confirmed: true,
-    expectedVersion: 9,
   },
-  { status: 409 },
+  { status: 200 },
 );
 smoke('Edit confirmed injury', 'PATCH', '/me/injuries/{{injuryId}}', {
   body_area_code: 'KNEE',
   side: 'LEFT',
   description: 'Edited final confirmed fixture text',
   confirmed: true,
-  expectedVersion: 1,
 });
 smoke('Remove injury', 'DELETE', '/me/injuries/{{injuryId}}', {
   confirmed: true,
-  expectedVersion: 2,
 });
 smoke('Update preferences', 'PUT', '/me/food-preferences', {
-  expectedRevision: 0,
   allergen_codes: ['MILK'],
   disliked_food_ids: [],
-  excluded_food_ids: [],
 });
 smoke('Settings', 'PATCH', '/me/settings', {
-  expectedVersion: 0,
   theme: 'DARK',
 });
 smoke('Matching honest status', 'GET', '/me/matching/status', undefined, {
@@ -541,7 +524,7 @@ process.stdout.write(
   `Generated ${n} reference requests and ${s} PostgreSQL smoke requests\n`,
 );
 
-// F03 administration: these requests require a current ADMIN or CONTENT_EDITOR role.
+// F03 administration: these requests require a current ADMIN role.
 const contentFixture = {
   title: 'Draft exercise',
   description: 'Replace with sourced editorial content',
@@ -569,7 +552,6 @@ for (const kind of ['exercises', 'foods', 'ingredients']) {
       { status: 201 },
     );
     write(folder, '04-edit', 'PATCH', '/admin/exercises/{{contentId}}', {
-      expectedRevision: 1,
       content: contentFixture,
     });
   }
@@ -579,12 +561,16 @@ for (const kind of ['exercises', 'foods', 'ingredients']) {
       '05-publish',
       'POST',
       '/admin/' + kind + '/{{contentId}}/publish',
-      { expectedRevision: 1 },
+      {},
       { status: 201 },
     );
-  write(folder, '06-archive', 'DELETE', '/admin/' + kind + '/{{contentId}}', {
-    expectedRevision: 1,
-  });
+  write(
+    folder,
+    '06-archive',
+    'DELETE',
+    '/admin/' + kind + '/{{contentId}}',
+    {},
+  );
 }
 write(
   'reference/Admin Media',
@@ -606,12 +592,14 @@ write('reference/Admin Media', '03-get', 'GET', '/admin/media/{{mediaId}}');
 
 const ingredientFixture = {
   title: 'Draft ingredient',
+  description: 'Optional ingredient details',
   dietaryTags: [],
   allergenCodes: [],
   verificationStatus: 'UNKNOWN',
 };
 const foodFixture = {
   title: 'Draft food',
+  description: 'Optional food details',
   preparation: 'Required preparation description',
   preparationState: 'RAW',
   prepMinutes: 0,
@@ -645,7 +633,7 @@ for (const [kind, content] of [
     '04-edit',
     'PATCH',
     '/admin/' + kind + '/{{contentId}}',
-    { expectedRevision: 1, content },
+    { content },
   );
 }
 write(
@@ -718,7 +706,6 @@ write(
   {
     title: foodSectionFixture.title,
     members: foodSectionFixture.members,
-    expectedRevision: 1,
   },
 );
 write(
@@ -726,7 +713,7 @@ write(
   '05-food-section-publish',
   'POST',
   '/admin/food-sections/{{foodSectionId}}/publish',
-  { expectedRevision: 2 },
+  {},
   { status: 201 },
 );
 write(
@@ -790,7 +777,6 @@ write(
   {
     sectionId: '{{mealSectionId}}',
     title: 'Edited draft meal',
-    expectedRevision: 1,
     items: [{ memberId: '{{foodMemberId}}', exchangeUnits: 1, position: 0 }],
   },
 );
@@ -799,7 +785,7 @@ write(
   '15-meal-publish',
   'POST',
   '/admin/meals/{{mealId}}/publish',
-  { expectedRevision: 2 },
+  {},
   { status: 201 },
 );
 write(
@@ -807,7 +793,7 @@ write(
   '16-meal-archive',
   'DELETE',
   '/admin/meals/{{mealId}}',
-  { expectedRevision: 3 },
+  {},
 );
 
 // F04 combined admin program and nutrition schedule builder.
@@ -868,7 +854,7 @@ write(
   {
     status: 201,
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);',
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id);',
     docs: 'The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.',
   },
 );
@@ -885,10 +871,10 @@ write(
   '04-program-edit-draft',
   'PATCH',
   '/admin/programs/{{programId}}',
-  { ...programEdit, expectedVersion: 1 },
+  programEdit,
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'This sample expects a draft at revision 1. Use the current numeric revision returned by GET when editing. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
+    docs: 'Edit requests do not need a client revision; the latest successful write is retained. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
   },
 );
 write(
@@ -896,11 +882,11 @@ write(
   '05-program-publish',
   'POST',
   '/admin/programs/{{programId}}/publish',
-  { expectedVersion: 1 },
+  {},
   {
     status: 201,
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'This sample expects an untouched draft at revision 1. Use the current numeric revision returned by GET. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.',
+    docs: 'This sample expects an untouched draft. Publication validates and publishes the workout program and its paired nutrition schedule in one transaction.',
   },
 );
 write(
@@ -909,7 +895,6 @@ write(
   'POST',
   '/admin/programs/{{programId}}/hints',
   {
-    expectedVersion: 1,
     originalText: 'Replace with reviewed program guidance.',
     structuredHints: { suitabilityNotes: ['Replace with reviewed notes.'] },
   },
@@ -924,7 +909,7 @@ write(
   '07-program-hint-approve',
   'POST',
   '/admin/programs/{{programId}}/hints/{{programHintId}}/approve',
-  { expectedVersion: 2 },
+  {},
   { status: 201, headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
 );
 write(
@@ -932,7 +917,7 @@ write(
   '08-program-archive',
   'DELETE',
   '/admin/programs/{{programId}}',
-  { expectedVersion: 1 },
+  {},
   { headers: { 'Idempotency-Key': '{{idempotencyKey}}' } },
 );
 write(
@@ -947,5 +932,5 @@ write(
   '18-food-section-archive',
   'DELETE',
   '/admin/food-sections/{{foodSectionId}}',
-  { expectedRevision: 3 },
+  {},
 );

@@ -1,0 +1,19 @@
+meta {
+  name: Reference meal sections
+  type: http
+  seq: 43
+}
+
+get {
+  url: {{baseUrl}}/references/meal-sections
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Lists active sections that contain at least one published, available meal.
+}

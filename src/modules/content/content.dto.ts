@@ -6,9 +6,6 @@ export const slug = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   .max(120);
-export const expected = z
-  .object({ expectedRevision: z.number().int().positive() })
-  .strict();
 const source = z
   .object({ title: text, reference: text, licenseNotes: text })
   .strict();
@@ -27,6 +24,7 @@ const nutrient = z.number().min(0).max(10000).nullable();
 export const food = z
   .object({
     title: text,
+    description: text.optional(),
     preparation: text,
     preparationState: z.enum(['RAW', 'COOKED', 'READY_TO_EAT']),
     prepMinutes: z.number().int().min(0).max(10080),
@@ -59,8 +57,17 @@ export const food = z
 export const ingredient = z
   .object({
     title: text,
+    description: text.optional(),
     dietaryTags: tags,
-    allergenCodes: tags,
+    allergenCodes: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z][A-Z0-9_]{1,49}$/),
+      )
+      .max(100),
     verificationStatus: z.enum(['UNKNOWN', 'VERIFIED']),
   })
   .strict();
@@ -118,12 +125,32 @@ export const meal = mealFields.refine(
 );
 export const foodSectionUpdate = foodSectionFields
   .omit({ slug: true })
-  .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueFoodVersions, 'Duplicate food version');
 export const mealUpdate = mealFields
   .omit({ slug: true })
-  .extend({ expectedRevision: z.number().int().positive() })
   .refine(uniqueMealPositions, 'Duplicate meal item position');
+export const mealItem = z
+  .object({
+    memberId: uuid,
+    exchangeUnits: z.number().positive().max(10000),
+    position: z.number().int().min(0).max(1000),
+  })
+  .strict();
+export const mealItemUpdate = z
+  .object({
+    memberId: uuid.optional(),
+    exchangeUnits: z.number().positive().max(10000).optional(),
+    position: z.number().int().min(0).max(1000).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.memberId !== undefined ||
+      value.exchangeUnits !== undefined ||
+      value.position !== undefined,
+    'At least one meal item field must be supplied',
+  );
+export const mealItemPosition = z.coerce.number().int().min(0).max(1000);
 export const page = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(30),

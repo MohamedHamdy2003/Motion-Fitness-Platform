@@ -1,0 +1,19 @@
+meta {
+  name: Reference genders
+  type: http
+  seq: 38
+}
+
+get {
+  url: {{baseUrl}}/references/genders
+  body: none
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Public GET with no body. Returns active gender rows as {"items":[{"code":"FEMALE","label":"Female","display_order":1}]}. User profile requests submit the returned code. Existing profiles remain readable if a value is later deactivated.
+}

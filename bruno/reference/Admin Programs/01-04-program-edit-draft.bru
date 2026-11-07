@@ -464,8 +464,7 @@ body:json {
           }
         ]
       }
-    ],
-    "expectedVersion": 1
+    ]
   }
 }
 
@@ -476,6 +475,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  This sample expects a draft at revision 1. Use the current numeric revision returned by GET when editing. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.
+  Updates the current draft for this program using the latest server state. Revision metadata returned by GET is informational. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.
   Never commit populated credentials or runtime tokens.
 }

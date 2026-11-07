@@ -85,7 +85,7 @@ Table user_settings {
   user_id uuid [pk]
 }
 
-Table body_areas {
+Table body_areas_injuries {
   code text [pk, note: 'Seeded body-area reference codes']
   parent_code text
 }
@@ -118,14 +118,14 @@ Table user_allergies {
 
 Table food_reference_items {
   id uuid [pk]
+  description text
   name text
   kind text
 }
 
-Table user_food_exclusions {
+Table user_disliked_foods {
   user_id uuid [pk]
   food_id uuid [pk]
-  kind text [pk, note: 'DISLIKE or EXCLUSION']
 }
 
 Table jobs {
@@ -396,15 +396,15 @@ Ref: user_profiles.user_id - users.id [delete: cascade]
 Ref: user_profiles.gender > genders.code
 Ref: user_profiles.avatar_media_id > media_assets.id [delete: set null]
 Ref: user_settings.user_id - users.id [delete: cascade]
-Ref: body_areas.parent_code > body_areas.code
+Ref: body_areas_injuries.parent_code > body_areas_injuries.code
 Ref: user_restriction_states.user_id - users.id [delete: cascade]
 Ref: user_injuries.user_id > users.id [delete: cascade]
-Ref: user_injuries.body_area_code > body_areas.code
+Ref: user_injuries.body_area_code > body_areas_injuries.code
 Ref: user_food_preferences.user_id - users.id [delete: cascade]
 Ref: user_allergies.user_id > users.id [delete: cascade]
 Ref: user_allergies.allergen_code > allergens.code
-Ref: user_food_exclusions.user_id > users.id [delete: cascade]
-Ref: user_food_exclusions.food_id > food_reference_items.id
+Ref: user_disliked_foods.user_id > users.id [delete: cascade]
+Ref: user_disliked_foods.food_id > food_reference_items.id
 
 // User lifecycle and operational records
 Ref: jobs.user_id > users.id [delete: cascade]

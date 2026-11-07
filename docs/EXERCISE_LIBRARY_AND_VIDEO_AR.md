@@ -24,8 +24,8 @@ npm run seed:exercises
    ```
 
 3. ارفع الملف نفسه إلى `uploadUrl` باستخدام `PUT` والعناوين التي أعادها الخادم، ثم نادِ `POST /api/v1/admin/media/{mediaId}/finalize` بجسم `{}`. يجب أن يكون الملف MP4 صالحًا، والحجم الأقصى 100 MiB.
-4. حدّث نسخة التمرين عبر `PATCH /api/v1/admin/exercises/{exerciseId}`، وأرسل المحتوى كاملًا مع `expectedRevision` و`content.mediaId` بقيمة معرّف الرفع الذي أصبح `READY`.
-5. انشر نسخة التمرين عبر `POST /api/v1/admin/exercises/{exerciseId}/publish` مع `expectedRevision`.
+4. حدّث نسخة التمرين عبر `PATCH /api/v1/admin/exercises/{exerciseId}`، وأرسل المحتوى كاملًا و`content.mediaId` بقيمة معرّف الرفع الذي أصبح `READY`.
+5. انشر نسخة التمرين عبر `POST /api/v1/admin/exercises/{exerciseId}/publish`.
 6. استخدم معرّف النسخة المنشورة (`exerciseRevisionId`) داخل برنامج F04. انشر البرنامج بعد اكتمال مراجعة التمارين والوجبات.
 
 لا تعدّل فيديو تمرين بعد ربط نسخة منشورة من البرنامج به. تعديل محتوى تمرين منشور ينشئ نسخة جديدة؛ إذا أردت أن يستخدمها برنامج منشور، أنشئ نسخة مسودة جديدة من البرنامج واربط نسخة التمرين الجديدة بها ثم أعد نشر البرنامج.

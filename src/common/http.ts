@@ -44,8 +44,6 @@ const apiErrorMessages: Record<string, string> = {
   APPLE_REVOCATION_FAILED:
     'The Apple authorization could not be revoked. Please try again later.',
   RATE_LIMITED: 'Too many requests. Please try again later.',
-  REVISION_CONFLICT:
-    'This item changed since you loaded it. Refresh and try again.',
   ALREADY_PUBLISHED: 'This version is already published.',
   CONTENT_ARCHIVED: 'This item is archived and cannot be changed.',
   FOOD_VERSION_NOT_FOUND: 'The selected food version does not exist.',

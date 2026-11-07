@@ -1,0 +1,32 @@
+meta {
+  name: Create lookup value
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/lookups/{{lookupTable}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "code": "ADVANCED_PLUS",
+    "label": "Advanced Plus",
+    "display_order": 4
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin only. Set the environment variable lookupTable to genders, primary-goals, fitness-levels, allergens or body-areas-injuries. It requires code, label and display_order; body areas may also include parent_code. Roles are fixed and cannot be modified through admin lookup endpoints. Codes are immutable after creation. Seeded values edited or deactivated by Admin are not overwritten by later lookup seeding.
+}

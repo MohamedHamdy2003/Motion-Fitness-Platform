@@ -7,11 +7,6 @@ meta {
 get {
   url: {{baseUrl}}/references/body-areas
   body: none
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{accessToken}}
 }
 
 tests {
@@ -21,6 +16,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Public GET with no body. Returns active entries from body_areas_injuries, including code, label, parent_code and display_order. These codes are accepted by POST/PATCH /me/injuries. The route remains /references/body-areas for compatibility.
   Never commit populated credentials or runtime tokens.
 }

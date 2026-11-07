@@ -13,6 +13,7 @@ export class ProfileService {
   constructor(@Inject(DataSource) public db: DataSource) {}
   private profileResponse(row: Record<string, any>): Record<string, any> {
     const { training_weekdays, ...profile } = row;
+    delete profile.profile_revision;
     return {
       ...profile,
       // The integer column is retained internally for compatibility with existing records;
@@ -75,8 +76,49 @@ export class ProfileService {
     m: EntityManager,
     id: string,
     input: Record<string, unknown>,
-    expected: number,
   ) {
+    if (input.gender) {
+      const [gender] = await query(
+        m,
+        `SELECT code FROM genders WHERE code=$1 AND active`,
+        [input.gender],
+      );
+      if (!gender)
+        throw new ApiError(
+          'GENDER_NOT_FOUND',
+          422,
+          `Gender value "${input.gender}" is unavailable or inactive. Fetch GET /references/genders for currently available values.`,
+          { gender: input.gender },
+        );
+    }
+    if (input.fitness_level) {
+      const [level] = await query(
+        m,
+        `SELECT code FROM fitness_levels WHERE code=$1 AND active`,
+        [input.fitness_level],
+      );
+      if (!level)
+        throw new ApiError(
+          'FITNESS_LEVEL_NOT_FOUND',
+          422,
+          `Fitness level value "${input.fitness_level}" is unavailable or inactive. Fetch GET /references/fitness-levels for currently available values.`,
+          { fitness_level: input.fitness_level },
+        );
+    }
+    if (input.primary_goal) {
+      const [goal] = await query(
+        m,
+        `SELECT code FROM primary_goals WHERE code=$1 AND active`,
+        [input.primary_goal],
+      );
+      if (!goal)
+        throw new ApiError(
+          'PRIMARY_GOAL_NOT_FOUND',
+          422,
+          `Primary goal value "${input.primary_goal}" is unavailable or inactive. Fetch GET /references/primary-goals for currently available values.`,
+          { primary_goal: input.primary_goal },
+        );
+    }
     if (input.date_of_birth || input.timezone) {
       const [current] = await query(
         m,
@@ -112,17 +154,17 @@ export class ProfileService {
     const values = pairs.map(([, v]) => v);
     const [p] = await query(
       m,
-      `UPDATE user_profiles SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},profile_revision=profile_revision+1 WHERE user_id=$1 AND profile_revision=$2 RETURNING *`,
-      [id, expected, ...values],
+      `UPDATE user_profiles SET ${pairs.map(([k], i) => `${k}=$${i + 2}`).join(',')},profile_revision=profile_revision+1 WHERE user_id=$1 RETURNING *`,
+      [id, ...values],
     );
-    if (!p) throw new ApiError('REVISION_CONFLICT', 409);
+    if (!p) throw new ApiError('NOT_FOUND', 404);
     await this.event(m, id, 'PROFILE_UPDATED', p.profile_revision);
     return this.profileResponse(p);
   }
   async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      return this.updateProfile(m, id, input, input.expectedRevision);
+      return this.updateProfile(m, id, input);
     });
   }
   async onboard(
@@ -135,20 +177,15 @@ export class ProfileService {
       await this.lock(m, id);
       const previous = await this.idempotency(m, id, 'onboarding', key, input);
       if (previous) {
-        const [profile] = await query(
-          m,
-          `SELECT profile_revision FROM user_profiles WHERE user_id=$1`,
-          [id],
-        );
         return {
           status: 'COMPLETED',
-          profile_revision: profile.profile_revision,
           replayed: true,
           matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
         };
       }
-      const { expectedRevision, ...profile } = input;
-      const p = await this.updateProfile(m, id, profile, expectedRevision);
+      const { food_preferences, ...profile } = input;
+      await this.updateProfile(m, id, profile);
+      await this.savePreferences(m, id, food_preferences);
       await query(
         m,
         `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
@@ -157,7 +194,6 @@ export class ProfileService {
       await this.recordKey(m, id, 'onboarding', key, input, null);
       return {
         status: 'COMPLETED',
-        profile_revision: p.profile_revision,
         matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
       };
     });
@@ -210,21 +246,18 @@ export class ProfileService {
   async setSettings(id: string, input: z.infer<typeof dto.settings>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const pairs = Object.entries(input).filter(
-        ([k]) => k !== 'expectedVersion',
-      );
+      const pairs = Object.entries(input);
       const [s] = await query(
         m,
-        `UPDATE user_settings SET ${pairs.map(([k], i) => `${k}=$${i + 3}`).join(',')},version=version+1 WHERE user_id=$1 AND version=$2 RETURNING reminders,theme,quiet_hours,version`,
+        `UPDATE user_settings SET ${pairs.map(([k], i) => `${k}=$${i + 2}`).join(',')},version=version+1 WHERE user_id=$1 RETURNING reminders,theme,quiet_hours,version`,
         [
           id,
-          input.expectedVersion,
           ...pairs.map(([, v]) =>
             typeof v === 'object' && v !== null ? JSON.stringify(v) : v,
           ),
         ],
       );
-      if (!s) throw new ApiError('REVISION_CONFLICT', 409);
+      if (!s) throw new ApiError('NOT_FOUND', 404);
       return s;
     });
   }
@@ -250,14 +283,7 @@ export class ProfileService {
       disliked_food_ids: (
         await query(
           m,
-          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='DISLIKE' ORDER BY food_id`,
-          [id],
-        )
-      ).map((r: any) => r.food_id),
-      excluded_food_ids: (
-        await query(
-          m,
-          `SELECT food_id FROM user_food_exclusions WHERE user_id=$1 AND kind='EXCLUSION' ORDER BY food_id`,
+          `SELECT food_id FROM user_disliked_foods WHERE user_id=$1 ORDER BY food_id`,
           [id],
         )
       ).map((r: any) => r.food_id),
@@ -266,57 +292,67 @@ export class ProfileService {
   async putPreferences(id: string, input: z.infer<typeof dto.preferences>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const [p] = await query(
-        m,
-        `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 AND revision=$2 RETURNING revision`,
-        [id, input.expectedRevision],
-      );
-      if (!p) throw new ApiError('REVISION_CONFLICT', 409);
-      for (const code of new Set(input.allergen_codes)) {
-        const [a] = await query(m, `SELECT code FROM allergens WHERE code=$1`, [
-          code,
-        ]);
-        if (!a)
-          throw new ApiError(
-            'ALLERGEN_CODE_NOT_FOUND',
-            422,
-            `Allergen code "${code}" is not registered. Fetch GET /references/allergens to see valid codes.`,
-            { allergen_code: code },
-          );
-      }
-      const all = [
-        ...new Set([...input.disliked_food_ids, ...input.excluded_food_ids]),
-      ];
-      if (all.length) {
-        const rows = await query(
-          m,
-          `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
-          [all],
-        );
-        if (rows.length !== all.length)
-          throw new ApiError('INVALID_FOOD_REFERENCE');
-      }
-      await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
-      await query(m, `DELETE FROM user_food_exclusions WHERE user_id=$1`, [id]);
-      for (const code of new Set(input.allergen_codes))
-        await query(
-          m,
-          `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
-          [id, code],
-        );
-      for (const [kind, ids] of [
-        ['DISLIKE', input.disliked_food_ids],
-        ['EXCLUSION', input.excluded_food_ids],
-      ] as const)
-        for (const food of new Set(ids))
-          await query(
-            m,
-            `INSERT INTO user_food_exclusions(user_id,food_id,kind) VALUES($1,$2,$3)`,
-            [id, food, kind],
-          );
-      await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
-      return this.getPreferences(id, m);
+      return this.savePreferences(m, id, input);
     });
+  }
+  private async savePreferences(
+    m: EntityManager,
+    id: string,
+    input: z.infer<typeof dto.preferences>,
+  ) {
+    const [p] = await query(
+      m,
+      `UPDATE user_food_preferences SET revision=revision+1 WHERE user_id=$1 RETURNING revision`,
+      [id],
+    );
+    if (!p) throw new ApiError('NOT_FOUND', 404);
+    for (const code of new Set(input.allergen_codes)) {
+      const [a] = await query(
+        m,
+        `SELECT code FROM allergens WHERE code=$1 AND active`,
+        [code],
+      );
+      if (!a)
+        throw new ApiError(
+          'ALLERGEN_CODE_NOT_FOUND',
+          422,
+          `Allergen value "${code}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
+          { allergen_code: code },
+        );
+    }
+    const all = [...new Set(input.disliked_food_ids)];
+    if (all.length) {
+      const rows = await query(
+        m,
+        `SELECT id FROM available_food_references WHERE id=ANY($1::uuid[])`,
+        [all],
+      );
+      const knownIds = new Set(rows.map((row: { id: string }) => row.id));
+      const unavailableIds = all.filter((foodId) => !knownIds.has(foodId));
+      if (unavailableIds.length)
+        throw new ApiError(
+          'INVALID_FOOD_REFERENCE',
+          422,
+          `Food reference ID(s) ${unavailableIds.join(', ')} are unavailable. Fetch GET /references/foods for currently available values.`,
+          { food_ids: unavailableIds },
+        );
+    }
+    await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
+    await query(m, `DELETE FROM user_disliked_foods WHERE user_id=$1`, [id]);
+    for (const code of new Set(input.allergen_codes))
+      await query(
+        m,
+        `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
+        [id, code],
+      );
+    for (const food of new Set(input.disliked_food_ids))
+      await query(
+        m,
+        `INSERT INTO user_disliked_foods(user_id,food_id) VALUES($1,$2)`,
+        [id, food],
+      );
+    await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
+    return this.getPreferences(id, m);
   }
   async injuries(id: string, limit: number, offset: number) {
     return {
@@ -330,10 +366,18 @@ export class ProfileService {
     };
   }
   async bodyArea(m: EntityManager, code: string) {
-    const [area] = await query(m, `SELECT code FROM body_areas WHERE code=$1`, [
-      code,
-    ]);
-    if (!area) throw new ApiError('INVALID_BODY_AREA');
+    const [area] = await query(
+      m,
+      `SELECT code FROM body_areas_injuries WHERE code=$1 AND active`,
+      [code],
+    );
+    if (!area)
+      throw new ApiError(
+        'INVALID_BODY_AREA',
+        422,
+        `Body area value "${code}" is unavailable or inactive. Fetch GET /references/body-areas for currently available values.`,
+        { body_area_code: code },
+      );
   }
   async injuryRevision(m: EntityManager, id: string) {
     const [s] = await query(
@@ -386,11 +430,8 @@ export class ProfileService {
         [injuryId, id],
       );
       if (!existing) throw new ApiError('NOT_FOUND', 404);
-      if (
-        existing.version !== input.expectedVersion ||
-        existing.status !== 'ACTIVE'
-      )
-        throw new ApiError('REVISION_CONFLICT', 409);
+      if (existing.status !== 'ACTIVE')
+        throw new ApiError('INJURY_NOT_ACTIVE', 409);
       const [r] = await query(
         m,
         `UPDATE user_injuries SET body_area_code=$3,side=$4,description=$5,version=version+1,confirmed_at=now() WHERE id=$1 AND user_id=$2 RETURNING *`,
@@ -405,7 +446,7 @@ export class ProfileService {
       return { injury: r, injury_revision: await this.injuryRevision(m, id) };
     });
   }
-  async removeInjury(id: string, injuryId: string, version: number) {
+  async removeInjury(id: string, injuryId: string) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const [r] = await query(
@@ -414,8 +455,7 @@ export class ProfileService {
         [injuryId, id],
       );
       if (!r) throw new ApiError('NOT_FOUND', 404);
-      if (r.version !== version || r.status !== 'ACTIVE')
-        throw new ApiError('REVISION_CONFLICT', 409);
+      if (r.status !== 'ACTIVE') throw new ApiError('INJURY_NOT_ACTIVE', 409);
       await query(
         m,
         `UPDATE user_injuries SET status='REMOVED',removed_at=now(),version=version+1 WHERE id=$1`,
@@ -423,7 +463,7 @@ export class ProfileService {
       );
       return {
         status: 'REMOVED',
-        version: version + 1,
+        version: r.version + 1,
         injury_revision: await this.injuryRevision(m, id),
       };
     });

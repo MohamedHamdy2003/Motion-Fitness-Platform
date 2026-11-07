@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  See docs/API_CONTRACT.md for response shapes and error codes.
+  Admin-only GET with no body; optional limit and offset query parameters. Lists saved meals and the latest version metadata. Use GET /admin/meals/{{mealId}} to read a meal's versions and saved meal_items.
   Never commit populated credentials or runtime tokens.
 }

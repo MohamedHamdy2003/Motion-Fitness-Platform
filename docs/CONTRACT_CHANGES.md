@@ -5,9 +5,10 @@ Breaking: verify-email takes email and six-digit code instead of a link token. P
 ## Unreleased on `dev` — onboarding weekday schedule, gender and exercise media
 
 - `PUT /me/onboarding` accepts gender `MALE` or `FEMALE`, seeded in the new `genders` lookup table and linked by a foreign key. Existing values other than these two become null. `training_days_per_week` is now an array of 2–5 unique weekday codes, such as `['SUNDAY','TUESDAY']`; profile storage retains the selected weekdays and derives the count. Existing count-only records must choose weekdays again. `/references/onboarding` advertises the supported values. Old onboarding idempotency keys are cleared because the request shape changed.
-- `fitness_level` is a fixed enum: `BEGINNER`, `INTERMEDIATE`, or `ADVANCED`.
+- `fitness_level` references the seeded `fitness_levels` lookup (currently `BEGINNER`, `INTERMEDIATE`, `ADVANCED`). Program supported levels also use a relational join table. Onboarding now accepts food preferences; later edits use `PUT /me/food-preferences`.
+- `primary_goal` references the seeded `primary_goals` lookup with `FAT_LOSS` and `STRENGTH_HYPERTROPHY`; program supported goals are stored through a relational join table.
 - Unknown allergy codes return 422 `ALLERGEN_CODE_NOT_FOUND` with the rejected code and a hint to GET `/references/allergens`.
-- The profile has no target-weight field. It stores only current weight, with no measurement date or history.
+- Onboarding now requires positive `target_weight_kg`; both current and target weights live on the profile without measurement dates or history. Existing profiles remain nullable until updated.
 - A dedicated exercise seeder imports draft content. `exercise_revisions.media_id` links a video asset in `media_assets`; the video object itself remains in private S3.
 
 # API contract changes
@@ -17,7 +18,7 @@ Breaking: verify-email takes email and six-digit code instead of a link token. P
 The initial product now keeps a single current weight in the profile, without measurement dates or weight history. Height remains a profile field. Tracking history is deferred to a future feature.
 
 - GET `/me` returns current weight as `profile.weight_kg` (decimal string or null until provided).
-- PATCH `/me` accepts `weight_kg` with the existing `expectedRevision`; updating it replaces the current value.
+- PATCH `/me` accepts `weight_kg`; updating it replaces the current value.
 - PUT `/me/onboarding` requires a flat `weight_kg` field. The former `initialMeasurement` object is rejected.
 - POST/GET `/me/measurements` are removed and return 404.
 - `measured_at`, `latest_weight`, `measurement_freshness_policy_days`, and the reference-list expiry field are removed from the active contract.
@@ -26,7 +27,7 @@ The initial product now keeps a single current weight in the profile, without me
 Example weight update:
 
 ```json
-{ "expectedRevision": 1, "weight_kg": 80.5 }
+{ "weight_kg": 80.5 }
 ```
 
 Run `CurrentProfileWeight1793404801000` after the earlier migrations. It copies the latest existing weight into the profile, increments affected profile revisions, clears old measurement/onboarding idempotency keys, then drops the old history table. No measurement timestamp is copied to the profile. Rollback preserves the current profile weight and creates an empty compatibility table; it cannot reconstruct deleted history or dates. Take a backup before downgrading if historical restoration is required. Use new onboarding idempotency keys for the changed payload.

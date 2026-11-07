@@ -1,0 +1,34 @@
+meta {
+  name: 21-meal-item-create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/meals/{{mealId}}/items
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "item": {
+      "memberId": "{{foodMemberId}}",
+      "exchangeUnits": 1,
+      "position": 1
+    }
+  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+  test("Server request ID", function () { expect(res.getHeader("x-request-id")).to.be.a("string"); });
+}
+
+docs {
+  Admin-only POST. Adds an item at a unique position. If the current meal version was published, the API creates a draft copy before editing it.
+}

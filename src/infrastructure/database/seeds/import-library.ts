@@ -1,3 +1,4 @@
+import { foodDisplay } from '../../../modules/content/food-display';
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -102,7 +103,7 @@ export async function importLibrary(db: DataSource, path: string) {
         (
           await query(
             m,
-            `SELECT code FROM allergens WHERE code=ANY($1::text[])`,
+            `SELECT code FROM allergens WHERE active AND code=ANY($1::text[])`,
             [codes],
           )
         ).length !== codes.length
@@ -110,8 +111,8 @@ export async function importLibrary(db: DataSource, path: string) {
         throw Error('Unknown allergen');
       await query(
         m,
-        `INSERT INTO food_reference_items VALUES($1,$2,'INGREDIENT')`,
-        [item.id, c.title],
+        `INSERT INTO food_reference_items(id,name,kind,description) VALUES($1,$2,'INGREDIENT',$3)`,
+        [item.id, ...Object.values(foodDisplay(c.title, c.description))],
       );
       await query(
         m,
@@ -129,8 +130,16 @@ export async function importLibrary(db: DataSource, path: string) {
         if (kind === 'foods')
           await query(
             m,
-            `INSERT INTO food_reference_items VALUES($1,$2,'FOOD')`,
-            [item.id, item.content.title],
+            `INSERT INTO food_reference_items(id,name,kind,description) VALUES($1,$2,'FOOD',$3)`,
+            [
+              item.id,
+              ...Object.values(
+                foodDisplay(
+                  item.content.title,
+                  (item.content as { description?: string }).description,
+                ),
+              ),
+            ],
           );
         await query(m, `INSERT INTO ${kind}(id,slug) VALUES($1,$2)`, [
           item.id,
