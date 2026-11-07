@@ -27,8 +27,6 @@ export class OnboardingWeekdays1793448007000 implements MigrationInterface {
         ADD CONSTRAINT user_profiles_training_weekdays_valid_check
         CHECK(valid_training_weekdays(training_weekdays));
 
-      -- Request shape changed; old idempotency hashes describe the previous count-only contract.
-      DELETE FROM idempotency_keys WHERE scope='onboarding';
     `);
   }
 

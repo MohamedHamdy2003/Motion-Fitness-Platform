@@ -919,7 +919,7 @@ describe('profiles, onboarding and injuries', () => {
     );
     expect(Number(saved.weight_kg)).toBe(80);
     expect(saved.gender).toBe('FEMALE');
-    expect(saved.profile_revision).toBe(1);
+    expect(saved.profile_revision).toBe(2);
   });
   it('rejects profile lookup codes that are not seeded', async () => {
     const user = await register();

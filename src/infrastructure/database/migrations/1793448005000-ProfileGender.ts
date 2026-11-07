@@ -6,7 +6,6 @@ export class ProfileGender1793448005000 implements MigrationInterface {
       ALTER TABLE user_profiles
         ADD COLUMN gender text
         CHECK(gender IS NULL OR gender IN ('FEMALE','MALE','NON_BINARY','PREFER_NOT_TO_SAY'));
-      DELETE FROM idempotency_keys WHERE scope='onboarding';
     `);
   }
 

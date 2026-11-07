@@ -9,7 +9,6 @@ export class CurrentProfileWeight1793404801000 implements MigrationInterface {
         ORDER BY m.measured_at DESC,m.created_at DESC,m.id DESC LIMIT 1
       ),profile_revision=profile_revision+1
       WHERE EXISTS(SELECT 1 FROM body_measurements m WHERE m.user_id=p.user_id);
-      DELETE FROM idempotency_keys WHERE scope IN ('measurement','onboarding');
       DROP TABLE body_measurements;
     `);
   }
