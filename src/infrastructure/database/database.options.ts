@@ -1,3 +1,4 @@
+import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
 import { LibraryIntegrity1793448002000 } from './migrations/1793448002000-LibraryIntegrity';
@@ -67,6 +68,7 @@ export function databaseOptions(): DataSourceOptions {
       EditableLookups1793448013000,
       RemoveExcludedFoodPreference1793448014000,
       FoodDisplay1793448015000,
+      RemoveIdempotency1793448016000,
     ],
     synchronize: false,
     migrationsRun: false,

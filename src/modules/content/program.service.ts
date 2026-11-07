@@ -1,8 +1,7 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { ApiError } from '../../common/http';
-import { environment } from '../../config/environment';
 import { query } from '../../infrastructure/database/query';
 import { ProgramAggregate } from './program.dto';
 
@@ -16,47 +15,6 @@ export class ProgramService {
     await query(m, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, [
       actor.userId,
     ]);
-  }
-
-  private digest(body: unknown) {
-    return createHmac('sha256', environment().JWT_SECRET)
-      .update(JSON.stringify(body))
-      .digest('hex');
-  }
-
-  private async key(
-    m: EntityManager,
-    actor: Actor,
-    scope: string,
-    key: string,
-    body: unknown,
-  ) {
-    if (!/^[A-Za-z0-9_-]{8,128}$/.test(key))
-      throw new ApiError('IDEMPOTENCY_KEY_REQUIRED', 400);
-    const [row] = await query(
-      m,
-      `SELECT resource_id,body_hash FROM idempotency_keys WHERE user_id=$1 AND scope=$2 AND key=$3 FOR UPDATE`,
-      [actor.userId, scope, key],
-    );
-    const hash = this.digest(body);
-    if (row && row.body_hash !== hash)
-      throw new ApiError('IDEMPOTENCY_CONFLICT', 409);
-    return row as { resource_id: string; body_hash: string } | undefined;
-  }
-
-  private async saveKey(
-    m: EntityManager,
-    actor: Actor,
-    scope: string,
-    key: string,
-    body: unknown,
-    resourceId: string,
-  ) {
-    await query(
-      m,
-      `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,$2,$3,$4,$5)`,
-      [actor.userId, scope, key, this.digest(body), resourceId],
-    );
   }
 
   async list(limit: number, offset: number, status?: string) {
@@ -138,19 +96,15 @@ export class ProgramService {
     return program;
   }
 
-  async create(actor: Actor, idempotencyKey: string, input: ProgramAggregate) {
-    const scope = 'program-create';
+  async create(actor: Actor, input: ProgramAggregate) {
     const id = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, input);
-      if (repeated?.resource_id) return repeated.resource_id;
       const programId = randomUUID();
       await query(m, `INSERT INTO programs(id,slug) VALUES($1,$2)`, [
         programId,
         input.slug,
       ]);
       await this.createVersion(m, programId, 1, input);
-      await this.saveKey(m, actor, scope, idempotencyKey, input, programId);
       return programId;
     });
     return this.get(id);
@@ -159,14 +113,10 @@ export class ProgramService {
   async update(
     actor: Actor,
     id: string,
-    idempotencyKey: string,
     input: Omit<ProgramAggregate, 'slug'>,
   ) {
-    const scope = `program-edit:${id}`;
     const resourceId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, input);
-      if (repeated?.resource_id) return repeated.resource_id;
       const [program] = await query(
         m,
         `SELECT * FROM programs WHERE id=$1 AND NOT archived FOR UPDATE`,
@@ -186,7 +136,6 @@ export class ProgramService {
       );
       if (current.status === 'PUBLISHED') {
         await this.createVersion(m, id, current.version + 1, input);
-        await this.saveKey(m, actor, scope, idempotencyKey, input, id);
         return id;
       }
       if (current.status !== 'DRAFT' || nutrition.status !== 'DRAFT')
@@ -205,19 +154,14 @@ export class ProgramService {
         [nutrition.id, input.months.length * 28],
       );
       await this.insertSchedule(m, current.id, nutrition.id, input);
-      await this.saveKey(m, actor, scope, idempotencyKey, input, id);
       return id;
     });
     return this.get(resourceId);
   }
 
-  async publish(actor: Actor, id: string, idempotencyKey: string) {
-    const scope = `program-publish:${id}`;
-    const command = {};
+  async publish(actor: Actor, id: string) {
     const resourceId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, command);
-      if (repeated?.resource_id) return repeated.resource_id;
       const [program] = await query(
         m,
         `SELECT * FROM programs WHERE id=$1 AND NOT archived FOR UPDATE`,
@@ -255,19 +199,14 @@ export class ProgramService {
         `UPDATE program_versions SET status='PUBLISHED',revision=revision+1 WHERE id=$1`,
         [version.id],
       );
-      await this.saveKey(m, actor, scope, idempotencyKey, command, id);
       return id;
     });
     return this.get(resourceId);
   }
 
-  async archive(actor: Actor, id: string, idempotencyKey: string) {
-    const scope = `program-archive:${id}`;
-    const command = {};
+  async archive(actor: Actor, id: string) {
     await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, command);
-      if (repeated) return;
       const [program] = await query(
         m,
         `SELECT * FROM programs WHERE id=$1 FOR UPDATE`,
@@ -282,7 +221,6 @@ export class ProgramService {
       if (!version) throw new ApiError('NOT_FOUND', 404);
       if (program.archived) throw new ApiError('CONTENT_ARCHIVED', 409);
       await query(m, `UPDATE programs SET archived=true WHERE id=$1`, [id]);
-      await this.saveKey(m, actor, scope, idempotencyKey, command, id);
     });
     return this.get(id);
   }
@@ -290,17 +228,13 @@ export class ProgramService {
   async addHint(
     actor: Actor,
     id: string,
-    idempotencyKey: string,
     input: {
       originalText: string;
       structuredHints: Record<string, unknown>;
     },
   ) {
-    const scope = `program-hint:${id}`;
     const hintId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, input);
-      if (repeated?.resource_id) return repeated.resource_id;
       const [version] = await query(
         m,
         `SELECT pv.* FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.id=$1 AND NOT p.archived ORDER BY pv.version DESC LIMIT 1 FOR UPDATE OF pv`,
@@ -333,7 +267,6 @@ export class ProgramService {
         `UPDATE program_versions SET approved_hint_version_id=NULL,revision=revision+1 WHERE id=$1`,
         [version.id],
       );
-      await this.saveKey(m, actor, scope, idempotencyKey, input, createdId);
       return hint.id;
     });
     const [hint] = await query(
@@ -344,18 +277,9 @@ export class ProgramService {
     return hint;
   }
 
-  async approveHint(
-    actor: Actor,
-    id: string,
-    hintId: string,
-    idempotencyKey: string,
-  ) {
-    const scope = `program-hint-approve:${id}:${hintId}`;
-    const command = {};
+  async approveHint(actor: Actor, id: string, hintId: string) {
     const approvedId = await this.db.transaction(async (m) => {
       await this.lockActor(m, actor);
-      const repeated = await this.key(m, actor, scope, idempotencyKey, command);
-      if (repeated?.resource_id) return repeated.resource_id;
       const [version] = await query(
         m,
         `SELECT pv.* FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.id=$1 AND NOT p.archived ORDER BY pv.version DESC LIMIT 1 FOR UPDATE OF pv`,
@@ -375,7 +299,6 @@ export class ProgramService {
         `UPDATE program_versions SET approved_hint_version_id=$2,revision=revision+1 WHERE id=$1`,
         [version.id, hintId],
       );
-      await this.saveKey(m, actor, scope, idempotencyKey, command, hintId);
       return hint.id;
     });
     const [hint] = await query(

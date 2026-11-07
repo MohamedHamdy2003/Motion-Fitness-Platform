@@ -58,10 +58,6 @@ const apiErrorMessages: Record<string, string> = {
   MEAL_NEEDS_ITEMS: 'Add at least one food item before publishing the meal.',
   MEAL_ITEM_NOT_PUBLISHED:
     'Every meal item must use a published food section and food.',
-  IDEMPOTENCY_KEY_REQUIRED:
-    'Send an Idempotency-Key header containing 8 to 128 letters, numbers, underscores, or hyphens.',
-  IDEMPOTENCY_CONFLICT:
-    'This Idempotency-Key was already used with different request data.',
   PROGRAM_VERSION_IMMUTABLE:
     'Published program versions cannot be changed. Create a new draft version.',
   PROGRAM_PAIR_INVALID:
