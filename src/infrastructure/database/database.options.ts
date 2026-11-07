@@ -1,3 +1,4 @@
+import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
 import { LibraryIntegrity1793448002000 } from './migrations/1793448002000-LibraryIntegrity';
 import { NutritionLibrary1793448003000 } from './migrations/1793448003000-NutritionLibrary';
@@ -65,6 +66,7 @@ export function databaseOptions(): DataSourceOptions {
       RenameBodyAreasInjuries1793448012000,
       EditableLookups1793448013000,
       RemoveExcludedFoodPreference1793448014000,
+      FoodDisplay1793448015000,
     ],
     synchronize: false,
     migrationsRun: false,

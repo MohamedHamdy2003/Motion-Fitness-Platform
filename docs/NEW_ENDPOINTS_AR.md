@@ -68,3 +68,5 @@
 | DELETE | `/admin/meals/:id/items/:position` | يحذف عنصرًا من الوجبة.                        | Admin؛ بلا body.                                                                                         |
 
 تعديلات `meal_items` لا تتطلب رقم مراجعة من التطبيق. إذا كانت الوجبة منشورة، ينشئ السيرفر مسودة جديدة ويترك الإصدار المنشور كما هو. ملفات الطلبات الكاملة موجودة في مجموعة Bruno تحت `reference/References/` و`reference/Admin Lookups/` و`reference/Admin Food Library/`.
+
+تحديث Reference foods: الحقل `name` اسم العرض كاملًا، والحقل `description` وصف مستقل وقد يكون `null`. لا يتم تقسيم الاسم بالفواصل. النوع `INGREDIENT` للمكونات و`FOOD` للأطعمة المنشورة. مسودات الـSeeder لا تظهر حتى نشرها. البحث يعمل في الاسم والوصف. إنشاء وتعديل الطعام أو المكوّن يقبل `description` اختياريًا.

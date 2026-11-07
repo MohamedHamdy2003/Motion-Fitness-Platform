@@ -24,6 +24,7 @@ const nutrient = z.number().min(0).max(10000).nullable();
 export const food = z
   .object({
     title: text,
+    description: text.optional(),
     preparation: text,
     preparationState: z.enum(['RAW', 'COOKED', 'READY_TO_EAT']),
     prepMinutes: z.number().int().min(0).max(10080),
@@ -56,6 +57,7 @@ export const food = z
 export const ingredient = z
   .object({
     title: text,
+    description: text.optional(),
     dietaryTags: tags,
     allergenCodes: z
       .array(
