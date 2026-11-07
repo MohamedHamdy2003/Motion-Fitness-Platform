@@ -122,10 +122,9 @@ Table food_reference_items {
   kind text
 }
 
-Table user_food_exclusions {
+Table user_disliked_foods {
   user_id uuid [pk]
   food_id uuid [pk]
-  kind text [pk, note: 'DISLIKE or EXCLUSION']
 }
 
 Table jobs {
@@ -403,8 +402,8 @@ Ref: user_injuries.body_area_code > body_areas_injuries.code
 Ref: user_food_preferences.user_id - users.id [delete: cascade]
 Ref: user_allergies.user_id > users.id [delete: cascade]
 Ref: user_allergies.allergen_code > allergens.code
-Ref: user_food_exclusions.user_id > users.id [delete: cascade]
-Ref: user_food_exclusions.food_id > food_reference_items.id
+Ref: user_disliked_foods.user_id > users.id [delete: cascade]
+Ref: user_disliked_foods.food_id > food_reference_items.id
 
 // User lifecycle and operational records
 Ref: jobs.user_id > users.id [delete: cascade]

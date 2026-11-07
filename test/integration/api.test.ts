@@ -906,7 +906,6 @@ describe('profiles, onboarding and injuries', () => {
       food_preferences: {
         allergen_codes: [],
         disliked_food_ids: [],
-        excluded_food_ids: [],
       },
     };
     const first = await api
@@ -916,6 +915,7 @@ describe('profiles, onboarding and injuries', () => {
       .send(input);
     expect(first.status, first.text).toBe(200);
     expect(first.body.matching.status).toBe('PENDING');
+    expect(first.body).not.toHaveProperty('profile_revision');
     expect(
       (
         await api
@@ -950,7 +950,6 @@ describe('profiles, onboarding and injuries', () => {
       food_preferences: {
         allergen_codes: [],
         disliked_food_ids: [],
-        excluded_food_ids: [],
       },
     };
     const response = await api
@@ -1168,13 +1167,17 @@ describe('profiles, onboarding and injuries', () => {
       (await db.query('SELECT count(*)::int AS n FROM user_injuries'))[0].n,
     ).toBe(0);
   });
-  it('preferences validate references, roll back errors and maintain an independent revision', async () => {
+  it('preferences validate references, reject removed exclusions and maintain an independent revision', async () => {
     const r = await register();
     const input = {
       allergen_codes: ['MILK'],
       disliked_food_ids: [],
-      excluded_food_ids: [],
     };
+    const obsoleteField = await api
+      .put(prefix + '/me/food-preferences')
+      .set(bearer(r.accessToken))
+      .send({ ...input, excluded_food_ids: [] });
+    expect(obsoleteField.status).toBe(400);
     expect(
       (
         await api
@@ -1198,6 +1201,7 @@ describe('profiles, onboarding and injuries', () => {
     const me = await api.get(prefix + '/me').set(bearer(r.accessToken));
     expect(me.body.injury_revision).toBe(0);
     expect(me.body.food_preferences.allergen_codes).toEqual(['MILK']);
+    expect(me.body.food_preferences).not.toHaveProperty('excluded_food_ids');
   });
   it('settings are updated and media fails honestly when storage is unavailable', async () => {
     const r = await register();

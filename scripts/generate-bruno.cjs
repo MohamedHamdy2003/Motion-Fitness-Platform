@@ -43,13 +43,8 @@ const variables = {
   mealId: '',
   mealVersionId: '',
   programId: '',
-  programRevision: '1',
   programHintId: '',
   exerciseRevisionId: '',
-  profileRevision: '0',
-  preferenceRevision: '0',
-  injuryVersion: '1',
-  settingsVersion: '0',
   idempotencyKey: '',
   uploadUrl: '',
 };
@@ -330,10 +325,15 @@ add(
     locale: 'ar',
     date_of_birth: '1998-03-14',
     weight_kg: 80,
+    target_weight_kg: 72,
+    food_preferences: {
+      allergen_codes: ['MILK'],
+      disliked_food_ids: [],
+    },
   },
   {
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    docs: 'Requires gender, age strictly greater than 18 and 2-5 unique fixed weekdays. Current weight only; no measurement date or history. Matching remains PENDING until F05.',
+    docs: 'Requires gender, age strictly greater than 18, 2-5 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching remains PENDING until F05.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -346,7 +346,6 @@ add('Get food preferences', 'GET', '/me/food-preferences');
 add('Replace food preferences', 'PUT', '/me/food-preferences', {
   allergen_codes: ['MILK'],
   disliked_food_ids: [],
-  excluded_food_ids: [],
 });
 add('List injuries', 'GET', '/me/injuries?limit=30&offset=0');
 add(
@@ -495,7 +494,6 @@ smoke('Remove injury', 'DELETE', '/me/injuries/{{injuryId}}', {
 smoke('Update preferences', 'PUT', '/me/food-preferences', {
   allergen_codes: ['MILK'],
   disliked_food_ids: [],
-  excluded_food_ids: [],
 });
 smoke('Settings', 'PATCH', '/me/settings', {
   theme: 'DARK',
@@ -854,7 +852,7 @@ write(
   {
     status: 201,
     headers: { 'Idempotency-Key': '{{idempotencyKey}}' },
-    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id); if(b.revision) bru.setVar("programRevision",b.revision);',
+    post: '  const b=res.getBody(); if(b.id) bru.setVar("programId",b.id);',
     docs: 'The example contains one 28-day month, four seven-day weeks, two training days in each week, and one meal slot for each day. Replace the exercise and meal version variables with published library content before publishing.',
   },
 );
