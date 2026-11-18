@@ -15,7 +15,7 @@ auth:bearer {
 }
 
 script:post-response {
-  test("F05 is not implemented",()=>expect(res.getBody().reason).to.equal("F05_NOT_IMPLEMENTED"));
+  test("Matching status",()=>expect(res.getBody().status).to.be.a("string"));
 }
 
 tests {

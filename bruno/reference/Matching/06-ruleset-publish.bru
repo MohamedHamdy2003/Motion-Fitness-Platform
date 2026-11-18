@@ -1,0 +1,30 @@
+meta {
+  name: 06-ruleset-publish
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/matching/rulesets/{{matchingRulesetId}}/publish
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "qualityApproved": true,
+  "evaluationReference": "replace-with-reviewed-evaluation-report"
+}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  ADMIN only. Publish after expert evaluation; qualityApproved is an explicit human approval, not automatic proof. Atomically archives previous active ruleset; published instructions are immutable. Response: ruleset row with status:PUBLISHED,active:true.
+}

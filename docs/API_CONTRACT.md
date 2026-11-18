@@ -62,14 +62,14 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 
 ## Profile and onboarding
 
-| Method/route              | Request                                                                                                                 | Response                                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET `/me`                 | —                                                                                                                       | 200 aggregate described below                                                       |
-| PATCH `/me`               | One or more profile fields                                                                                              | 200 updated profile                                                                 |
-| PUT `/me/onboarding`      | profile fields including `weight_kg` and `target_weight_kg`, plus `food_preferences:{allergen_codes,disliked_food_ids}` | 200 `{status:"COMPLETED",matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
-| GET `/me/settings`        | —                                                                                                                       | 200 `{reminders,theme,quiet_hours,version}`                                         |
-| PATCH `/me/settings`      | Optional `reminders`, `theme`, `quiet_hours`                                                                            | 200 updated settings/version                                                        |
-| GET `/me/matching/status` | —                                                                                                                       | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                    |
+| Method/route              | Request                                                                                                                 | Response                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| GET `/me`                 | —                                                                                                                       | 200 aggregate described below                      |
+| PATCH `/me`               | One or more profile fields                                                                                              | 200 updated profile                                |
+| PUT `/me/onboarding`      | profile fields including `weight_kg` and `target_weight_kg`, plus `food_preferences:{allergen_codes,disliked_food_ids}` | 200 `{status:"COMPLETED",matching:{status,runId}}` |
+| GET `/me/settings`        | —                                                                                                                       | 200 `{reminders,theme,quiet_hours,version}`        |
+| PATCH `/me/settings`      | Optional `reminders`, `theme`, `quiet_hours`                                                                            | 200 updated settings/version                       |
+| GET `/me/matching/status` | —                                                                                                                       | `{status,runId}`                                   |
 
 All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender` (active code from `genders`; initial codes `MALE|FEMALE`); `height_cm`; current `weight_kg`; target `target_weight_kg` (positive number, optional for existing accounts and required during onboarding); `primary_goal` (active code from `primary_goals`; initial codes `FAT_LOSS|STRENGTH_HYPERTROPHY`); `fitness_level` (active code from `fitness_levels`; initial codes `BEGINNER|INTERMEDIATE|ADVANCED`); `training_days_per_week`, an array of 2–5 unique weekday codes from `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. An Admin may add or deactivate gender, goal and fitness-level codes; clients should always fetch the current active codes from the public reference endpoints. Existing profiles may have `gender:null` until updated.
 
@@ -195,3 +195,11 @@ Admin media upload/finalize/read endpoints live under `/admin/media`. JPEG/PNG/W
 Food display update: GET /references/foods returns {id,name,kind,description}. Render name verbatim; description is separate and nullable. Never split name on commas. Search matches both fields. INGREDIENT entries are active ingredients; FOOD entries require published food content. Food/ingredient admin payloads accept optional description. Known nutrition seed titles map explicitly to concise English names, preserving original source text in description. Custom names and published nutrition data are preserved.
 
 Ingredient description edits: omit content.description to preserve existing text; send a string to replace it, or null to clear it. Other required ingredient content fields remain required.
+
+## F05 program matching
+
+See [F05 workflow](F05_MATCHING_AR.md) and [new routes added on 18 November](TODAY_ENDPOINTS_2026-11-18.md). Onboarding queues/reuses a recommendation when an active matching ruleset exists; otherwise matching is {status:"CONFIGURATION_REQUIRED",runId:null}. GET /me/matching/status returns the current run, or NOT_STARTED with runId:null. The placeholder reason field is removed. PATCH /me also queues/reuses matching based on current relevant attributes; food-preference and injury writes do not trigger it.
+
+POST /me/matching/retry accepts {} and returns 201. Admin ruleset create/list, simulation, publication and run audit are restricted to ADMIN. Rule publication requires explicit qualityApproved:true and an evaluationReference. No ruleset is published by seed. The configured model must exactly match the private service's AI_MODEL.
+
+MATCH is a recommendation, with assignmentStatus:"NOT_ASSIGNED" and nextFeature:"F06". This slice exposes neither program assignment nor an athlete program catalog. Matching status fields are runId,status,selectedProgramVersionId,reasonCodes,failureCode,assignmentStatus,nextFeature,createdAt. Status codes include PENDING,PROCESSING,MATCH,NO_MATCH,FAILED,STALE. Reason codes are PROFILE_FIT,GOAL_FIT,LEVEL_FIT,SCHEDULE_FIT,NO_SUITABLE_PROGRAM. No generated medical explanation or BMI classification is returned. AI output may reference only a supplied candidate ID.

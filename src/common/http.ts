@@ -17,6 +17,17 @@ export class ApiError extends HttpException {
   }
 }
 const apiErrorMessages: Record<string, string> = {
+  AI_MATCHING_NOT_CONFIGURED:
+    'Program matching requires the private AI service and approved data settings.',
+  AI_MATCHING_UNAVAILABLE:
+    'Program selection is temporarily unavailable. Try again later.',
+  MATCHING_INVALID_OUTPUT:
+    'The program selector returned an invalid choice. No program was assigned.',
+  MATCHING_RULESET_IMMUTABLE:
+    'Published or archived matching rules cannot be edited or published again. Create a new draft.',
+  MATCHING_CONTEXT_TOO_LARGE:
+    'The eligible catalog exceeds the configured matching context size.',
+
   UNAUTHENTICATED: 'Please sign in to continue.',
   EMAIL_NOT_VERIFIED: 'Please verify your email before accessing Motion.',
   SESSION_REVOKED: 'This session is no longer active. Please sign in again.',

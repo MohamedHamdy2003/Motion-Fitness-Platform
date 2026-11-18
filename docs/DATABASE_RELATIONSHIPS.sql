@@ -131,3 +131,8 @@ JOIN pg_attribute AS referenced_column
 WHERE foreign_key.contype = 'f'
   AND source_schema.nspname = current_schema()
 ORDER BY source_table.relname, source_key.column_order;
+
+--
+-- F05: users 1---N recommendation_runs (ON DELETE CASCADE); matching_rulesets 1---N recommendation_runs.
+-- Simulation runs have no user_id. Active published matching ruleset is unique.
+--

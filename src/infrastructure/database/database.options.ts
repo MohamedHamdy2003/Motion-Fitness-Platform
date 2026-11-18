@@ -1,3 +1,4 @@
+import { ProgramMatching1793448017000 } from './migrations/1793448017000-ProgramMatching';
 import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
@@ -69,6 +70,7 @@ export function databaseOptions(): DataSourceOptions {
       RemoveExcludedFoodPreference1793448014000,
       FoodDisplay1793448015000,
       RemoveIdempotency1793448016000,
+      ProgramMatching1793448017000,
     ],
     synchronize: false,
     migrationsRun: false,

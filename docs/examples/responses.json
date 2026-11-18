@@ -48,8 +48,8 @@
       "disliked_food_ids": []
     },
     "matching": {
-      "status": "NOT_STARTED",
-      "reason": "F05_NOT_IMPLEMENTED"
+      "status": "CONFIGURATION_REQUIRED",
+      "runId": null
     }
   },
   "settings": {
@@ -61,8 +61,8 @@
   "onboarding": {
     "status": "COMPLETED",
     "matching": {
-      "status": "PENDING",
-      "reason": "F05_NOT_IMPLEMENTED"
+      "status": "CONFIGURATION_REQUIRED",
+      "runId": null
     }
   },
   "injuryRemoval": {

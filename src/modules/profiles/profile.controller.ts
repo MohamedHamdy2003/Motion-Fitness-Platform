@@ -108,7 +108,4 @@ export class ProfileController {
     );
     return this.rewriter.preview(req.principal.userId, input);
   }
-  @Get('matching/status') matching(@Req() req: ApiRequest) {
-    return this.profiles.me(req.principal.userId).then((me) => me.matching);
-  }
 }

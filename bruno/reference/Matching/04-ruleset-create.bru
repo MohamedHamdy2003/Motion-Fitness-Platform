@@ -1,0 +1,36 @@
+meta {
+  name: 04-ruleset-create
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/matching/rulesets
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "instructionVersion": "motion-matching-v1",
+  "instructions": "Compare eligible program descriptions and approved hints. Prefer the best fit to the supplied measurements and fitness level. Return NO_MATCH if none is suitable.",
+  "model": "{{matchingModel}}"
+}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.id) bru.setVar("matchingRulesetId", body.id);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  ADMIN only. Model must equal AI_MODEL in the private Mastra service. Response: draft ruleset row {id,status:"DRAFT",active:false,...}. Save id as matchingRulesetId. No auto publication or model retraining.
+}
