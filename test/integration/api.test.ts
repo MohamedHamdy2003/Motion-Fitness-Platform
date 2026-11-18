@@ -2410,6 +2410,26 @@ describe('F05 program matching', () => {
     expect(JSON.stringify(audit.body)).not.toContain('provider secret');
   });
 
+  it('bounds automatic rematching allocations while preserving profile edits', async () => {
+    const { user, service } = await setup();
+    await program();
+    for (let i = 0; i < 11; i++) {
+      await db.query('UPDATE user_profiles SET weight_kg=$2 WHERE user_id=$1', [
+        user.user.id,
+        80 + i,
+      ]);
+      const r = await service.triggerUser(user.user.id);
+      expect(r.status).toBe(i < 10 ? 'PENDING' : 'RATE_LIMITED');
+    }
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int AS n FROM recommendation_runs WHERE user_id=$1',
+          [user.user.id],
+        )
+      )[0].n,
+    ).toBe(10);
+  });
   it('simulates draft rules without assignment and rejects unavailable lookup values', async () => {
     const { headers, matcher, service } = await setup();
     const eligible = await program();

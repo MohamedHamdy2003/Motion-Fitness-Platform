@@ -466,6 +466,7 @@ Table recommendation_runs {
  status text
  input_hash text
  profile_snapshot jsonb
+ metrics_snapshot jsonb
  candidates jsonb
  decision jsonb
  attempts integer

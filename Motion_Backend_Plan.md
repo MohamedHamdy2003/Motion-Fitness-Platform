@@ -1,6 +1,6 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.23 · **Updated:** 2026-11-18 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; the next roadmap feature is F05 matching. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
+**Version:** 2.23 · **Updated:** 2026-11-18 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; F05 recommendation selection is implemented on dev; the next roadmap feature is F06 enrollment/scheduling. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
@@ -705,7 +705,7 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F05 matching. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
+- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F06 enrollment/scheduling. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
 - Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
 - F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 

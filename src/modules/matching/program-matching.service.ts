@@ -192,6 +192,17 @@ export class ProgramMatchingService {
         !(retry && previous.status === 'FAILED')
       )
         return this.publicRun(previous);
+      if (c.length > 0 && c.length <= 200) {
+        const [budget] = await query(
+          m,
+          `INSERT INTO rate_limits(key,bucket,count,expires_at) VALUES($1,$2,1,now()+interval '15 minutes') ON CONFLICT(key,bucket) DO UPDATE SET count=rate_limits.count+1 RETURNING count`,
+          [
+            fingerprint(['matching-allocation', userId]),
+            Math.floor(Date.now() / 900000),
+          ],
+        );
+        if (budget.count > 10) return { status: 'RATE_LIMITED', runId: null };
+      }
       const r = await this.insertRun(m, p, c, ruleset.id, 'USER', userId);
       return this.publicRun(r);
     };
@@ -217,7 +228,7 @@ export class ProgramMatchingService {
         : null;
     const [r] = await query(
       m,
-      `INSERT INTO recommendation_runs(id,user_id,ruleset_id,kind,status,input_hash,profile_snapshot,candidates,decision,failure_code,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CASE WHEN $5='PENDING' THEN NULL ELSE now() END) RETURNING *`,
+      `INSERT INTO recommendation_runs(id,user_id,ruleset_id,kind,status,input_hash,profile_snapshot,candidates,decision,failure_code,metrics_snapshot,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CASE WHEN $5='PENDING' THEN NULL ELSE now() END) RETURNING *`,
       [
         randomUUID(),
         userId,
@@ -229,6 +240,7 @@ export class ProgramMatchingService {
         JSON.stringify(c),
         decision,
         c.length > 200 ? 'MATCHING_CANDIDATE_LIMIT' : null,
+        this.metrics.calculate(p),
       ],
     );
     return r;
