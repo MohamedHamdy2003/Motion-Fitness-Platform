@@ -630,6 +630,11 @@ for (const [kind, content] of [
     'PATCH',
     '/admin/' + kind + '/{{contentId}}',
     { content },
+    kind === 'ingredients'
+      ? {
+          docs: 'description is optional: omit it to preserve saved text, send a string to replace it, or null to clear it. Other ingredient content fields remain required.',
+        }
+      : {},
   );
 }
 write(

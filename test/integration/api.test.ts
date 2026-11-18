@@ -2154,3 +2154,48 @@ it('finalizes shared video atomically, protects referenced media and blocks athl
     403,
   );
 });
+
+it('preserves ingredient descriptions when omitted and clears them only with explicit null', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
+  const content = {
+    title: 'Review ingredient',
+    description: 'Keep these source details',
+    dietaryTags: [],
+    allergenCodes: [],
+    verificationStatus: 'UNKNOWN',
+  };
+  const created = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({ slug: 'review-description', content });
+  expect(created.status, created.text).toBe(201);
+  const { description: omitted, ...withoutDescription } = content;
+  const edited = await api
+    .patch(prefix + '/admin/ingredients/' + created.body.id)
+    .set(headers)
+    .send({ content: { ...withoutDescription, title: 'Renamed ingredient' } });
+  expect(edited.status, edited.text).toBe(200);
+  expect(edited.body.description).toBe(omitted);
+  const reference = await api
+    .get(prefix + '/references/foods?search=Keep%20these%20source')
+    .set(headers);
+  expect(reference.body.items).toContainEqual(
+    expect.objectContaining({
+      id: created.body.id,
+      name: 'Renamed ingredient',
+      description: omitted,
+    }),
+  );
+  const cleared = await api
+    .patch(prefix + '/admin/ingredients/' + created.body.id)
+    .set(headers)
+    .send({ content: { ...withoutDescription, description: null } });
+  expect(cleared.status, cleared.text).toBe(200);
+  expect(cleared.body.description).toBeNull();
+  const fetched = await api.get(
+    prefix + '/references/ingredients/' + created.body.id,
+  );
+  expect(fetched.body.item.description).toBeNull();
+});
