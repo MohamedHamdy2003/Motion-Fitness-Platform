@@ -41,7 +41,11 @@ const seedNames = new Map<string, string>([
   ['Spinach, cooked, boiled, drained, without salt', 'Cooked spinach'],
   ['Carrots, cooked, boiled, drained, without salt', 'Cooked carrots'],
 ]);
-export function foodDisplay(title: string, description?: string) {
+export function foodDisplay(title: string, description?: string | null) {
   const name = seedNames.get(title) ?? title;
-  return { name, description: description ?? (name !== title ? title : null) };
+  return {
+    name,
+    description:
+      description === undefined ? (name !== title ? title : null) : description,
+  };
 }

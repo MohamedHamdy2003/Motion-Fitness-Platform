@@ -176,7 +176,7 @@ Cleanup waits for `DELETION_RETENTION_APPROVED=true`; completion is never report
 
 ## Idempotency and concurrency
 
-Send `Idempotency-Key` (8–128 ASCII letters/digits/underscore/hyphen) on POST injuries and PUT onboarding. Keys are scoped by authenticated user and operation and retained 7 days. Same key + same parsed body reuses the resource without another write; same key + different body returns 409. The gender migration clears old onboarding keys because the required request body changed. Replayed injury/onboarding responses report current resource/revision state, not an archived sensitive response. Numeric JSON values must be numbers, not strings.
+Profile, injury, and program writes do not require idempotency headers. If a client retries after a timeout, it should fetch the current resource state before repeating a create action. Numeric JSON values must be numbers, not strings.
 
 Profile, settings, preferences, and injury writes do not require client revision/version fields. Writes serialize on the user row; the last successful write is retained. Returned revision/version values are informational server state. Model/provider calls stay outside DB transactions. Identity linking and deletion proofs are purpose-, session- and user-bound, single-use, and five minutes old at most.
 
@@ -193,3 +193,5 @@ Verification status is UNKNOWN or VERIFIED; unknown nutrient values are null. So
 Admin media upload/finalize/read endpoints live under `/admin/media`. JPEG/PNG/WebP/MP4 uploads are limited to 100 MiB, checked against object metadata and initial signature bytes, and copied to a separate final key. DELETE archives an unreferenced library asset; existing signed URLs expire within five minutes. These APIs require configured S3 storage and do not expose a public athlete content catalog.
 
 Food display update: GET /references/foods returns {id,name,kind,description}. Render name verbatim; description is separate and nullable. Never split name on commas. Search matches both fields. INGREDIENT entries are active ingredients; FOOD entries require published food content. Food/ingredient admin payloads accept optional description. Known nutrition seed titles map explicitly to concise English names, preserving original source text in description. Custom names and published nutrition data are preserved.
+
+Ingredient description edits: omit content.description to preserve existing text; send a string to replace it, or null to clear it. Other required ingredient content fields remain required.

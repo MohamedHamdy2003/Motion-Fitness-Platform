@@ -31,12 +31,7 @@ export async function createApp() {
   if (origins.length)
     app.enableCors({
       origin: origins,
-      allowedHeaders: [
-        'Authorization',
-        'Content-Type',
-        'Idempotency-Key',
-        'X-Deletion-Token',
-      ],
+      allowedHeaders: ['Authorization', 'Content-Type', 'X-Deletion-Token'],
       exposedHeaders: ['X-Request-Id'],
     });
   app.enableShutdownHooks();

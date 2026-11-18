@@ -245,8 +245,13 @@ export class ContentService {
         );
         await query(
           m,
-          `UPDATE food_reference_items SET name=$2,description=$3 WHERE id=$1`,
-          [id, ...Object.values(foodDisplay(data.title, data.description))],
+          `UPDATE food_reference_items SET name=$2,description=CASE WHEN $4::boolean THEN $3::text ELSE description END WHERE id=$1`,
+          [
+            id,
+            foodDisplay(data.title).name,
+            data.description ?? null,
+            data.description !== undefined,
+          ],
         );
       } else {
         id = randomUUID();

@@ -134,10 +134,6 @@ describe('foundation against PostgreSQL', () => {
         `INSERT INTO body_measurements(id,user_id,measured_at,weight_kg,body_fat_percent,body_fat_method) VALUES($1,$3,now(),80,20,'BIA'),($2,$3,now(),NULL,21,'BIA')`,
         [mixedId, removedId, user.user.id],
       );
-      await runner.query(
-        `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,'measurement','legacy-fat-only','fixture-hash',$2)`,
-        [user.user.id, removedId],
-      );
       await migration.up(runner);
       const rows = await runner.query(
         'SELECT * FROM body_measurements WHERE user_id=$1',
@@ -148,12 +144,6 @@ describe('foundation against PostgreSQL', () => {
       expect(Number(rows[0].weight_kg)).toBe(80);
       expect(rows[0]).not.toHaveProperty('body_fat_percent');
       expect(rows[0]).not.toHaveProperty('body_fat_method');
-      expect(
-        await runner.query(
-          `SELECT key FROM idempotency_keys WHERE resource_id=$1`,
-          [removedId],
-        ),
-      ).toEqual([]);
       const [column] = await runner.query(
         `SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='body_measurements' AND column_name='weight_kg'`,
       );
@@ -911,7 +901,6 @@ describe('profiles, onboarding and injuries', () => {
     const first = await api
       .put(prefix + '/me/onboarding')
       .set(bearer(r.accessToken))
-      .set('idempotency-key', 'onboarding-test')
       .send(input);
     expect(first.status, first.text).toBe(200);
     expect(first.body.matching.status).toBe('PENDING');
@@ -921,7 +910,6 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .put(prefix + '/me/onboarding')
           .set(bearer(r.accessToken))
-          .set('idempotency-key', 'onboarding-test')
           .send(input)
       ).status,
     ).toBe(200);
@@ -931,7 +919,7 @@ describe('profiles, onboarding and injuries', () => {
     );
     expect(Number(saved.weight_kg)).toBe(80);
     expect(saved.gender).toBe('FEMALE');
-    expect(saved.profile_revision).toBe(1);
+    expect(saved.profile_revision).toBe(2);
   });
   it('rejects profile lookup codes that are not seeded', async () => {
     const user = await register();
@@ -955,7 +943,6 @@ describe('profiles, onboarding and injuries', () => {
     const response = await api
       .put(prefix + '/me/onboarding')
       .set(bearer(user.accessToken))
-      .set('idempotency-key', 'invalid-goal-test')
       .send(input);
     expect(response.status, response.text).toBe(422);
     expect(response.body.code).toBe('PRIMARY_GOAL_NOT_FOUND');
@@ -1057,14 +1044,12 @@ describe('profiles, onboarding and injuries', () => {
         await api
           .post(prefix + '/me/injuries')
           .set(bearer(r.accessToken))
-          .set('idempotency-key', 'injury-test')
           .send({ ...input, confirmed: false })
       ).status,
     ).toBe(400);
     const added = await api
       .post(prefix + '/me/injuries')
       .set(bearer(r.accessToken))
-      .set('idempotency-key', 'injury-test')
       .send(input);
     expect(added.status, added.text).toBe(201);
     const id = added.body.injury.id;
@@ -1810,7 +1795,6 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
   const created = await api
     .post(prefix + '/admin/programs')
     .set(headers)
-    .set('Idempotency-Key', 'f04-create-key-0001')
     .send(aggregate);
   expect(created.status, created.text).toBe(201);
   expect(created.body.months[0].weeks).toHaveLength(4);
@@ -1823,7 +1807,6 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
   const hint = await api
     .post(prefix + `/admin/programs/${created.body.id}/hints`)
     .set(headers)
-    .set('Idempotency-Key', 'f04-hint-create-001')
     .send({
       originalText: 'Test-only guidance for the fixture program.',
       structuredHints: { suitabilityNotes: ['Test only'] },
@@ -1835,13 +1818,11 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
         `/admin/programs/${created.body.id}/hints/${hint.body.id}/approve`,
     )
     .set(headers)
-    .set('Idempotency-Key', 'f04-hint-approve-01')
     .send({});
   expect(approvedHint.status, approvedHint.text).toBe(201);
   const published = await api
     .post(prefix + `/admin/programs/${created.body.id}/publish`)
     .set(headers)
-    .set('Idempotency-Key', 'f04-publish-key-001')
     .send({});
   expect(published.status, published.text).toBe(201);
   expect(published.body.status).toBe('PUBLISHED');
@@ -1857,7 +1838,6 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
   const nextDraft = await api
     .patch(prefix + `/admin/programs/${created.body.id}`)
     .set(headers)
-    .set('Idempotency-Key', 'f04-edit-key-0001')
     .send({
       ...Object.fromEntries(
         Object.entries(aggregate).filter(([key]) => key !== 'slug'),
@@ -2173,4 +2153,49 @@ it('finalizes shared video atomically, protects referenced media and blocks athl
   expect((await api.get(prefix + '/admin/media').set(headers)).status).toBe(
     403,
   );
+});
+
+it('preserves ingredient descriptions when omitted and clears them only with explicit null', async () => {
+  const user = await register();
+  const headers = bearer(user.accessToken);
+  await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
+  const content = {
+    title: 'Review ingredient',
+    description: 'Keep these source details',
+    dietaryTags: [],
+    allergenCodes: [],
+    verificationStatus: 'UNKNOWN',
+  };
+  const created = await api
+    .post(prefix + '/admin/ingredients')
+    .set(headers)
+    .send({ slug: 'review-description', content });
+  expect(created.status, created.text).toBe(201);
+  const { description: omitted, ...withoutDescription } = content;
+  const edited = await api
+    .patch(prefix + '/admin/ingredients/' + created.body.id)
+    .set(headers)
+    .send({ content: { ...withoutDescription, title: 'Renamed ingredient' } });
+  expect(edited.status, edited.text).toBe(200);
+  expect(edited.body.description).toBe(omitted);
+  const reference = await api
+    .get(prefix + '/references/foods?search=Keep%20these%20source')
+    .set(headers);
+  expect(reference.body.items).toContainEqual(
+    expect.objectContaining({
+      id: created.body.id,
+      name: 'Renamed ingredient',
+      description: omitted,
+    }),
+  );
+  const cleared = await api
+    .patch(prefix + '/admin/ingredients/' + created.body.id)
+    .set(headers)
+    .send({ content: { ...withoutDescription, description: null } });
+  expect(cleared.status, cleared.text).toBe(200);
+  expect(cleared.body.description).toBeNull();
+  const fetched = await api.get(
+    prefix + '/references/ingredients/' + created.body.id,
+  );
+  expect(fetched.body.item.description).toBeNull();
 });

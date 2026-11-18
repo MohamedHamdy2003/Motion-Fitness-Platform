@@ -4,7 +4,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Inject,
   Param,
   Patch,
@@ -32,14 +31,9 @@ export class ProgramController {
   }
 
   @Post()
-  create(
-    @Req() req: ApiRequest,
-    @Headers('idempotency-key') key: string,
-    @Body() body: unknown,
-  ) {
+  create(@Req() req: ApiRequest, @Body() body: unknown) {
     return this.programs.create(
       req.principal,
-      key || '',
       parse(dto.programAggregate, body),
     );
   }
@@ -53,13 +47,11 @@ export class ProgramController {
   update(
     @Req() req: ApiRequest,
     @Param('id') id: string,
-    @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
     return this.programs.update(
       req.principal,
       parse(uuid, id),
-      key || '',
       parse(dto.aggregateEdit, body),
     );
   }
@@ -68,38 +60,30 @@ export class ProgramController {
   publish(
     @Req() req: ApiRequest,
     @Param('id') id: string,
-    @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
     parse(emptyBody, body);
-    return this.programs.publish(req.principal, parse(uuid, id), key || '');
+    return this.programs.publish(req.principal, parse(uuid, id));
   }
 
   @Delete(':id')
   archive(
     @Req() req: ApiRequest,
     @Param('id') id: string,
-    @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
     parse(emptyBody, body);
-    return this.programs.archive(req.principal, parse(uuid, id), key || '');
+    return this.programs.archive(req.principal, parse(uuid, id));
   }
 
   @Post(':id/hints')
   addHint(
     @Req() req: ApiRequest,
     @Param('id') id: string,
-    @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
     const input = parse(dto.hintDraft, body);
-    return this.programs.addHint(
-      req.principal,
-      parse(uuid, id),
-      key || '',
-      input,
-    );
+    return this.programs.addHint(req.principal, parse(uuid, id), input);
   }
 
   @Post(':id/hints/:hintId/approve')
@@ -107,7 +91,6 @@ export class ProgramController {
     @Req() req: ApiRequest,
     @Param('id') id: string,
     @Param('hintId') hintId: string,
-    @Headers('idempotency-key') key: string,
     @Body() body: unknown,
   ) {
     parse(emptyBody, body);
@@ -115,7 +98,6 @@ export class ProgramController {
       req.principal,
       parse(uuid, id),
       parse(uuid, hintId),
-      key || '',
     );
   }
 }

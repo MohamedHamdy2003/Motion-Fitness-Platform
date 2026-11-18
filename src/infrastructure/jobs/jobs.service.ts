@@ -113,7 +113,6 @@ export class JobsService
       headers: {
         authorization: `Bearer ${e.RESEND_API_KEY}`,
         'content-type': 'application/json',
-        'idempotency-key': job.id,
       },
       body: JSON.stringify({
         from: e.MAIL_FROM,
@@ -183,7 +182,7 @@ export class JobsService
   async cleanup() {
     await query(
       this.db,
-      `DELETE FROM rate_limits WHERE expires_at<now(); DELETE FROM idempotency_keys WHERE created_at<now()-interval '7 days'; DELETE FROM auth_challenges WHERE expires_at<now()-interval '1 day'; DELETE FROM verification_tokens WHERE expires_at<now()-interval '1 day'; DELETE FROM auth_refresh_tokens WHERE expires_at<now(); DELETE FROM auth_sessions WHERE expires_at<now(); DELETE FROM jobs WHERE completed_at<now()-interval '7 days'; DELETE FROM account_deletions WHERE expires_at<now();`,
+      `DELETE FROM rate_limits WHERE expires_at<now(); DELETE FROM auth_challenges WHERE expires_at<now()-interval '1 day'; DELETE FROM verification_tokens WHERE expires_at<now()-interval '1 day'; DELETE FROM auth_refresh_tokens WHERE expires_at<now(); DELETE FROM auth_sessions WHERE expires_at<now(); DELETE FROM jobs WHERE completed_at<now()-interval '7 days'; DELETE FROM account_deletions WHERE expires_at<now();`,
     );
   }
 }

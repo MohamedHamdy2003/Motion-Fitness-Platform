@@ -164,10 +164,10 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 - Keep all current meal items visible. User selects an item and presses Replace; query other published, available members of the item's original food-section version, excluding its current choice and conflicts with current user restrictions/dislikes. Unknown relevant allergen metadata is not presented as a suitable alternative.
 - User selects the whole meal and presses Replace; query other published, available meal versions from the original meal section, excluding the currently selected meal identity. Return their item lists and flags. Suggested replacements exclude meals containing items that conflict with the user's current restrictions/dislikes or have unknown relevant allergen data. This filters new suggestions; it does not block the user's current meal.
 - Return one or more alternatives with stable ordering/pagination; the user chooses and confirms. If none exists, return NO_ALTERNATIVE and keep the current selection. Never move to another section or silently select a replacement.
-- For an item swap, accept selectedMemberId and Idempotency-Key. Lock the user and scheduled item, then validate ownership, section, availability, current preference flags and item state using the latest server state; update the selected food/portion and append a substitution record. Quantities come from admin data, not arbitrary client input. Last successful write wins when edits race.
-- For a whole-meal swap, accept selectedMealVersionId and Idempotency-Key. Lock the user and scheduled meal, then validate its section and every candidate item against the latest server state; atomically switch the selected meal and create its scheduled items. Previous item selections are retained as a superseded selection, never overwritten as if they were the new meal. Last successful write wins when edits race.
+- For an item swap, accept selectedMemberId. Lock the user and scheduled item, then validate ownership, section, availability, current preference flags and item state using the latest server state; update the selected food/portion and append a substitution record. Quantities come from admin data, not arbitrary client input. Last successful write wins when edits race.
+- For a whole-meal swap, accept selectedMealVersionId. Lock the user and scheduled meal, then validate its section and every candidate item against the latest server state; atomically switch the selected meal and create its scheduled items. Previous item selections are retained as a superseded selection, never overwritten as if they were the new meal. Last successful write wins when edits race.
 - Allow item swaps only on uncompleted current items. Allow whole-meal swaps only before any item in the current meal has been recorded as consumed; otherwise return MEAL_ALREADY_STARTED. Preserve past intake; no bulk future changes or shared-template edits.
-- Use a short transaction, consistent user/meal/item lock order and Idempotency-Key for swaps. A concurrent item swap, whole-meal swap, preference edit or completion is serialized against the latest server state; the last successful write wins.
+- Use a short transaction, consistent user/meal/item lock order for swaps. A concurrent item swap, whole-meal swap, preference edit or completion is serialized against the latest server state; the last successful write wins.
 - Enforce account/entitlement and assignment ownership before querying or changing personal meals. Reject operations on superseded item selections even if their IDs still exist in substitution history.
 - Preference changes affect the next read/query immediately. Compute food flags directly from current DB metadata; do not persist separate nutrition runs/restriction-cause graphs. Historical consumption snapshots and substitution history remain unchanged.
 - Original and selected food/meal references are separate. Repeated swaps stay in the original food section for that current meal selection, and the original meal section for the scheduled meal. A whole-meal swap uses the new meal's own item sections/portions.
@@ -240,7 +240,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Subscriptions | `subscriptions`: user_id, provider_product_id, provider, external_subscription_id, state, period_start/end, auto_renew, cancel_at_period_end |
 | Entitlements | `entitlements`: user_id, key, valid_from/until, source_subscription_id; nullable source only for a local development grant |
 | Billing | `payment_transactions`: user_id, subscription_id nullable, provider, provider_transaction_id, amount_minor, currency, status; `billing_events`: subscription_id nullable, provider, external_event_id, processing_state, effective_at, payload_redacted |
-| Idempotency and jobs | `idempotency_keys`: user_id, route_scope, key, request_hash, response_reference; `outbox_jobs`: event_type, deduplication_key UNIQUE, state, attempts, next_run_at, lease_owner nullable, lease_expires_at nullable, attempt_token nullable |
+| Jobs | `outbox_jobs`: event_type, deduplication_key UNIQUE, state, attempts, next_run_at, lease_owner nullable, lease_expires_at nullable, attempt_token nullable |
 | Notifications | `device_tokens`: user_id, device_id, token; `notifications`: user_id, type, payload, created_at, read_at nullable; `notification_deliveries`: notification_id nullable, recipient_user_id, device_token_id nullable, outbox_job_id, channel, state; delivery attempts are separate from inbox/read state |
 | Audit and deletion | `audit_logs`: actor_id nullable, action, resource_type/id, redacted changes; `account_deletion_jobs`: user_id nullable after deletion, state, cancellation_state, cleanup_state, tracking_token_hash, tracking_expires_at |
 | Support and legal | `faq_entries`: category, locale, question, answer; `legal_documents`: version, locale, content; `legal_acceptances`: user_id, legal_document_id, accepted_at |
@@ -399,12 +399,10 @@ erDiagram
     food_exchange_members ||..o{ meal_item_substitutions : from_member_id
     food_exchange_members ||..o{ meal_item_substitutions : to_member_id
     user_food_preferences ||..o{ meal_item_substitutions : preference_id
-    idempotency_keys ||..o| meal_item_substitutions : idempotency_key_id
     scheduled_meals ||..o{ meal_substitutions : scheduled_meal_id
     meal_versions ||..o{ meal_substitutions : from_meal_version_id
     meal_versions ||..o{ meal_substitutions : to_meal_version_id
     user_food_preferences ||..o{ meal_substitutions : preference_id
-    idempotency_keys ||..o| meal_substitutions : idempotency_key_id
     users ||..o{ daily_targets : user_id
     users ||..o{ water_logs : user_id
     users ||..o{ step_daily_totals : user_id
@@ -453,7 +451,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||..o{ idempotency_keys : user_id
     users ||..o{ device_tokens : user_id
     users ||..o{ notifications : user_id
     notifications o|..o{ notification_deliveries : notification_id
@@ -567,8 +564,8 @@ erDiagram
 | Schedule | `GET /me/program/months`, `/me/program/months/{monthId}/weeks`, `/me/program/weeks/{weekId}/days`, `/me/days/{date}`; reject content outside the assigned enrollment |
 | Workout | `POST /me/days/{date}/workout-session` (create/resume), `GET /me/workout-sessions/current`, `POST /me/workout-sessions/{id}/abandon`, `PUT /me/workout-sessions/{id}/exercises/{sessionExerciseId}/sets/{n}`, `PUT /me/workout-sessions/{id}/exercises/{sessionExerciseId}/completion`, `POST /me/workout-sessions/{id}/complete` |
 | Nutrition | `GET /me/nutrition/assignment`, `/me/nutrition/days/{date}`, `/me/meals/{id}`, `PUT /me/meals/{id}/completion`, `PUT /me/meal-items/{id}/completion` |
-| Food alternatives/swaps | `GET /me/meal-items/{id}/alternatives`, `POST /me/meal-items/{id}/substitutions` with Idempotency-Key and selectedMemberId; `GET /me/meal-items/{id}/substitutions`; last-write-wins validation against current server state |
-| Whole-meal alternatives/swaps | `GET /me/meals/{id}/alternatives`, `POST /me/meals/{id}/substitutions` with Idempotency-Key and selectedMealVersionId; `GET /me/meals/{id}/substitutions`; last-write-wins validation against current server state |
+| Food alternatives/swaps | `GET /me/meal-items/{id}/alternatives`, `POST /me/meal-items/{id}/substitutions` with selectedMemberId; `GET /me/meal-items/{id}/substitutions`; last-write-wins validation against current server state |
+| Whole-meal alternatives/swaps | `GET /me/meals/{id}/alternatives`, `POST /me/meals/{id}/substitutions` with selectedMealVersionId; `GET /me/meals/{id}/substitutions`; last-write-wins validation against current server state |
 | Goals | `GET /me/daily-goals?date=...`, `POST /me/water-logs`, `DELETE /me/water-logs/{id}`, `PUT /me/steps/{date}` |
 | Billing | `GET /billing/products`, `POST /billing/purchases/verify`, `/billing/purchases/restore`, `GET /me/subscription`, `POST /billing/events/{provider}` |
 | Dashboard | `GET /me/dashboard?date=...`, `GET /me/progress?from=...&to=...` |
@@ -595,7 +592,7 @@ erDiagram
 - Enforce role, ownership, and access policies. Users cannot access others' resources or locked month details by supplying IDs.
 - Hash passwords and refresh/reset tokens. Enforce single-use reset tokens, refresh rotation/replay revocation, and fresh verification for sensitive actions.
 - Standard error shape: `code/message/details/requestId`. Paginate lists, bound date ranges, and exclude secrets/allergy data from logs.
-- Use PUT for stable resource identities and Idempotency-Key for repeatable writes. Reusing a key with a different body returns 409.
+- Use PUT for stable resource identities and serialize writes against current server state.
 - Keep transactions short; provider/push calls run outside them. Use transactional outbox records only when durable work is required. Injury preview/save does not enqueue rewriting or fitting; a daily read/action may enqueue its fitting job. A lease takeover must reject late writes from the prior worker using an attempt/fencing token.
 - Keep entities within their modules; use `TypeOrmModule.forFeature`, repositories, and QueryBuilder for complex reads. Load relations explicitly without broad eager-loading/cascade defaults.
 - Centralize access, recommendation, completion, and nutrition-compatibility policies. Dashboard uses the same domain calculations.

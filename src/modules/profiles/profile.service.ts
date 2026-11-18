@@ -1,10 +1,9 @@
 import { query } from '../../infrastructure/database/query';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ApiError } from '../../common/http';
-import { environment } from '../../config/environment';
 import * as dto from './profile.dto';
 import { assertAgeEligible } from './profile.policy';
 
@@ -167,22 +166,10 @@ export class ProfileService {
       return this.updateProfile(m, id, input);
     });
   }
-  async onboard(
-    id: string,
-    input: z.infer<typeof dto.onboarding>,
-    key: string,
-  ) {
+  async onboard(id: string, input: z.infer<typeof dto.onboarding>) {
     assertAgeEligible(input.date_of_birth, input.timezone);
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const previous = await this.idempotency(m, id, 'onboarding', key, input);
-      if (previous) {
-        return {
-          status: 'COMPLETED',
-          replayed: true,
-          matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
-        };
-      }
       const { food_preferences, ...profile } = input;
       await this.updateProfile(m, id, profile);
       await this.savePreferences(m, id, food_preferences);
@@ -191,49 +178,11 @@ export class ProfileService {
         `UPDATE user_profiles SET onboarded_at=coalesce(onboarded_at,now()) WHERE user_id=$1`,
         [id],
       );
-      await this.recordKey(m, id, 'onboarding', key, input, null);
       return {
         status: 'COMPLETED',
         matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
       };
     });
-  }
-  digest(input: unknown) {
-    return createHmac('sha256', environment().JWT_SECRET)
-      .update(JSON.stringify(input))
-      .digest('hex');
-  }
-  async idempotency(
-    m: EntityManager,
-    id: string,
-    scope: string,
-    key: string,
-    input: unknown,
-  ) {
-    if (!/^[A-Za-z0-9_-]{8,128}$/.test(key))
-      throw new ApiError('IDEMPOTENCY_KEY_REQUIRED');
-    const [p] = await query(
-      m,
-      `SELECT resource_id,body_hash FROM idempotency_keys WHERE user_id=$1 AND scope=$2 AND key=$3`,
-      [id, scope, key],
-    );
-    if (p && p.body_hash !== this.digest(input))
-      throw new ApiError('IDEMPOTENCY_CONFLICT', 409);
-    return p;
-  }
-  async recordKey(
-    m: EntityManager,
-    id: string,
-    scope: string,
-    key: string,
-    input: unknown,
-    resource: string | null,
-  ) {
-    await query(
-      m,
-      `INSERT INTO idempotency_keys(user_id,scope,key,body_hash,resource_id) VALUES($1,$2,$3,$4,$5)`,
-      [id, scope, key, this.digest(input), resource],
-    );
   }
   async getSettings(id: string) {
     const [s] = await query(
@@ -388,18 +337,9 @@ export class ProfileService {
     await this.event(m, id, 'INJURIES_UPDATED', s.injury_revision);
     return s.injury_revision;
   }
-  async addInjury(id: string, input: z.infer<typeof dto.injury>, key: string) {
+  async addInjury(id: string, input: z.infer<typeof dto.injury>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const previous = await this.idempotency(m, id, 'injury', key, input);
-      if (previous) {
-        const [r] = await query(
-          m,
-          `SELECT * FROM user_injuries WHERE id=$1 AND user_id=$2`,
-          [previous.resource_id, id],
-        );
-        return { injury: r, replayed: true };
-      }
       await this.bodyArea(m, input.body_area_code);
       const [r] = await query(
         m,
@@ -412,7 +352,6 @@ export class ProfileService {
           input.description,
         ],
       );
-      await this.recordKey(m, id, 'injury', key, input, r.id);
       return { injury: r, injury_revision: await this.injuryRevision(m, id) };
     });
   }

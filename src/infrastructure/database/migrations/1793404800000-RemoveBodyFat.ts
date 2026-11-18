@@ -5,8 +5,6 @@ export class RemoveBodyFat1793404800000 implements MigrationInterface {
     await q.query(`
       UPDATE user_profiles SET profile_revision=profile_revision+1
       WHERE user_id IN (SELECT user_id FROM body_measurements WHERE body_fat_percent IS NOT NULL);
-      DELETE FROM idempotency_keys WHERE scope='measurement'
-        AND resource_id IN (SELECT id FROM body_measurements WHERE weight_kg IS NULL);
       DELETE FROM body_measurements WHERE weight_kg IS NULL;
       ALTER TABLE body_measurements
         DROP COLUMN body_fat_percent,
