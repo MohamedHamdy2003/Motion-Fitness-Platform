@@ -1,0 +1,41 @@
+meta {
+  name: 05-ruleset-simulate
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/admin/matching/rulesets/{{matchingRulesetId}}/simulate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "primaryGoal": "FAT_LOSS",
+  "fitnessLevel": "BEGINNER",
+  "trainingDaysPerWeek": 2,
+  "age": 28,
+  "heightCm": 175,
+  "weightKg": 80,
+  "targetWeightKg": 72,
+  "gender": "FEMALE"
+}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.runId) bru.setVar("matchingRunId", body.runId);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  ADMIN only. Queues simulation for this ruleset with a synthetic profile. Returns {runId,status,...}; save runId as matchingRunId and poll admin runs. No user assignment. Ten simulations per 15 minutes.
+}

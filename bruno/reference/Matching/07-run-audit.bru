@@ -1,0 +1,23 @@
+meta {
+  name: 07-run-audit
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/admin/matching/runs/{{matchingRunId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  ADMIN only. Response: run audit including profile_snapshot (no direct identifiers), candidates, decision, failure_code,attempts,duration_ms,ruleset_id,kind,status. Contains sensitive measurements; restrict dashboard access.
+}

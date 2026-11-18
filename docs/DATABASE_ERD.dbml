@@ -445,3 +445,35 @@ Ref: plan_days.workout_revision_id > workout_revisions.id
 Ref: plan_days.nutrition_template_day_id - nutrition_template_days.id
 Ref: program_hint_versions.program_version_id > program_versions.id
 Ref: program_hint_versions.approved_by > users.id
+
+
+Table matching_rulesets {
+ id uuid [pk]
+ status text
+ active boolean
+ instruction_version text
+ instructions text
+ model text
+ policy_version text
+ schema_version text
+ evaluation_reference text
+}
+Table recommendation_runs {
+ id uuid [pk]
+ user_id uuid
+ ruleset_id uuid
+ kind text
+ status text
+ input_hash text
+ profile_snapshot jsonb
+ metrics_snapshot jsonb
+ candidates jsonb
+ decision jsonb
+ attempts integer
+ lease_token uuid
+ lease_expires_at timestamptz
+ failure_code text
+ duration_ms integer
+}
+Ref: recommendation_runs.user_id > users.id [delete: cascade]
+Ref: recommendation_runs.ruleset_id > matching_rulesets.id

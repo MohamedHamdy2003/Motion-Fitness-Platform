@@ -1,3 +1,4 @@
+import { ProgramMatchingService } from '../matching/program-matching.service';
 import { query } from '../../infrastructure/database/query';
 import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
@@ -9,7 +10,10 @@ import { assertAgeEligible } from './profile.policy';
 
 @Injectable()
 export class ProfileService {
-  constructor(@Inject(DataSource) public db: DataSource) {}
+  constructor(
+    @Inject(DataSource) public db: DataSource,
+    @Inject(ProgramMatchingService) private matching: ProgramMatchingService,
+  ) {}
   private profileResponse(row: Record<string, any>): Record<string, any> {
     const { training_weekdays, ...profile } = row;
     delete profile.profile_revision;
@@ -64,10 +68,7 @@ export class ProfileService {
         injuries,
         injury_revision: state.injury_revision,
         food_preferences: await this.getPreferences(id, m),
-        matching: {
-          status: profile.onboarded_at ? 'PENDING' : 'NOT_STARTED',
-          reason: 'F05_NOT_IMPLEMENTED',
-        },
+        matching: await this.matching.status(id, m),
       };
     });
   }
@@ -163,7 +164,9 @@ export class ProfileService {
   async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      return this.updateProfile(m, id, input);
+      const profile = await this.updateProfile(m, id, input);
+      await this.matching.triggerUser(id, false, m);
+      return profile;
     });
   }
   async onboard(id: string, input: z.infer<typeof dto.onboarding>) {
@@ -180,7 +183,7 @@ export class ProfileService {
       );
       return {
         status: 'COMPLETED',
-        matching: { status: 'PENDING', reason: 'F05_NOT_IMPLEMENTED' },
+        matching: await this.matching.triggerUser(id, false, m),
       };
     });
   }

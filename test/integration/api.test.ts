@@ -83,6 +83,8 @@ beforeAll(async () => {
   db = new DataSource(databaseOptions());
   await db.initialize();
   await db.runMigrations();
+  // Dedicated *_test DB: clear published program fixtures before exercising historical rollback migrations.
+  await db.query('TRUNCATE programs,nutrition_plans CASCADE');
   const migrations = await db.query('SELECT id FROM migrations');
   for (const ignored of migrations) {
     void ignored;
@@ -98,7 +100,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   await db.query(
-    `TRUNCATE users CASCADE; TRUNCATE account_deletions,rate_limits;`,
+    `TRUNCATE users CASCADE; TRUNCATE account_deletions,rate_limits; TRUNCATE matching_rulesets CASCADE;`,
   );
   Object.assign(process.env, {
     GOOGLE_CLIENT_IDS: '',
@@ -903,7 +905,7 @@ describe('profiles, onboarding and injuries', () => {
       .set(bearer(r.accessToken))
       .send(input);
     expect(first.status, first.text).toBe(200);
-    expect(first.body.matching.status).toBe('PENDING');
+    expect(first.body.matching.status).toBe('CONFIGURATION_REQUIRED');
     expect(first.body).not.toHaveProperty('profile_revision');
     expect(
       (
@@ -2198,4 +2200,355 @@ it('preserves ingredient descriptions when omitted and clears them only with exp
     prefix + '/references/ingredients/' + created.body.id,
   );
   expect(fetched.body.item.description).toBeNull();
+});
+
+describe('F05 program matching', () => {
+  async function setup() {
+    const user = await register();
+    const headers = bearer(user.accessToken);
+    await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [user.user.id]);
+    const rules = await api
+      .post(prefix + '/admin/matching/rulesets')
+      .set(headers)
+      .send({
+        instructionVersion: 'reviewed-v1',
+        instructions:
+          'Compare the supplied candidate descriptions and choose the best fit.',
+        model: 'fixture/model',
+      });
+    expect(rules.status, rules.text).toBe(201);
+    expect(
+      (
+        await api
+          .post(
+            prefix + '/admin/matching/rulesets/' + rules.body.id + '/publish',
+          )
+          .set(headers)
+          .send({
+            qualityApproved: true,
+            evaluationReference: 'reviewed-fixture-set-v1',
+          })
+      ).status,
+    ).toBe(201);
+    await db.query(
+      `UPDATE user_profiles SET name='Private name',gender='FEMALE',height_cm=175,weight_kg=80,target_weight_kg=72,primary_goal='FAT_LOSS',fitness_level='BEGINNER',training_days_per_week=2,training_weekdays=ARRAY['SUNDAY','TUESDAY'],date_of_birth='1998-03-14',onboarded_at=now() WHERE user_id=$1`,
+      [user.user.id],
+    );
+    const { ProgramMatchingService } =
+      await import('../../src/modules/matching/program-matching.service.js');
+    const { PROGRAM_MATCHER } =
+      await import('../../src/modules/matching/matching.contract.js');
+    const matcher = app.get(PROGRAM_MATCHER);
+    const service = app.get(ProgramMatchingService);
+    return { user, headers, rules, matcher, service };
+  }
+  async function program(goal = 'FAT_LOSS', days = 2, level = 'BEGINNER') {
+    const id = crypto.randomUUID(),
+      nutrition = crypto.randomUUID(),
+      nv = crypto.randomUUID(),
+      version = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO programs(id,slug) VALUES($1::uuid,$1::uuid::text)`,
+      [id],
+    );
+    await db.query(
+      `INSERT INTO nutrition_plans(id,slug) VALUES($1::uuid,$1::uuid::text)`,
+      [nutrition],
+    );
+    await db.query(
+      `INSERT INTO nutrition_plan_versions(id,nutrition_plan_id,version,duration_days,status) VALUES($1,$2,1,28,'PUBLISHED')`,
+      [nv, nutrition],
+    );
+    await db.query(
+      `INSERT INTO program_versions(id,program_id,version,status,title,primary_goal,ideal_level,training_days_per_week,description,nutrition_plan_version_id) VALUES($1,$2,1,'PUBLISHED','Candidate',$3,$4,$5,'Admin prepared program description',$6)`,
+      [version, id, goal, level, days, nv],
+    );
+    await db.query(
+      `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
+      [version, level],
+    );
+    await db.query(
+      `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
+      [version, goal],
+    );
+    return version;
+  }
+  it('filters goal AND days AND level; stores one valid recommendation without assigning it', async () => {
+    const { headers, rules, matcher, service } = await setup();
+    const eligible = await program();
+    await program('STRENGTH_HYPERTROPHY');
+    await program('FAT_LOSS', 3);
+    await program('FAT_LOSS', 2, 'ADVANCED');
+    const select = vi.spyOn(matcher, 'select').mockResolvedValue({
+      status: 'MATCH',
+      selectedProgramVersionId: eligible,
+      reasonCodes: ['GOAL_FIT'],
+    });
+    const [a, b] = await Promise.all([
+      api
+        .post(prefix + '/me/matching/retry')
+        .set(headers)
+        .send({}),
+      api
+        .post(prefix + '/me/matching/retry')
+        .set(headers)
+        .send({}),
+    ]);
+    expect(a.status, a.text).toBe(201);
+    expect(a.body.runId).toBe(b.body.runId);
+    expect(await service.processOne()).toBe(true);
+    expect(
+      (select.mock.calls[0][0] as any).candidates.map((c: any) => c.id),
+    ).toEqual([eligible]);
+    expect(JSON.stringify(select.mock.calls[0][0])).not.toContain(
+      'Private name',
+    );
+    expect(JSON.stringify(select.mock.calls[0][0])).not.toContain('@example');
+    const status = await api.get(prefix + '/me/matching/status').set(headers);
+    expect(status.body).toMatchObject({
+      status: 'MATCH',
+      selectedProgramVersionId: eligible,
+      assignmentStatus: 'NOT_ASSIGNED',
+    });
+    expect(
+      (
+        await api
+          .post(
+            prefix + '/admin/matching/rulesets/' + rules.body.id + '/publish',
+          )
+          .set(headers)
+          .send({ qualityApproved: true, evaluationReference: 'second-review' })
+      ).status,
+    ).toBe(409);
+    const stranger = await register('stranger@example.test');
+    expect(
+      (
+        await api
+          .get(prefix + '/admin/matching/runs/' + a.body.runId)
+          .set(bearer(stranger.accessToken))
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await api
+          .get(prefix + '/me/matching/status')
+          .set(bearer(stranger.accessToken))
+      ).body.runId,
+    ).toBeNull();
+  });
+  it('returns NO_MATCH with zero provider calls for an empty eligible catalog', async () => {
+    const { headers, matcher, service } = await setup();
+    const select = vi.spyOn(matcher, 'select');
+    const r = await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    expect(r.body.status).toBe('NO_MATCH');
+    expect(await service.processOne()).toBe(false);
+    expect(select).not.toHaveBeenCalled();
+  });
+  it('rejects forged selections and marks output stale when inputs change mid-call', async () => {
+    const { user, headers, matcher, service } = await setup();
+    const eligible = await program();
+    const select = vi.spyOn(matcher, 'select').mockResolvedValue({
+      status: 'MATCH',
+      selectedProgramVersionId: crypto.randomUUID(),
+      reasonCodes: ['PROFILE_FIT'],
+    });
+    await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    await service.processOne();
+    expect(
+      (await api.get(prefix + '/me/matching/status').set(headers)).body,
+    ).toMatchObject({
+      status: 'FAILED',
+      failureCode: 'MATCHING_INVALID_OUTPUT',
+    });
+    await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    select.mockImplementationOnce(async () => {
+      await db.query('UPDATE user_profiles SET weight_kg=81 WHERE user_id=$1', [
+        user.user.id,
+      ]);
+      return {
+        status: 'MATCH',
+        selectedProgramVersionId: eligible,
+        reasonCodes: ['PROFILE_FIT'],
+      };
+    });
+    await service.processOne();
+    expect(
+      (await api.get(prefix + '/me/matching/status').set(headers)).body.status,
+    ).toBe('STALE');
+  });
+  it('bounds retries and isolates provider failures from existing profile data', async () => {
+    const { headers, matcher, service } = await setup();
+    await program();
+    vi.spyOn(matcher, 'select').mockRejectedValue(
+      new Error('provider secret must not be saved'),
+    );
+    const r = await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    await service.processOne();
+    await db.query(
+      `UPDATE recommendation_runs SET available_at=now() WHERE id=$1`,
+      [r.body.runId],
+    );
+    await service.processOne();
+    const audit = await api
+      .get(prefix + '/admin/matching/runs/' + r.body.runId)
+      .set(headers);
+    expect(audit.body.status).toBe('FAILED');
+    expect(audit.body.attempts).toBe(2);
+    expect(audit.body.failure_code).toBe('AI_MATCHING_UNAVAILABLE');
+    expect(JSON.stringify(audit.body)).not.toContain('provider secret');
+  });
+
+  it('bounds automatic rematching allocations while preserving profile edits', async () => {
+    const { user, service } = await setup();
+    await program();
+    for (let i = 0; i < 11; i++) {
+      await db.query('UPDATE user_profiles SET weight_kg=$2 WHERE user_id=$1', [
+        user.user.id,
+        80 + i,
+      ]);
+      const r = await service.triggerUser(user.user.id);
+      expect(r.status).toBe(i < 10 ? 'PENDING' : 'RATE_LIMITED');
+    }
+    expect(
+      (
+        await db.query(
+          'SELECT count(*)::int AS n FROM recommendation_runs WHERE user_id=$1',
+          [user.user.id],
+        )
+      )[0].n,
+    ).toBe(10);
+  });
+  it('simulates draft rules without assignment and rejects unavailable lookup values', async () => {
+    const { headers, matcher, service } = await setup();
+    const eligible = await program();
+    const draft = await api
+      .post(prefix + '/admin/matching/rulesets')
+      .set(headers)
+      .send({
+        instructionVersion: 'simulation-v1',
+        instructions:
+          'Compare supplied descriptions without overriding eligibility.',
+        model: 'fixture/model',
+      });
+    const input = {
+      primaryGoal: 'FAT_LOSS',
+      fitnessLevel: 'BEGINNER',
+      trainingDaysPerWeek: 2,
+      age: 28,
+      heightCm: 175,
+      weightKg: 80,
+      targetWeightKg: 72,
+      gender: 'FEMALE',
+    };
+    expect(
+      (
+        await api
+          .post(
+            prefix + '/admin/matching/rulesets/' + draft.body.id + '/simulate',
+          )
+          .set(headers)
+          .send({ ...input, fitnessLevel: 'UNKNOWN_LEVEL' })
+      ).status,
+    ).toBe(422);
+    vi.spyOn(matcher, 'select').mockResolvedValue({
+      status: 'MATCH',
+      selectedProgramVersionId: eligible,
+      reasonCodes: ['LEVEL_FIT'],
+    });
+    const simulated = await api
+      .post(prefix + '/admin/matching/rulesets/' + draft.body.id + '/simulate')
+      .set(headers)
+      .send(input);
+    expect(simulated.status, simulated.text).toBe(201);
+    await service.processOne();
+    const audit = await api
+      .get(prefix + '/admin/matching/runs/' + simulated.body.runId)
+      .set(headers);
+    expect(audit.body).toMatchObject({
+      kind: 'SIMULATION',
+      user_id: null,
+      status: 'MATCH',
+    });
+    expect(
+      (await api.get(prefix + '/me/matching/status').set(headers)).body.status,
+    ).toBe('NOT_STARTED');
+  });
+  it('reclaims an expired lease and prevents the superseded worker overwriting the decision', async () => {
+    const { headers, matcher, service } = await setup();
+    const eligible = await program();
+    let release!: (value: unknown) => void;
+    const select = vi
+      .spyOn(matcher, 'select')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+      )
+      .mockResolvedValue({
+        status: 'MATCH',
+        selectedProgramVersionId: eligible,
+        reasonCodes: ['SCHEDULE_FIT'],
+      });
+    const created = await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    const first = service.processOne();
+    await vi.waitFor(() => expect(select).toHaveBeenCalledTimes(1));
+    await db.query(
+      `UPDATE recommendation_runs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`,
+      [created.body.runId],
+    );
+    await service.processOne();
+    release({
+      status: 'NO_MATCH',
+      selectedProgramVersionId: null,
+      reasonCodes: ['NO_SUITABLE_PROGRAM'],
+    });
+    await first;
+    const status = await api.get(prefix + '/me/matching/status').set(headers);
+    expect(status.body).toMatchObject({
+      status: 'MATCH',
+      selectedProgramVersionId: eligible,
+    });
+  });
+  it('invalidates queued runs before provider calls when eligible content is archived', async () => {
+    const { headers, matcher, service } = await setup();
+    const eligible = await program();
+    const select = vi.spyOn(matcher, 'select');
+    await api
+      .post(prefix + '/me/matching/retry')
+      .set(headers)
+      .send({});
+    await db.query(
+      `UPDATE programs SET archived=true WHERE id=(SELECT program_id FROM program_versions WHERE id=$1)`,
+      [eligible],
+    );
+    await service.processOne();
+    expect(select).not.toHaveBeenCalled();
+    expect(
+      (await api.get(prefix + '/me/matching/status').set(headers)).body.status,
+    ).toBe('STALE');
+    expect(
+      (
+        await api
+          .post(prefix + '/me/matching/retry')
+          .set(headers)
+          .send({})
+      ).body.status,
+    ).toBe('NO_MATCH');
+  });
 });
