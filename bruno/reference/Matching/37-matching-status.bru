@@ -21,6 +21,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Response: {status,runId,selectedProgramVersionId,reasonCodes,failureCode,assignmentStatus:"NOT_ASSIGNED",nextFeature:"F06",createdAt}. Before a run: {status:"NOT_STARTED",runId:null}. Poll after onboarding or POST /me/matching/retry. A recommendation is not an enrollment.
+  Response: {status,runId,selectedProgramVersionId,reasonCodes,failureCode,assignmentStatus,enrollmentId,createdAt}. Before a run: {status:"NOT_STARTED",runId:null}. The first validated MATCH assigns a program automatically. Later matching results preserve the active enrollment. Get its details through GET /me/program.
   Never commit populated credentials or runtime tokens.
 }

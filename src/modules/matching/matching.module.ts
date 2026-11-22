@@ -13,6 +13,7 @@ import {
   AdminMatchingController,
 } from './matching.controller';
 import { ContentGuard } from '../content/content.guard';
+import { ProgramEnrollmentsModule } from '../enrollments/program-enrollments.module';
 import { environment } from '../../config/environment';
 @Injectable()
 class MatchingWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -40,6 +41,7 @@ class MatchingWorker implements OnApplicationBootstrap, OnApplicationShutdown {
   }
 }
 @Module({
+  imports: [ProgramEnrollmentsModule],
   controllers: [MatchingController, AdminMatchingController],
   providers: [
     ProgramMatchingService,

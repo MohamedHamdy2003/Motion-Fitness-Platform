@@ -1,0 +1,15 @@
+meta {
+  name: Mark All Notifications Read
+  type: http
+  seq: 139
+}
+
+post {
+  url: {{baseUrl}}/me/notifications/read-all
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

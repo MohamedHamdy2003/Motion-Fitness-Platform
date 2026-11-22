@@ -149,4 +149,9 @@ export const hintDraft = z
     structuredHints: z.record(z.string(), z.unknown()),
   })
   .strict();
+export const hintRewriteInput = z
+  .object({
+    originalText: text,
+  })
+  .strict();
 export type ProgramAggregate = z.infer<typeof programAggregate>;

@@ -1,0 +1,23 @@
+meta {
+  name: Read workout session
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/me/workouts/{{workoutSessionId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Returns your current or completed session and its recorded reps, sets, and exercise completion.
+}

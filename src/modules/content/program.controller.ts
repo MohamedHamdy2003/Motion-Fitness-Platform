@@ -86,6 +86,20 @@ export class ProgramController {
     return this.programs.addHint(req.principal, parse(uuid, id), input);
   }
 
+  @Post(':id/hints/rewrite')
+  rewriteHint(
+    @Req() req: ApiRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = parse(dto.hintRewriteInput, body);
+    return this.programs.rewriteHint(
+      req.principal,
+      parse(uuid, id),
+      input.originalText,
+    );
+  }
+
   @Post(':id/hints/:hintId/approve')
   approveHint(
     @Req() req: ApiRequest,

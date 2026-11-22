@@ -1,0 +1,23 @@
+meta {
+  name: Week days
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/me/program/weeks/{{enrollmentWeekId}}/days
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Lists the seven calendar days in an assigned week. Set enrollmentWeekId from Month weeks. GET, no request body. Response: {items:[{id,date,kind,status,workoutTitle,isDue}]}. Kind is TRAINING or REST. Unassigned week: 404.
+}

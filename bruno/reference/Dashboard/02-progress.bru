@@ -1,0 +1,23 @@
+meta {
+  name: Progress summary
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/me/progress
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Returns aggregated workout, nutrition, water/step activity, and measurement progress across a bounded date range (?from=YYYY-MM-DD&to=YYYY-MM-DD).
+}

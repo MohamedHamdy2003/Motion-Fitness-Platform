@@ -1,0 +1,23 @@
+meta {
+  name: Home dashboard summary
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/me/dashboard
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Returns the unified Home dashboard state: profile summary, current program and month progress, today's workout and nutrition summary, and daily water/step activity.
+}

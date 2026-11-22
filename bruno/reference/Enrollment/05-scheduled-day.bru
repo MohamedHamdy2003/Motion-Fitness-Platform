@@ -1,0 +1,28 @@
+meta {
+  name: Scheduled day details
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/me/days/{{scheduledDate}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.id) bru.setVar("scheduledDayId", body.id);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Set scheduledDate to YYYY-MM-DD from Current program or Week days. GET, no request body. Response: {id,date,kind,status,isDue,nutritionTemplateDayId,meals:[{id,position,mealType,localTime,mealVersionId,title}],workout,fitting}. Workout is null on rest days; otherwise {id,title,description}. An actionable day adds exercises [{id,exerciseRevisionId,position,title,description,instructions,muscleGroups,equipment,setCount,repsMin,repsMax,durationSeconds,restSeconds,restrictionStatus,video}] and fitting {status,runId}. Video, when available, includes a short-lived downloadUrl. Unassigned date: 404.
+}

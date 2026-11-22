@@ -1,5 +1,5 @@
 FROM node:24-bookworm-slim AS build
-WORKDIR /app
+WORKDIR /ai
 COPY package.json package-lock.json ./
 RUN npm ci --maxsockets=5 --fetch-retries=5
 COPY tsconfig.json ./
@@ -9,10 +9,10 @@ RUN npm prune --omit=dev --offline
 
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production
-WORKDIR /app
+WORKDIR /ai
 COPY package.json package-lock.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
+COPY --from=build /ai/node_modules ./node_modules
+COPY --from=build /ai/dist ./dist
 USER node
 EXPOSE 3001
 CMD ["node", "dist/server.js"]

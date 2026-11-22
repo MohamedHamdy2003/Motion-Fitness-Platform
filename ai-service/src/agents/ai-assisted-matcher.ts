@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { Mastra } from '@mastra/core/mastra';
 import { noopLogger } from '@mastra/core/logger';
 import { z } from 'zod';
+import { AiTokenUsage, extractTokenUsage } from './usage.js';
 const code = z.string().regex(/^[A-Z][A-Z0-9_]{1,49}$/);
 export const matchingInput = z
   .object({
@@ -67,6 +68,7 @@ export const matchingOutput = z
 export async function matchProgram(
   model: string,
   input: z.infer<typeof matchingInput>,
+  onUsage?: (usage: AiTokenUsage) => void,
 ) {
   if (input.model !== model) throw new Error('MODEL_MISMATCH');
   const agent = new Agent({
@@ -92,6 +94,9 @@ ${input.instructions}`,
       abortSignal: AbortSignal.timeout(12000),
       tracingOptions: { hideInput: true, hideOutput: true },
     });
+  if (onUsage) {
+    onUsage(extractTokenUsage((response as { usage?: unknown }).usage));
+  }
   const result = matchingOutput.parse(response.object);
   if (
     result.status === 'MATCH'

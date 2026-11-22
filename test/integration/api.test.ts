@@ -100,7 +100,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   await db.query(
-    `TRUNCATE users CASCADE; TRUNCATE account_deletions,rate_limits; TRUNCATE matching_rulesets CASCADE;`,
+    `TRUNCATE users CASCADE; TRUNCATE account_deletions,rate_limits,ai_usage_logs,uptime_checks; TRUNCATE matching_rulesets CASCADE;`,
   );
   Object.assign(process.env, {
     GOOGLE_CLIENT_IDS: '',
@@ -2308,7 +2308,11 @@ describe('F05 program matching', () => {
       ).status,
     ).toBe(201);
     await db.query(
-      `UPDATE user_profiles SET name='Private name',gender='FEMALE',height_cm=175,weight_kg=80,target_weight_kg=72,primary_goal='FAT_LOSS',fitness_level='BEGINNER',training_days_per_week=2,training_weekdays=ARRAY['SUNDAY','TUESDAY'],date_of_birth='1998-03-14',onboarded_at=now() WHERE user_id=$1`,
+      `UPDATE user_profiles SET name='Private name',gender='FEMALE',height_cm=175,weight_kg=80,target_weight_kg=72,primary_goal='FAT_LOSS',fitness_level='BEGINNER',training_days_per_week=2,
+        training_weekdays=ARRAY[
+          (ARRAY['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'])[1+extract(dow FROM now() AT TIME ZONE 'UTC')::int],
+          (ARRAY['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'])[1+extract(dow FROM (now() AT TIME ZONE 'UTC')+interval '2 days')::int]
+        ],date_of_birth='1998-03-14',onboarded_at=now() WHERE user_id=$1`,
       [user.user.id],
     );
     const { ProgramMatchingService } =
@@ -2319,7 +2323,12 @@ describe('F05 program matching', () => {
     const service = app.get(ProgramMatchingService);
     return { user, headers, rules, matcher, service };
   }
-  async function program(goal = 'FAT_LOSS', days = 2, level = 'BEGINNER') {
+  async function program(
+    goal = 'FAT_LOSS',
+    days = 2,
+    level = 'BEGINNER',
+    months = 1,
+  ) {
     const id = crypto.randomUUID(),
       nutrition = crypto.randomUUID(),
       nv = crypto.randomUUID(),
@@ -2333,8 +2342,8 @@ describe('F05 program matching', () => {
       [nutrition],
     );
     await db.query(
-      `INSERT INTO nutrition_plan_versions(id,nutrition_plan_id,version,duration_days,status) VALUES($1,$2,1,28,'PUBLISHED')`,
-      [nv, nutrition],
+      `INSERT INTO nutrition_plan_versions(id,nutrition_plan_id,version,duration_days) VALUES($1,$2,1,$3)`,
+      [nv, nutrition, months * 28],
     );
     await db.query(
       `INSERT INTO program_versions(id,program_id,version,title,primary_goal,ideal_level,training_days_per_week,description,nutrition_plan_version_id) VALUES($1,$2,1,'Candidate',$3,$4,$5,'Admin prepared program description',$6)`,
@@ -2349,14 +2358,68 @@ describe('F05 program matching', () => {
       [version, goal],
     );
     await db.query(
+      `INSERT INTO nutrition_template_days(id,nutrition_plan_version_id,day_position)
+       SELECT gen_random_uuid(),$1,n FROM generate_series(1,$2) n`,
+      [nv, months * 28],
+    );
+    const exercise = crypto.randomUUID();
+    const er = crypto.randomUUID();
+    const workout = crypto.randomUUID();
+    const wr = crypto.randomUUID();
+    await db.query(
+      'INSERT INTO exercises(id,slug) VALUES($1::uuid,$1::uuid::text)',
+      [exercise],
+    );
+    await db.query(
+      `INSERT INTO exercise_revisions(id,exercise_id,version,status,content)
+       VALUES($1,$2,1,'PUBLISHED','{"title":"Fixture squat","description":"Fixture description","instructions":["Fixture instruction"],"muscleGroups":["Legs"],"equipment":[]}')`,
+      [er, exercise],
+    );
+    await db.query(
+      'INSERT INTO workouts(id,slug) VALUES($1::uuid,$1::uuid::text)',
+      [workout],
+    );
+    await db.query(
+      "INSERT INTO workout_revisions(id,workout_id,version,title,description) VALUES($1,$2,1,'Test workout','Fixture')",
+      [wr, workout],
+    );
+    await db.query(
+      `INSERT INTO workout_exercises(id,workout_revision_id,exercise_revision_id,position,set_count,reps_min,reps_max,rest_seconds)
+       VALUES(gen_random_uuid(),$1,$2,0,2,8,10,20)`,
+      [wr, er],
+    );
+    await db.query(
+      `WITH months AS (
+         INSERT INTO monthly_plans(id,program_version_id,position,title)
+         SELECT gen_random_uuid(),$1::uuid,m,'Test month '||m FROM generate_series(1,$5) m RETURNING id,position
+       ), weeks AS (
+         INSERT INTO plan_weeks(id,monthly_plan_id,position)
+         SELECT gen_random_uuid(),m.id,w FROM months m CROSS JOIN generate_series(1,4) w RETURNING id,monthly_plan_id,position
+       )
+       INSERT INTO plan_days(id,week_id,position,kind,workout_revision_id,nutrition_template_day_id)
+       SELECT gen_random_uuid(),w.id,d,CASE WHEN d<=$2 THEN 'TRAINING' ELSE 'REST' END,
+         CASE WHEN d<=$2 THEN $3::uuid END,nt.id
+       FROM weeks w JOIN months m ON m.id=w.monthly_plan_id CROSS JOIN generate_series(1,7) d
+       JOIN nutrition_template_days nt ON nt.nutrition_plan_version_id=$4 AND nt.day_position=(m.position-1)*28+(w.position-1)*7+d`,
+      [version, days, wr, nv, months],
+    );
+    await db.query(
+      "UPDATE workout_revisions SET status='PUBLISHED' WHERE id=$1",
+      [wr],
+    );
+    await db.query(
+      "UPDATE nutrition_plan_versions SET status='PUBLISHED' WHERE id=$1",
+      [nv],
+    );
+    await db.query(
       `UPDATE program_versions SET status='PUBLISHED' WHERE id=$1`,
       [version],
     );
     return version;
   }
-  it('filters goal AND days AND level; stores one valid recommendation without assigning it', async () => {
+  it('filters eligible programs and assigns exactly one paired first-month schedule', async () => {
     const { headers, rules, matcher, service } = await setup();
-    const eligible = await program();
+    const eligible = await program('FAT_LOSS', 2, 'BEGINNER', 2);
     await program('STRENGTH_HYPERTROPHY');
     await program('FAT_LOSS', 3);
     await program('FAT_LOSS', 2, 'ADVANCED');
@@ -2389,8 +2452,109 @@ describe('F05 program matching', () => {
     expect(status.body).toMatchObject({
       status: 'MATCH',
       selectedProgramVersionId: eligible,
-      assignmentStatus: 'NOT_ASSIGNED',
+      assignmentStatus: 'ASSIGNED',
+      enrollmentId: expect.any(String),
     });
+    const enrollment = await api
+      .get(prefix + '/me/program')
+      .set(headers)
+      .expect(200);
+    expect(enrollment.body).toMatchObject({
+      status: 'ASSIGNED',
+      enrollmentId: status.body.enrollmentId,
+      programVersionId: eligible,
+      nutritionPlanVersionId: expect.any(String),
+    });
+    const [calendar] = await db.query(
+      `
+      SELECT count(*)::int AS total,
+        count(*) FILTER (WHERE pd.kind='TRAINING')::int AS training,
+        count(*) FILTER (WHERE nd.day_position<>sd.local_date-e.starts_on+1)::int AS mismatched
+      FROM scheduled_days sd JOIN program_enrollments e ON e.id=sd.enrollment_id
+      JOIN plan_days pd ON pd.id=sd.plan_day_id
+      JOIN nutrition_template_days nd ON nd.id=sd.nutrition_template_day_id WHERE e.id=$1
+    `,
+      [enrollment.body.enrollmentId],
+    );
+    expect(calendar).toEqual({ total: 28, training: 8, mismatched: 0 });
+    const [today] = await db.query(
+      `
+      SELECT sd.id,we.id AS exercise FROM scheduled_days sd
+      JOIN program_enrollments e ON e.id=sd.enrollment_id
+      JOIN plan_days pd ON pd.id=sd.plan_day_id
+      JOIN workout_exercises we ON we.workout_revision_id=pd.workout_revision_id
+      WHERE e.id=$1 AND sd.local_date=e.starts_on
+    `,
+      [enrollment.body.enrollmentId],
+    );
+    expect(today).toBeDefined();
+    const workout = prefix + '/me/workouts';
+    const started = await api
+      .post(workout + '/days/' + today.id + '/start')
+      .set(headers)
+      .expect(201);
+    const session = workout + '/' + started.body.id;
+    const set = session + '/exercises/' + today.exercise + '/sets/1';
+    await api
+      .post(session + '/complete')
+      .set(headers)
+      .expect(409);
+    await api
+      .put(set)
+      .set(headers)
+      .send({ status: 'COMPLETED', actualReps: 9, weightKg: 8 })
+      .expect(200);
+    await api
+      .put(set)
+      .set(headers)
+      .send({ status: 'COMPLETED', actualReps: 10, weightKg: 8 })
+      .expect(200);
+    await api
+      .post(session + '/abandon')
+      .set(headers)
+      .expect(201);
+    const resumed = await api
+      .post(workout + '/days/' + today.id + '/start')
+      .set(headers)
+      .expect(201);
+    expect(resumed.body).toMatchObject({
+      id: started.body.id,
+      summary: { recordedReps: 10, completedSets: 1 },
+    });
+    await api
+      .put(session + '/exercises/' + today.exercise + '/sets/2')
+      .set(headers)
+      .send({ status: 'SKIPPED' })
+      .expect(200);
+    await api
+      .post(session + '/complete')
+      .set(headers)
+      .expect(409);
+    await api
+      .put(session + '/exercises/' + today.exercise + '/completion')
+      .set(headers)
+      .send({ completed: true })
+      .expect(200);
+    expect(
+      (
+        await api
+          .post(session + '/complete')
+          .set(headers)
+          .expect(201)
+      ).body,
+    ).toMatchObject({
+      status: 'COMPLETED',
+      summary: {
+        recordedReps: 10,
+        completedSets: 1,
+        completedExercises: 1,
+        isPartial: true,
+      },
+    });
+    await api
+      .post(session + '/complete')
+      .set(headers)
+      .expect(201);
     expect(
       (
         await api
@@ -2402,6 +2566,7 @@ describe('F05 program matching', () => {
       ).status,
     ).toBe(409);
     const stranger = await register('stranger@example.test');
+    await api.get(session).set(bearer(stranger.accessToken)).expect(404);
     expect(
       (
         await api
@@ -2767,5 +2932,909 @@ describe('Figma daily activity', () => {
       .set(headers)
       .send({ waterGoalMl: null, stepsGoal: null });
     expect(reset.body).toEqual({ waterGoalMl: 2500, stepsGoal: 10000 });
+  });
+});
+
+describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition Swaps, F12 Dashboard & Program Catalog', () => {
+  it('enforces a single administrator account via CLI bootstrap and database constraint', async () => {
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    const adminId = await createAdmin(
+      db,
+      'studio-admin@example.test',
+      password,
+    );
+    expect(adminId).toEqual(expect.any(String));
+
+    await expect(
+      createAdmin(db, 'second-admin@example.test', password),
+    ).rejects.toThrow('An admin account already exists');
+
+    const secondUser = await register('second-user@example.test');
+    await expect(
+      db.query("INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN')", [
+        secondUser.user.id,
+      ]),
+    ).rejects.toThrow();
+
+    const adminLogin = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'studio-admin@example.test', password })
+      .expect(200);
+    await api
+      .get(prefix + '/admin/programs')
+      .set(bearer(adminLogin.body.accessToken))
+      .expect(200);
+  });
+
+  it('evaluates daily exercise fitting with active injuries, exempts all-blocked due days, and unlocks month 2', async () => {
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    const adminId = await createAdmin(db, 'admin-fit@example.test', password);
+    void adminId;
+    const athlete = await register('fitter-athlete@example.test');
+    const headers = bearer(athlete.accessToken);
+
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    const seeded = await seedPublishedProgramsAndRuleset(
+      db,
+      'google/gemini-2.5-flash',
+    );
+    expect(seeded.totalCatalogPrograms).toBeGreaterThanOrEqual(12);
+
+    const { PROGRAM_MATCHER } =
+      await import('../../src/modules/matching/matching.contract.js');
+    const { ProgramMatchingService } =
+      await import('../../src/modules/matching/program-matching.service.js');
+    const { ExerciseFittingService } =
+      await import('../../src/modules/fitting/fitting.service.js');
+    const matcher = app.get(PROGRAM_MATCHER);
+    const matchingService = app.get(ProgramMatchingService);
+    const fittingService = app.get(ExerciseFittingService);
+
+    const [targetProgram] = await db.query(
+      `SELECT pv.id FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.slug='fat-loss-foundation-3d'`,
+    );
+    vi.spyOn(matcher, 'select').mockResolvedValue({
+      status: 'MATCH',
+      selectedProgramVersionId: targetProgram.id,
+      reasonCodes: ['GOAL_FIT', 'LEVEL_FIT', 'SCHEDULE_FIT'],
+    });
+
+    const [weekdays] = await db.query(
+      `SELECT ARRAY[
+         (ARRAY['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'])[1+extract(dow FROM now() AT TIME ZONE 'UTC')::int],
+         (ARRAY['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'])[1+extract(dow FROM (now() AT TIME ZONE 'UTC')+interval '1 day')::int],
+         (ARRAY['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'])[1+extract(dow FROM (now() AT TIME ZONE 'UTC')+interval '2 days')::int]
+       ] AS days`,
+    );
+
+    await api
+      .put(prefix + '/me/onboarding')
+      .set(headers)
+      .send({
+        name: 'Fitter Athlete',
+        gender: 'MALE',
+        height_cm: 178,
+        weight_kg: 92,
+        target_weight_kg: 80,
+        primary_goal: 'FAT_LOSS',
+        fitness_level: 'BEGINNER',
+        training_days_per_week: weekdays.days,
+        timezone: 'UTC',
+        locale: 'en',
+        date_of_birth: '1996-05-10',
+        food_preferences: {
+          allergen_codes: [],
+          disliked_food_ids: [],
+        },
+      })
+      .expect(200);
+
+    await matchingService.processOne();
+
+    const currentProg = await api
+      .get(prefix + '/me/program')
+      .set(headers)
+      .expect(200);
+    expect(currentProg.body.status).toBe('ASSIGNED');
+    expect(currentProg.body.programVersionId).toBe(targetProgram.id);
+
+    const monthsBefore = await api
+      .get(prefix + '/me/program/months')
+      .set(headers)
+      .expect(200);
+    expect(monthsBefore.body.items).toHaveLength(2);
+    expect(monthsBefore.body.items[0]).toMatchObject({
+      position: 1,
+      status: 'SCHEDULED',
+      trainingDayCount: 12,
+      completedWorkoutCount: 0,
+      exemptDayCount: 0,
+      pendingTrainingDayCount: 12,
+      unlockProgress: 0,
+    });
+    expect(monthsBefore.body.items[1].status).toBe('LOCKED');
+
+    // Without active injuries, GET /me/days/:date returns NOT_REQUIRED fitting without calling AI
+    const dayViewNoInjury = await api
+      .get(prefix + '/me/days/' + currentProg.body.localToday)
+      .set(headers)
+      .expect(200);
+    expect(dayViewNoInjury.body.fitting.status).toBe('NOT_REQUIRED');
+    expect(
+      dayViewNoInjury.body.workout.exercises.every(
+        (e: { restrictionStatus: string }) =>
+          e.restrictionStatus === 'NO_IDENTIFIED_CONFLICT',
+      ),
+    ).toBe(true);
+
+    // Add a confirmed active knee injury
+    const injuryRes = await api
+      .post(prefix + '/me/injuries')
+      .set(headers)
+      .send({
+        body_area_code: 'KNEE',
+        side: 'LEFT',
+        description: 'Pain during deep knee flexion under load',
+        confirmed: true,
+      })
+      .expect(201);
+
+    process.env.AI_FITTING_URL = 'http://ai:3001/internal/v1/fit';
+    process.env.AI_SERVICE_TOKEN = 'a'.repeat(36);
+    process.env.AI_RETENTION_APPROVED = 'true';
+
+    const exerciseIds = dayViewNoInjury.body.workout.exercises.map(
+      (e: { id: string }) => e.id,
+    );
+    // All exercises blocked -> day becomes EXEMPT when started
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            policyVersion: 'reported-injury-fit-v1',
+            modelVersion: 'google/gemini-2.5-flash',
+            decisions: exerciseIds.map((id: string) => ({
+              workoutExerciseId: id,
+              status: 'BLOCKED',
+            })),
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const fittingQueued = await api
+      .get(prefix + '/me/workouts/days/' + dayViewNoInjury.body.id + '/fitting')
+      .set(headers)
+      .expect(202);
+    expect(fittingQueued.body.status).toBe('PENDING');
+
+    expect(await fittingService.processOne()).toBe(true);
+
+    const fittingReady = await api
+      .get(prefix + '/me/workouts/days/' + dayViewNoInjury.body.id + '/fitting')
+      .set(headers)
+      .expect(200);
+    expect(fittingReady.body.status).toBe('READY');
+
+    const startExempt = await api
+      .post(prefix + '/me/workouts/days/' + dayViewNoInjury.body.id + '/start')
+      .set(headers)
+      .expect(201);
+    expect(startExempt.body).toMatchObject({
+      id: null,
+      scheduledDayId: dayViewNoInjury.body.id,
+      status: 'EXEMPT',
+    });
+
+    const monthsAfterExempt = await api
+      .get(prefix + '/me/program/months')
+      .set(headers)
+      .expect(200);
+    expect(monthsAfterExempt.body.items[0]).toMatchObject({
+      exemptDayCount: 1,
+      completedWorkoutCount: 0,
+      pendingTrainingDayCount: 11,
+    });
+
+    // Removing the injury in an unfinished month reopens the EXEMPT day back to SCHEDULED
+    await api
+      .delete(prefix + '/me/injuries/' + injuryRes.body.injury.id)
+      .set(headers)
+      .send({ confirmed: true })
+      .expect(200);
+
+    const dayAfterInjuryRemoved = await api
+      .get(prefix + '/me/days/' + currentProg.body.localToday)
+      .set(headers)
+      .expect(200);
+    expect(dayAfterInjuryRemoved.body.status).toBe('SCHEDULED');
+  });
+
+  it('supports program change proposals and explicit acceptance without losing prior history', async () => {
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    await seedPublishedProgramsAndRuleset(db, 'google/gemini-2.5-flash');
+
+    const athlete = await register('switch-athlete@example.test');
+    const headers = bearer(athlete.accessToken);
+    const { PROGRAM_MATCHER } =
+      await import('../../src/modules/matching/matching.contract.js');
+    const { ProgramMatchingService } =
+      await import('../../src/modules/matching/program-matching.service.js');
+    const matcher = app.get(PROGRAM_MATCHER);
+    const matchingService = app.get(ProgramMatchingService);
+
+    const [fatLossProg] = await db.query(
+      `SELECT pv.id FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.slug='fat-loss-foundation-3d'`,
+    );
+    const [muscleProg] = await db.query(
+      `SELECT pv.id FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.slug='muscle-foundation-full-body-3d'`,
+    );
+
+    const selectSpy = vi.spyOn(matcher, 'select').mockResolvedValueOnce({
+      status: 'MATCH',
+      selectedProgramVersionId: fatLossProg.id,
+      reasonCodes: ['GOAL_FIT'],
+    });
+
+    await api
+      .put(prefix + '/me/onboarding')
+      .set(headers)
+      .send({
+        name: 'Switch Athlete',
+        gender: 'MALE',
+        height_cm: 180,
+        weight_kg: 84,
+        target_weight_kg: 78,
+        primary_goal: 'FAT_LOSS',
+        fitness_level: 'BEGINNER',
+        training_days_per_week: ['MONDAY', 'WEDNESDAY', 'FRIDAY'],
+        timezone: 'UTC',
+        locale: 'en',
+        date_of_birth: '1997-02-15',
+        food_preferences: {
+          allergen_codes: [],
+          disliked_food_ids: [],
+        },
+      })
+      .expect(200);
+    await matchingService.processOne();
+
+    const firstProgram = await api
+      .get(prefix + '/me/program')
+      .set(headers)
+      .expect(200);
+    expect(firstProgram.body.programVersionId).toBe(fatLossProg.id);
+    expect(firstProgram.body.pendingProposal).toBeNull();
+
+    // User changes primary_goal to STRENGTH_HYPERTROPHY -> triggers new recommendation without ending current enrollment
+    selectSpy.mockResolvedValueOnce({
+      status: 'MATCH',
+      selectedProgramVersionId: muscleProg.id,
+      reasonCodes: ['GOAL_FIT', 'LEVEL_FIT'],
+    });
+    await api
+      .patch(prefix + '/me')
+      .set(headers)
+      .send({ primary_goal: 'STRENGTH_HYPERTROPHY' })
+      .expect(200);
+    await matchingService.processOne();
+
+    const withProposal = await api
+      .get(prefix + '/me/program')
+      .set(headers)
+      .expect(200);
+    expect(withProposal.body.programVersionId).toBe(fatLossProg.id);
+    expect(withProposal.body.pendingProposal).toMatchObject({
+      programVersionId: muscleProg.id,
+      recommendationRunId: expect.any(String),
+    });
+
+    const accepted = await api
+      .post(prefix + '/me/program/change/accept')
+      .set(headers)
+      .send({
+        recommendationRunId:
+          withProposal.body.pendingProposal.recommendationRunId,
+      })
+      .expect(201);
+    expect(accepted.body.programVersionId).toBe(muscleProg.id);
+    expect(accepted.body.pendingProposal).toBeNull();
+
+    const enrollments = await db.query(
+      'SELECT id,program_version_id,ended_at FROM program_enrollments WHERE user_id=$1 ORDER BY created_at',
+      [athlete.user.id],
+    );
+    expect(enrollments).toHaveLength(2);
+    expect(enrollments[0].ended_at).not.toBeNull();
+    expect(enrollments[1].ended_at).toBeNull();
+  });
+
+  it('executes daily user nutrition, allergen/dislike flags, item swaps, whole-meal swaps, completion, and home dashboard', async () => {
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    await seedPublishedProgramsAndRuleset(db, 'google/gemini-2.5-flash');
+
+    const athlete = await register('nutrition-athlete@example.test');
+    const headers = bearer(athlete.accessToken);
+    const { PROGRAM_MATCHER } =
+      await import('../../src/modules/matching/matching.contract.js');
+    const { ProgramMatchingService } =
+      await import('../../src/modules/matching/program-matching.service.js');
+    const matcher = app.get(PROGRAM_MATCHER);
+    const matchingService = app.get(ProgramMatchingService);
+
+    const [fatLossProg] = await db.query(
+      `SELECT pv.id FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.slug='fat-loss-foundation-3d'`,
+    );
+    vi.spyOn(matcher, 'select').mockResolvedValueOnce({
+      status: 'MATCH',
+      selectedProgramVersionId: fatLossProg.id,
+      reasonCodes: ['GOAL_FIT'],
+    });
+
+    // User has a MILK allergy (Greek yogurt in breakfast has MILK allergen)
+    await api
+      .put(prefix + '/me/onboarding')
+      .set(headers)
+      .send({
+        name: 'Nutrition Athlete',
+        gender: 'FEMALE',
+        height_cm: 166,
+        weight_kg: 68,
+        target_weight_kg: 62,
+        primary_goal: 'FAT_LOSS',
+        fitness_level: 'BEGINNER',
+        training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
+        timezone: 'UTC',
+        locale: 'en',
+        date_of_birth: '1999-08-20',
+        food_preferences: {
+          allergen_codes: ['MILK'],
+          disliked_food_ids: [],
+        },
+      })
+      .expect(200);
+    await matchingService.processOne();
+
+    const assignment = await api
+      .get(prefix + '/me/nutrition/assignment')
+      .set(headers)
+      .expect(200);
+    expect(assignment.body.status).toBe('ASSIGNED');
+
+    const today = assignment.body.localToday;
+    const nutritionDay = await api
+      .get(prefix + '/me/nutrition/days/' + today)
+      .set(headers)
+      .expect(200);
+    expect(nutritionDay.body.meals).toHaveLength(3);
+    expect(nutritionDay.body.totals.planned.energyKcal).toBeGreaterThan(0);
+
+    // Breakfast is oats-yogurt-banana; the Greek yogurt item has MILK allergen -> isBlocked: true, but meal itself is not blocked!
+    const breakfast = nutritionDay.body.meals[0];
+    const yogurtItem = breakfast.items.find(
+      (i: { isBlocked: boolean }) => i.isBlocked,
+    );
+    expect(yogurtItem).toBeDefined();
+    expect(yogurtItem.matchedAllergens).toEqual(['MILK']);
+    expect(breakfast.status).toBe('PENDING');
+
+    // Fetch alternatives for the yogurt item -> excludes MILK items and returns safe protein options
+    const itemAlts = await api
+      .get(prefix + '/me/meal-items/' + yogurtItem.id + '/alternatives')
+      .set(headers)
+      .expect(200);
+    expect(itemAlts.body.status).toBe('AVAILABLE');
+    expect(itemAlts.body.items.length).toBeGreaterThan(0);
+
+    // Swap the yogurt item with the first safe alternative
+    const swappedMeal = await api
+      .post(prefix + '/me/meal-items/' + yogurtItem.id + '/substitutions')
+      .set(headers)
+      .send({ selectedMemberId: itemAlts.body.items[0].memberId })
+      .expect(201);
+    const updatedItem = swappedMeal.body.items.find(
+      (i: { id: string }) => i.id === yogurtItem.id,
+    );
+    expect(updatedItem.isBlocked).toBe(false);
+    expect(updatedItem.selectedMemberId).toBe(itemAlts.body.items[0].memberId);
+
+    // Whole-meal alternatives for breakfast
+    const mealAlts = await api
+      .get(prefix + '/me/meals/' + breakfast.id + '/alternatives')
+      .set(headers)
+      .expect(200);
+    expect(mealAlts.body.status).toBe('AVAILABLE');
+    expect(mealAlts.body.items.length).toBeGreaterThan(0);
+
+    // Swap whole breakfast meal before any item is completed
+    const wholeSwapped = await api
+      .post(prefix + '/me/meals/' + breakfast.id + '/substitutions')
+      .set(headers)
+      .send({ selectedMealVersionId: mealAlts.body.items[0].mealVersionId })
+      .expect(201);
+    expect(wholeSwapped.body.selectedMealVersionId).toBe(
+      mealAlts.body.items[0].mealVersionId,
+    );
+    expect(wholeSwapped.body.selectionVersion).toBe(2);
+
+    // Complete one item -> meal status becomes PARTIAL, and whole-meal swap is now rejected with MEAL_ALREADY_STARTED
+    const firstActiveItem = wholeSwapped.body.items[0];
+    const partialMeal = await api
+      .put(prefix + '/me/meal-items/' + firstActiveItem.id + '/completion')
+      .set(headers)
+      .send({ completed: true })
+      .expect(200);
+    expect(partialMeal.body.status).toBe('PARTIAL');
+
+    const blockedWholeSwap = await api
+      .post(prefix + '/me/meals/' + breakfast.id + '/substitutions')
+      .set(headers)
+      .send({ selectedMealVersionId: breakfast.originalMealVersionId })
+      .expect(409);
+    expect(blockedWholeSwap.body.code).toBe('MEAL_ALREADY_STARTED');
+
+    // Complete the whole meal
+    const completedMeal = await api
+      .put(prefix + '/me/meals/' + breakfast.id + '/completion')
+      .set(headers)
+      .send({ completed: true })
+      .expect(200);
+    expect(completedMeal.body.status).toBe('COMPLETED');
+    expect(completedMeal.body.totals.consumed.energyKcal).toBe(
+      completedMeal.body.totals.selected.energyKcal,
+    );
+
+    // Check unified Home Dashboard and Progress endpoints
+    const home = await api
+      .get(prefix + '/me/dashboard')
+      .set(headers)
+      .expect(200);
+    expect(home.body.program.status).toBe('ASSIGNED');
+    expect(home.body.todayNutrition).toMatchObject({
+      mealCount: 3,
+      completedMealCount: 1,
+    });
+
+    const progress = await api
+      .get(prefix + '/me/progress')
+      .set(headers)
+      .expect(200);
+    expect(progress.body.nutrition).toMatchObject({
+      trackedDays: 1,
+      totalMeals: 3,
+      completedMeals: 1,
+    });
+  });
+
+  it('previews AI-rewritten program hints for administrators without mutating the program', async () => {
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    await createAdmin(db, 'hint-admin@example.test', password);
+    const login = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'hint-admin@example.test', password })
+      .expect(200);
+    const headers = bearer(login.body.accessToken);
+
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    await seedPublishedProgramsAndRuleset(db, 'google/gemini-2.5-flash');
+
+    const [prog] = await db.query(
+      `SELECT id FROM programs WHERE slug='fat-loss-foundation-3d'`,
+    );
+
+    process.env.AI_REWRITE_URL = 'http://ai:3001/internal/v1/rewrite';
+    process.env.AI_SERVICE_TOKEN = 'a'.repeat(36);
+    process.env.AI_RETENTION_APPROVED = 'true';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            structuredHints: {
+              summary: 'Joint-friendly 3-day metabolic fat loss program.',
+              intendedAudience: 'Beginners and intermediates with dumbbells',
+              suitabilityNotes: ['Low-impact lower body', '3 days per week'],
+              ambiguities: [],
+              unsupportedClaims: [],
+            },
+            modelVersion: 'google/gemini-2.5-flash',
+            instructionVersion: 'program-hints-rewrite-v1',
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const preview = await api
+      .post(prefix + `/admin/programs/${prog.id}/hints/rewrite`)
+      .set(headers)
+      .send({
+        originalText:
+          'Best for beginners looking for 3-day joint-friendly fat loss.',
+      })
+      .expect(201);
+    expect(preview.body).toMatchObject({
+      previewOnly: true,
+      instructionVersion: 'program-hints-rewrite-v1',
+      structuredHints: {
+        summary: 'Joint-friendly 3-day metabolic fat loss program.',
+      },
+    });
+  });
+
+  it('tracks weight history, periodic 3-day check-ins, notifications inbox, and water reminder schedules', async () => {
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    await seedPublishedProgramsAndRuleset(db, 'google/gemini-2.5-flash');
+
+    const user = await register('checkin-athlete@example.test');
+    const headers = bearer(user.accessToken);
+
+    const [programVersion] = await db.query(
+      `SELECT pv.id FROM program_versions pv JOIN programs p ON p.id=pv.program_id WHERE p.slug='fat-loss-foundation-3d'`,
+    );
+    const { PROGRAM_MATCHER } =
+      await import('../../src/modules/matching/matching.contract.js');
+    const { ProgramMatchingService } =
+      await import('../../src/modules/matching/program-matching.service.js');
+    const matcher = app.get(PROGRAM_MATCHER);
+    vi.spyOn(matcher, 'select').mockResolvedValueOnce({
+      status: 'MATCH',
+      selectedProgramVersionId: programVersion.id,
+      reasonCodes: ['GOAL_FIT'],
+    });
+
+    const onboard = await api
+      .put(prefix + '/me/onboarding')
+      .set(headers)
+      .send({
+        name: 'Check-In Athlete',
+        gender: 'MALE',
+        date_of_birth: '1995-04-12',
+        timezone: 'UTC',
+        locale: 'en',
+        height_cm: 180,
+        weight_kg: 88,
+        target_weight_kg: 80,
+        primary_goal: 'FAT_LOSS',
+        fitness_level: 'BEGINNER',
+        training_days_per_week: ['MONDAY', 'WEDNESDAY', 'FRIDAY'],
+        food_preferences: { allergen_codes: [], disliked_food_ids: [] },
+      })
+      .expect(200);
+    expect(onboard.headers['x-ratelimit-limit']).toBeDefined();
+    expect(onboard.headers['x-ratelimit-remaining']).toBeDefined();
+
+    await app.get(ProgramMatchingService).processOne();
+
+    // Verify PROGRAM_READY notification was automatically created
+    const inbox1 = await api
+      .get(prefix + '/me/notifications')
+      .set(headers)
+      .expect(200);
+    expect(inbox1.body.unreadCount).toBe(1);
+    expect(inbox1.body.items[0].type).toBe('PROGRAM_READY');
+
+    // Mark notification as read
+    const readOne = await api
+      .put(prefix + `/me/notifications/${inbox1.body.items[0].id}/read`)
+      .set(headers)
+      .expect(200);
+    expect(readOne.body.readAt).toBeTruthy();
+
+    // Check initial check-in status is DUE
+    const checkInsBefore = await api
+      .get(prefix + '/me/check-ins')
+      .set(headers)
+      .expect(200);
+    expect(checkInsBefore.body.status).toBe('DUE');
+    expect(checkInsBefore.body.items).toHaveLength(0);
+
+    // Submit a 3-day check-in with updated weight
+    const submittedCheckIn = await api
+      .post(prefix + '/me/check-ins')
+      .set(headers)
+      .send({
+        workoutDifficulty: 'MODERATE',
+        nutritionAdherence: 'HIGH',
+        weightKg: 86.5,
+        notes: 'Feeling energetic and hitting daily meals.',
+      })
+      .expect(201);
+    expect(submittedCheckIn.body.status).toBe('UPCOMING');
+    expect(submittedCheckIn.body.daysUntilDue).toBe(3);
+    expect(submittedCheckIn.body.weightKg).toBe(86.5);
+    expect(submittedCheckIn.body.automatedSummary).toContain('86.5 kg');
+
+    // Verify weight history and profile weight update
+    const weightHistory = await api
+      .get(prefix + '/me/weight-history')
+      .set(headers)
+      .expect(200);
+    expect(weightHistory.body.currentWeightKg).toBe(86.5);
+    expect(weightHistory.body.targetWeightKg).toBe(80);
+    expect(weightHistory.body.items).toHaveLength(1);
+    expect(weightHistory.body.items[0].source).toBe('CHECK_IN');
+
+    // Mark all notifications as read
+    const readAll = await api
+      .post(prefix + '/me/notifications/read-all')
+      .set(headers)
+      .expect(200);
+    expect(readAll.body.updatedCount).toBe(1);
+    expect(readAll.body.unreadCount).toBe(0);
+
+    // Configure water reminders
+    const waterRemindersBefore = await api
+      .get(prefix + '/me/water-reminders')
+      .set(headers)
+      .expect(200);
+    expect(waterRemindersBefore.body.enabled).toBe(false);
+    expect(waterRemindersBefore.body.nextReminderLocalAt).toBeNull();
+
+    const waterRemindersUpdated = await api
+      .put(prefix + '/me/water-reminders')
+      .set(headers)
+      .send({
+        enabled: true,
+        intervalMinutes: 45,
+        windowStart: '08:30',
+        windowEnd: '21:30',
+        stopWhenGoalReached: true,
+      })
+      .expect(200);
+    expect(waterRemindersUpdated.body).toMatchObject({
+      enabled: true,
+      intervalMinutes: 45,
+      windowStart: '08:30',
+      windowEnd: '21:30',
+      stopWhenGoalReached: true,
+    });
+    expect(waterRemindersUpdated.body.nextReminderLocalAt).toBeTruthy();
+  });
+
+  it('serves bilingual FAQ, active legal documents, user legal acceptances, and admin support CRUD', async () => {
+    const faqEn = await api.get(prefix + '/faq?locale=en').expect(200);
+    expect(faqEn.body.items.length).toBeGreaterThanOrEqual(4);
+
+    const faqAr = await api.get(prefix + '/faq?locale=ar').expect(200);
+    expect(faqAr.body.items.length).toBeGreaterThanOrEqual(2);
+
+    const termsEn = await api
+      .get(prefix + '/legal/terms?locale=en')
+      .expect(200);
+    expect(termsEn.body.type).toBe('TERMS');
+    expect(termsEn.body.version).toBe('1.0.0');
+
+    const privacyAr = await api
+      .get(prefix + '/legal/privacy?locale=ar')
+      .expect(200);
+    expect(privacyAr.body.type).toBe('PRIVACY');
+    expect(privacyAr.body.locale).toBe('ar');
+
+    // User accepts legal document
+    const user = await register('legal-user@example.test');
+    const userHeaders = bearer(user.accessToken);
+    const accepted = await api
+      .post(prefix + '/me/legal-acceptances')
+      .set(userHeaders)
+      .send({ documentId: termsEn.body.id })
+      .expect(200);
+    expect(accepted.body.documentId).toBe(termsEn.body.id);
+
+    const listAcceptances = await api
+      .get(prefix + '/me/legal-acceptances')
+      .set(userHeaders)
+      .expect(200);
+    expect(listAcceptances.body.items).toHaveLength(1);
+    expect(
+      listAcceptances.body.activeDocuments.find(
+        (d: { id: string }) => d.id === termsEn.body.id,
+      )?.accepted,
+    ).toBe(true);
+
+    // Admin CRUD on FAQ and Legal documents
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    await createAdmin(db, 'support-admin@example.test', password);
+    const adminLogin = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'support-admin@example.test', password })
+      .expect(200);
+    const adminHeaders = bearer(adminLogin.body.accessToken);
+
+    const createdFaq = await api
+      .post(prefix + '/admin/faq')
+      .set(adminHeaders)
+      .send({
+        slug: 'water-reminder-schedule-en',
+        category: 'ACTIVITY',
+        locale: 'en',
+        question: 'How do smart water reminders work?',
+        answer:
+          'Reminders fire at your chosen interval and pause once your hydration goal is met.',
+        displayOrder: 10,
+        active: true,
+      })
+      .expect(201);
+    expect(createdFaq.body.slug).toBe('water-reminder-schedule-en');
+
+    const updatedFaq = await api
+      .patch(prefix + `/admin/faq/${createdFaq.body.id}`)
+      .set(adminHeaders)
+      .send({ active: false })
+      .expect(200);
+    expect(updatedFaq.body.active).toBe(false);
+
+    await api
+      .delete(prefix + `/admin/faq/${createdFaq.body.id}`)
+      .set(adminHeaders)
+      .expect(200);
+
+    const newTerms = await api
+      .post(prefix + '/admin/legal')
+      .set(adminHeaders)
+      .send({
+        type: 'TERMS',
+        version: '1.1.0',
+        locale: 'en',
+        title: 'Motion Terms & Conditions v1.1',
+        content: 'Updated terms and conditions for Motion athletes.',
+        active: true,
+      })
+      .expect(201);
+    expect(newTerms.body.active).toBe(true);
+
+    const activeTermsNow = await api
+      .get(prefix + '/legal/terms?locale=en')
+      .expect(200);
+    expect(activeTermsNow.body.version).toBe('1.1.0');
+  });
+
+  it('records Gemini token usage and serves admin analytics, uptime probes, and integration health', async () => {
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    await createAdmin(db, 'analytics-admin@example.test', password);
+    const adminLogin = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'analytics-admin@example.test', password })
+      .expect(200);
+    const adminHeaders = bearer(adminLogin.body.accessToken);
+
+    const { seedPublishedProgramsAndRuleset } =
+      await import('../../src/infrastructure/database/seeds/program-catalog.js');
+    await seedPublishedProgramsAndRuleset(db, 'google/gemini-2.5-flash');
+
+    const [prog] = await db.query(
+      `SELECT id FROM programs WHERE slug='fat-loss-foundation-3d'`,
+    );
+
+    process.env.AI_REWRITE_URL = 'http://ai:3001/internal/v1/rewrite';
+    process.env.AI_SERVICE_TOKEN = 'a'.repeat(36);
+    process.env.AI_RETENTION_APPROVED = 'true';
+
+    const fetchMock = vi.fn().mockImplementation((input: unknown) => {
+      const url = String(input);
+      if (url.endsWith('/health')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              status: 'ok',
+              model: 'google/gemini-2.5-flash',
+              uptimeSeconds: 120,
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            structuredHints: {
+              summary: 'Joint-friendly 3-day metabolic fat loss plan.',
+              intendedAudience: 'Beginners and intermediates',
+              suitabilityNotes: ['Low-impact lower body'],
+              ambiguities: [],
+              unsupportedClaims: [],
+            },
+            modelVersion: 'google/gemini-2.5-flash',
+            instructionVersion: 'program-hints-rewrite-v1',
+          }),
+          {
+            status: 200,
+            headers: {
+              'x-ai-model': 'google/gemini-2.5-flash',
+              'x-ai-input-tokens': '600',
+              'x-ai-output-tokens': '150',
+              'x-ai-total-tokens': '750',
+              'x-ai-latency-ms': '420',
+            },
+          },
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api
+      .post(prefix + `/admin/programs/${prog.id}/hints/rewrite`)
+      .set(adminHeaders)
+      .send({
+        originalText: 'Great 3-day beginner fat loss program with dumbbells.',
+      })
+      .expect(201);
+
+    const liveHealth = await api.get(prefix + '/health').expect(200);
+    expect(typeof liveHealth.body.uptimeSeconds).toBe('number');
+
+    const probe = await api
+      .post(prefix + '/admin/analytics/uptime-check')
+      .set(adminHeaders)
+      .expect(200);
+    expect(probe.body.database.ok).toBe(true);
+    expect(probe.body.aiService.status).toBe('UP');
+
+    const overview = await api
+      .get(prefix + '/admin/analytics/overview?days=30')
+      .set(adminHeaders)
+      .expect(200);
+    expect(
+      overview.body.geminiUsage.summary.totalRequests,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      overview.body.geminiUsage.summary.totalInputTokens,
+    ).toBeGreaterThanOrEqual(600);
+    expect(
+      overview.body.geminiUsage.summary.totalOutputTokens,
+    ).toBeGreaterThanOrEqual(150);
+    expect(
+      overview.body.geminiUsage.summary.totalTokens,
+    ).toBeGreaterThanOrEqual(750);
+    expect(overview.body.geminiUsage.summary.estimatedCostUsd).toBeGreaterThan(
+      0,
+    );
+    expect(overview.body.geminiUsage.byOperation[0].operation).toBe(
+      'PROGRAM_HINTS_REWRITE',
+    );
+    expect(overview.body.uptime.liveStatus.aiService.status).toBe('UP');
+    expect(
+      overview.body.uptime.availability24h.totalChecks,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it('serves Swagger UI with Customer and Admin OpenAPI definition selector', async () => {
+    const html = await api.get(prefix + '/docs').expect(200);
+    expect(html.text).toContain('swagger-ui');
+    expect(html.text).toContain('/api/v1/docs/swagger-init.js');
+
+    const initJs = await api.get(prefix + '/docs/swagger-init.js').expect(200);
+    expect(initJs.text).toContain('Customer (Mobile App)');
+    expect(initJs.text).toContain('Admin (Studio & Operations)');
+
+    const customerSpec = await api
+      .get(prefix + '/docs/customer.json')
+      .expect(200);
+    expect(customerSpec.body.openapi).toBe('3.0.3');
+    expect(Object.keys(customerSpec.body.paths)).toContain('/auth/login');
+    expect(Object.keys(customerSpec.body.paths)).toContain('/me/dashboard');
+    expect(
+      Object.keys(customerSpec.body.paths).some((p) => p.startsWith('/admin')),
+    ).toBe(false);
+
+    const adminSpec = await api.get(prefix + '/docs/admin.json').expect(200);
+    expect(adminSpec.body.openapi).toBe('3.0.3');
+    expect(Object.keys(adminSpec.body.paths)).toContain(
+      '/admin/analytics/overview',
+    );
+    expect(Object.keys(adminSpec.body.paths)).toContain('/admin/programs');
   });
 });

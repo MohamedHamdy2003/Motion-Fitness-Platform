@@ -20,10 +20,12 @@
     "seed:lookups": "tsx src/infrastructure/database/seeds/seed-lookups.ts",
     "seed:content": "tsx src/infrastructure/database/seeds/seed-content.ts",
     "seed:exercises": "tsx src/infrastructure/database/seeds/seed-exercises.ts",
+    "seed:programs": "tsx src/infrastructure/database/seeds/seed-programs.ts",
     "worker": "tsx src/infrastructure/jobs/worker.ts",
     "bruno": "node scripts/run-bruno.cjs",
     "bruno:check": "node scripts/check-bruno.cjs",
-    "dev:grant-admin": "tsx scripts/grant-local-admin.ts"
+    "dev:grant-admin": "tsx scripts/grant-local-admin.ts",
+    "admin:bootstrap": "tsx src/infrastructure/database/bootstrap-admin.ts"
   },
   "overrides": {
     "@faker-js/faker": "10.6.0",
@@ -52,6 +54,7 @@
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "swagger-ui-dist": "^5.35.1",
     "typeorm": "^1.1.2",
     "zod": "^4.6.7"
   },

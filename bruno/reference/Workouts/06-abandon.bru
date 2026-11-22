@@ -1,0 +1,23 @@
+meta {
+  name: Pause workout
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/me/workouts/{{workoutSessionId}}/abandon
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Pauses a session. Start the same day again to resume with recorded sets intact.
+}

@@ -1,0 +1,28 @@
+meta {
+  name: Program months
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/me/program/months
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const month = (res.getBody().items || []).find((item) => item.status === "SCHEDULED");
+  if (month) bru.setVar("enrollmentMonthId", month.id);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Lists calendar ranges and status for all training cycles in the assigned version. GET, no request body. Response: {items:[{id,position,title,status,startsOn,endsOn}]}. Locked months have null dates. An unassigned user gets an empty list.
+}

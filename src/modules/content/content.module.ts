@@ -8,6 +8,7 @@ import { NutritionLibraryService } from './nutrition-library.service';
 import { ProgramController } from './program.controller';
 import { ProgramService } from './program.service';
 import { LookupAdminController } from './lookup.controller';
+import { RewriterService } from '../../infrastructure/ai/rewriter.service';
 @Module({
   imports: [MediaModule],
   controllers: [
@@ -21,6 +22,7 @@ import { LookupAdminController } from './lookup.controller';
     ContentGuard,
     NutritionLibraryService,
     ProgramService,
+    RewriterService,
   ],
 })
 export class ContentModule {}

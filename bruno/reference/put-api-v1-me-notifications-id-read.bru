@@ -1,0 +1,15 @@
+meta {
+  name: Mark Notification Read
+  type: http
+  seq: 138
+}
+
+put {
+  url: {{baseUrl}}/me/notifications/:id/read
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

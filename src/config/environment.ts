@@ -33,6 +33,7 @@ const schema = z.object({
   APPLE_PRIVATE_KEY: z.string().default(''),
   APPLE_ENCRYPTION_KEY: z.string().default(''),
   AI_MATCHING_URL: z.string().default(''),
+  AI_FITTING_URL: z.string().default(''),
   AI_REWRITE_URL: z.string().default(''),
   AI_SERVICE_TOKEN: z.string().default(''),
   AI_RETENTION_APPROVED: z.enum(['true', 'false']).default('false'),

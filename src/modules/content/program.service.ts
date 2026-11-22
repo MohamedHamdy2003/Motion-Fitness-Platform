@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { ApiError } from '../../common/http';
+import { RewriterService } from '../../infrastructure/ai/rewriter.service';
 import { query } from '../../infrastructure/database/query';
 import { ProgramAggregate } from './program.dto';
 
@@ -9,7 +10,10 @@ type Actor = { userId: string };
 
 @Injectable()
 export class ProgramService {
-  constructor(@Inject(DataSource) private db: DataSource) {}
+  constructor(
+    @Inject(DataSource) private db: DataSource,
+    @Optional() @Inject(RewriterService) private rewriter?: RewriterService,
+  ) {}
 
   private async lockActor(m: EntityManager, actor: Actor) {
     await query(m, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, [
@@ -279,6 +283,26 @@ export class ProgramService {
       [hintId],
     );
     return hint;
+  }
+
+  async rewriteHint(actor: Actor, id: string, originalText: string) {
+    const [version] = await query(
+      this.db,
+      `SELECT pv.title,pv.description,pv.primary_goal AS "primaryGoal",
+              pv.training_days_per_week AS "trainingDaysPerWeek",
+              pv.required_equipment AS "requiredEquipment",
+              pv.intended_audience AS "intendedAudience",
+              ARRAY(SELECT fitness_level_code FROM program_version_supported_levels WHERE program_version_id=pv.id ORDER BY fitness_level_code) AS "supportedLevels"
+       FROM program_versions pv JOIN programs p ON p.id=pv.program_id
+       WHERE p.id=$1 AND NOT p.archived ORDER BY pv.version DESC LIMIT 1`,
+      [id],
+    );
+    if (!version) throw new ApiError('NOT_FOUND', 404);
+    const rewriter = this.rewriter ?? new RewriterService(this.db);
+    return rewriter.previewProgramHints(actor.userId, {
+      ...version,
+      originalText,
+    });
   }
 
   async approveHint(actor: Actor, id: string, hintId: string) {

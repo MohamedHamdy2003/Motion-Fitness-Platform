@@ -1,0 +1,29 @@
+meta {
+  name: Rewrite program hint with AI
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/admin/programs/{{programId}}/hints/rewrite
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "originalText": "Best for beginners and intermediates seeking 3-day metabolic fat loss with dumbbells."
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Requests a preview of structured program hints extracted by AiRewriter in PROGRAM_HINTS mode. Does not persist or approve the hint until saved and approved by the administrator.
+}

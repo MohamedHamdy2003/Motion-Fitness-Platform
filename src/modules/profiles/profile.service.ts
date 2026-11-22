@@ -89,6 +89,7 @@ export class ProfileService {
     m: EntityManager,
     id: string,
     input: Record<string, unknown>,
+    weightSource: 'ONBOARDING' | 'PROFILE' = 'PROFILE',
   ) {
     if (input.gender) {
       const [gender] = await query(
@@ -171,13 +172,23 @@ export class ProfileService {
       [id, ...values],
     );
     if (!p) throw new ApiError('NOT_FOUND', 404);
+    if (input.weight_kg !== undefined && p.weight_kg !== null) {
+      await query(
+        m,
+        `INSERT INTO weight_logs(id,user_id,local_date,weight_kg,source)
+         VALUES($1,$2,(now() AT TIME ZONE COALESCE($3,'UTC'))::date,$4,$5)
+         ON CONFLICT (user_id,local_date) DO UPDATE
+           SET weight_kg=EXCLUDED.weight_kg,source=EXCLUDED.source,created_at=now()`,
+        [randomUUID(), id, p.timezone, p.weight_kg, weightSource],
+      );
+    }
     await this.event(m, id, 'PROFILE_UPDATED', p.profile_revision);
     return this.profileResponse(p);
   }
   async patch(id: string, input: z.infer<typeof dto.profilePatch>) {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
-      const profile = await this.updateProfile(m, id, input);
+      const profile = await this.updateProfile(m, id, input, 'PROFILE');
       if (matchingProfileFields.some((field) => input[field] !== undefined)) {
         await this.matching.triggerUser(id, false, m);
       }
@@ -189,7 +200,7 @@ export class ProfileService {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const { food_preferences, ...profile } = input;
-      await this.updateProfile(m, id, profile);
+      await this.updateProfile(m, id, profile, 'ONBOARDING');
       await this.savePreferences(m, id, food_preferences);
       await query(
         m,
@@ -350,6 +361,17 @@ export class ProfileService {
     const [s] = await query(
       m,
       `UPDATE user_restriction_states SET injury_revision=injury_revision+1 WHERE user_id=$1 RETURNING injury_revision`,
+      [id],
+    );
+    await query(
+      m,
+      `UPDATE scheduled_days sd
+       SET status='SCHEDULED',resolved_at=NULL,exemption_fitting_run_id=NULL
+       FROM program_enrollments e,plan_days d,plan_weeks w
+       WHERE e.id=sd.enrollment_id AND e.user_id=$1 AND e.ended_at IS NULL
+         AND d.id=sd.plan_day_id AND w.id=d.week_id AND sd.status='EXEMPT'
+         AND NOT EXISTS(SELECT 1 FROM completed_training_months cm
+           WHERE cm.enrollment_id=e.id AND cm.monthly_plan_id=w.monthly_plan_id)`,
       [id],
     );
     await this.event(m, id, 'INJURIES_UPDATED', s.injury_revision);

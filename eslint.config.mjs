@@ -6,6 +6,8 @@ export default tseslint.config(
       'node_modules/**',
       'ai-service/node_modules/**',
       'ai-service/dist/**',
+      'admin-dashboard/node_modules/**',
+      'admin-dashboard/dist/**',
     ],
   },
   ...tseslint.configs.recommended,

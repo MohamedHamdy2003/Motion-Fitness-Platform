@@ -1,14 +1,17 @@
 import { query } from '../database/query';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { environment } from '../../config/environment';
 import { ApiError } from '../../common/http';
 import { injuryFields } from '../../modules/profiles/profile.dto';
+import { AiUsageService, extractUsageFromHeaders } from './ai-usage.service';
+
 export const rewriteInput = z
   .object({ ...injuryFields, draftVersion: z.number().int().nonnegative() })
   .strict();
+
 export const rewriteOutput = z
   .object({
     description: z.string().trim().min(1).max(2000),
@@ -16,10 +19,47 @@ export const rewriteOutput = z
     instructionVersion: z.literal('injury-rewrite-v1'),
   })
   .strict();
+
+export const programHintsRewriteOutput = z
+  .object({
+    structuredHints: z
+      .object({
+        summary: z.string().trim().min(1).max(1000),
+        intendedAudience: z.string().trim().min(1).max(500),
+        suitabilityNotes: z
+          .array(z.string().trim().min(1).max(500))
+          .min(1)
+          .max(10),
+        ambiguities: z.array(z.string().trim().min(1).max(500)).max(10),
+        unsupportedClaims: z.array(z.string().trim().min(1).max(500)).max(10),
+      })
+      .strict(),
+    modelVersion: z.string().min(1).max(200),
+    instructionVersion: z.literal('program-hints-rewrite-v1'),
+  })
+  .strict();
+
+export type ProgramHintsSnapshot = {
+  title: string;
+  description: string;
+  primaryGoal: string;
+  supportedLevels: string[];
+  trainingDaysPerWeek: number;
+  requiredEquipment: string[];
+  intendedAudience: string | null;
+  originalText: string;
+};
+
 @Injectable()
 export class RewriterService {
-  constructor(@Inject(DataSource) private db: DataSource) {}
-  async preview(userId: string, input: z.infer<typeof rewriteInput>) {
+  constructor(
+    @Inject(DataSource) private db: DataSource,
+    @Optional()
+    @Inject(AiUsageService)
+    private readonly usage?: AiUsageService,
+  ) {}
+
+  private endpointUrl() {
     const env = environment();
     if (
       !env.AI_REWRITE_URL ||
@@ -27,25 +67,36 @@ export class RewriterService {
       env.AI_RETENTION_APPROVED !== 'true'
     )
       throw new ApiError('AI_REWRITE_NOT_CONFIGURED', 503);
+    const url = new URL(env.AI_REWRITE_URL);
+    const isInternalDocker =
+      url.protocol === 'http:' &&
+      (url.hostname === 'ai' || url.hostname === 'ai-service') &&
+      url.port === '3001';
+    if (
+      url.protocol !== 'https:' &&
+      !isInternalDocker &&
+      env.NODE_ENV === 'production'
+    )
+      throw new ApiError('AI_REWRITE_NOT_CONFIGURED', 503);
+    return { url, token: env.AI_SERVICE_TOKEN };
+  }
+
+  async preview(userId: string, input: z.infer<typeof rewriteInput>) {
+    const { url, token } = this.endpointUrl();
     const started = Date.now();
     let failure: string | null = null;
     let output: z.infer<typeof rewriteOutput> | null = null;
+    let tokenUsage = {
+      model: process.env.AI_MODEL || 'google/gemini-2.5-flash',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
     try {
-      const url = new URL(env.AI_REWRITE_URL);
-      if (
-        url.protocol !== 'https:' &&
-        !(
-          url.protocol === 'http:' &&
-          url.hostname === 'ai' &&
-          url.port === '3001'
-        ) &&
-        env.NODE_ENV === 'production'
-      )
-        throw new ApiError('AI_REWRITE_NOT_CONFIGURED', 503);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          authorization: `Bearer ${env.AI_SERVICE_TOKEN}`,
+          authorization: `Bearer ${token}`,
           'content-type': 'application/json',
         },
         body: JSON.stringify({
@@ -56,6 +107,7 @@ export class RewriterService {
         }),
         signal: AbortSignal.timeout(12000),
       });
+      tokenUsage = extractUsageFromHeaders(response.headers, tokenUsage.model);
       if (!response.ok) throw new ApiError('AI_REWRITE_UNAVAILABLE', 503);
       const text = await response.text();
       if (text.length > 15000)
@@ -68,6 +120,7 @@ export class RewriterService {
       failure =
         error instanceof ApiError ? error.code : 'AI_REWRITE_UNAVAILABLE';
     }
+    const latencyMs = Date.now() - started;
     // Metadata only: input drafts and unaccepted output never enter storage or logs.
     await query(
       this.db,
@@ -77,10 +130,20 @@ export class RewriterService {
         userId,
         failure ? 'FAILED' : 'SUCCEEDED',
         output?.modelVersion || null,
-        Date.now() - started,
+        latencyMs,
         failure,
       ],
     );
+    await this.usage?.record({
+      operation: 'INJURY_REWRITE',
+      model: output?.modelVersion || tokenUsage.model,
+      status: failure ? 'FAILED' : 'SUCCEEDED',
+      inputTokens: tokenUsage.inputTokens,
+      outputTokens: tokenUsage.outputTokens,
+      totalTokens: tokenUsage.totalTokens,
+      latencyMs,
+      failureCode: failure,
+    });
     if (failure)
       throw new ApiError(
         failure,
@@ -89,6 +152,79 @@ export class RewriterService {
     return {
       description: output!.description,
       draftVersion: input.draftVersion,
+      instructionVersion: output!.instructionVersion,
+      previewOnly: true,
+    };
+  }
+
+  async previewProgramHints(userId: string, snapshot: ProgramHintsSnapshot) {
+    const { url, token } = this.endpointUrl();
+    const started = Date.now();
+    let failure: string | null = null;
+    let output: z.infer<typeof programHintsRewriteOutput> | null = null;
+    let tokenUsage = {
+      model: process.env.AI_MODEL || 'google/gemini-2.5-flash',
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'PROGRAM_HINTS',
+          ...snapshot,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      tokenUsage = extractUsageFromHeaders(response.headers, tokenUsage.model);
+      if (!response.ok) throw new ApiError('AI_REWRITE_UNAVAILABLE', 503);
+      const text = await response.text();
+      if (text.length > 20000)
+        throw new ApiError('AI_REWRITE_INVALID_OUTPUT', 502);
+      const parsed = programHintsRewriteOutput.safeParse(JSON.parse(text));
+      if (!parsed.success) throw new ApiError('AI_REWRITE_INVALID_OUTPUT', 502);
+      output = parsed.data;
+    } catch (error) {
+      failure =
+        error instanceof ApiError ? error.code : 'AI_REWRITE_UNAVAILABLE';
+    }
+    const latencyMs = Date.now() - started;
+    await query(
+      this.db,
+      `INSERT INTO ai_rewrite_runs(id,user_id,status,model_version,instruction_version,duration_ms,failure_code) VALUES($1,$2,$3,$4,'program-hints-rewrite-v1',$5,$6)`,
+      [
+        randomUUID(),
+        userId,
+        failure ? 'FAILED' : 'SUCCEEDED',
+        output?.modelVersion || null,
+        latencyMs,
+        failure,
+      ],
+    );
+    await this.usage?.record({
+      operation: 'PROGRAM_HINTS_REWRITE',
+      model: output?.modelVersion || tokenUsage.model,
+      status: failure ? 'FAILED' : 'SUCCEEDED',
+      inputTokens: tokenUsage.inputTokens,
+      outputTokens: tokenUsage.outputTokens,
+      totalTokens: tokenUsage.totalTokens,
+      latencyMs,
+      failureCode: failure,
+    });
+    if (failure)
+      throw new ApiError(
+        failure,
+        failure === 'AI_REWRITE_INVALID_OUTPUT' ? 502 : 503,
+      );
+    return {
+      originalText: snapshot.originalText,
+      structuredHints: output!.structuredHints,
+      modelVersion: output!.modelVersion,
       instructionVersion: output!.instructionVersion,
       previewOnly: true,
     };

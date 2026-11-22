@@ -1,0 +1,27 @@
+meta {
+  name: Retry workout fitting
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/me/workouts/days/{{scheduledDayId}}/fitting/retry
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {}
+}
+
+tests {
+  test("HTTP status", function () { expect([200, 201, 202]).to.include(res.getStatus()); });
+}
+
+docs {
+  Retries a failed daily exercise fitting run for a due training day.
+}

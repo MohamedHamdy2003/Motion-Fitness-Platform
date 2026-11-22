@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../../infrastructure/database/query';
 import { ApiError } from '../../common/http';
+import { ProgramEnrollmentService } from '../enrollments/program-enrollment.service';
 import { assertAgeEligible } from '../profiles/profile.policy';
 import {
   Candidate,
@@ -25,6 +26,8 @@ export class ProgramMatchingService {
   constructor(
     @Inject(DataSource) private db: DataSource,
     @Inject(PROGRAM_MATCHER) private matcher: ProgramMatcher,
+    @Inject(ProgramEnrollmentService)
+    private enrollment: ProgramEnrollmentService,
   ) {}
   private eligibility = new ProgramEligibilityPolicy();
   private metrics = new MetricsCalculator();
@@ -116,27 +119,26 @@ export class ProgramMatchingService {
     });
     return p.success ? p.data : null;
   }
-  private publicRun(r: any) {
+  private publicRun(r: any, enrollmentId: string | null = null) {
     return {
       runId: r.id,
       status: r.status,
       selectedProgramVersionId: r.decision?.selectedProgramVersionId ?? null,
       reasonCodes: r.decision?.reasonCodes ?? [],
       failureCode: r.failure_code ?? null,
-      assignmentStatus: 'NOT_ASSIGNED',
-      nextFeature: 'F06',
+      assignmentStatus: enrollmentId ? 'ASSIGNED' : 'NOT_ASSIGNED',
+      enrollmentId,
       createdAt: r.created_at,
     };
   }
   async status(userId: string, manager?: EntityManager) {
-    const connection = manager ?? this.db;
-    const [r] = await query(
-      connection,
-      `SELECT * FROM recommendation_runs WHERE user_id=$1 AND kind='USER' ORDER BY created_at DESC,id DESC LIMIT 1`,
-      [userId],
-    );
-    if (!r) return { status: 'NOT_STARTED', runId: null };
     const work = async (m: EntityManager) => {
+      const [r] = await query(
+        m,
+        `SELECT * FROM recommendation_runs WHERE user_id=$1 AND kind='USER' ORDER BY created_at DESC,id DESC LIMIT 1`,
+        [userId],
+      );
+      if (!r) return { status: 'NOT_STARTED', runId: null };
       const p = await this.userProfile(m, userId);
       const [active] = await query(
         m,
@@ -155,6 +157,7 @@ export class ProgramMatchingService {
               decision: null,
               failure_code: 'MATCHING_INPUT_CHANGED',
             },
+        await this.enrollment.activeId(m, userId),
       );
     };
     return manager
@@ -190,8 +193,20 @@ export class ProgramMatchingService {
         fingerprint(previous.candidates) === fingerprint(c) &&
         previous.status !== 'STALE' &&
         !(retry && previous.status === 'FAILED')
-      )
-        return this.publicRun(previous);
+      ) {
+        let enrollmentId = await this.enrollment.activeId(m, userId);
+        // An explicit retry can apply a still-current recommendation recorded before enrollment existed.
+        if (retry && !enrollmentId && previous.status === 'MATCH') {
+          await this.enrollment.assignFirst(
+            m,
+            userId,
+            previous.id,
+            previous.decision.selectedProgramVersionId,
+          );
+          enrollmentId = await this.enrollment.activeId(m, userId);
+        }
+        return this.publicRun(previous, enrollmentId);
+      }
       if (c.length > 0 && c.length <= 200) {
         const [budget] = await query(
           m,
@@ -204,7 +219,7 @@ export class ProgramMatchingService {
         if (budget.count > 10) return { status: 'RATE_LIMITED', runId: null };
       }
       const r = await this.insertRun(m, p, c, ruleset.id, 'USER', userId);
-      return this.publicRun(r);
+      return this.publicRun(r, await this.enrollment.activeId(m, userId));
     };
     return manager ? work(manager) : this.db.transaction(work);
   }
@@ -396,6 +411,18 @@ export class ProgramMatchingService {
             Date.now() - started,
           ],
         );
+        if (
+          !stale &&
+          run.kind === 'USER' &&
+          decision.status === 'MATCH' &&
+          decision.selectedProgramVersionId
+        )
+          await this.enrollment.assignFirst(
+            m,
+            run.user_id,
+            run.id,
+            decision.selectedProgramVersionId,
+          );
       });
     } catch (error) {
       const code =

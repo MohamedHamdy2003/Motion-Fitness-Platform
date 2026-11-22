@@ -1,0 +1,23 @@
+meta {
+  name: Current in-progress workout
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/me/workouts/current
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Returns the currently active IN_PROGRESS workout session for the user, or { session: null } when none is active.
+}

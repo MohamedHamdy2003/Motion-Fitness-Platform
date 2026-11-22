@@ -1,0 +1,29 @@
+meta {
+  name: Set meal item completion
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/me/meal-items/{{scheduledMealItemId}}/completion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "completed": true
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Marks an individual scheduled meal item as completed or pending and updates parent meal status (PENDING, PARTIAL, COMPLETED).
+}

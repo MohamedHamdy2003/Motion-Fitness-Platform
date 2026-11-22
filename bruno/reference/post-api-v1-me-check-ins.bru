@@ -1,0 +1,15 @@
+meta {
+  name: Submit Check-In
+  type: http
+  seq: 144
+}
+
+post {
+  url: {{baseUrl}}/me/check-ins
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
