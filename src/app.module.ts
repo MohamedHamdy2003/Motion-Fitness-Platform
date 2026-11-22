@@ -1,4 +1,5 @@
 import { MatchingModule } from './modules/matching/matching.module';
+import { ActivityModule } from './modules/activity/activity.module';
 import { ContentModule } from './modules/content/content.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -18,6 +19,7 @@ import { HealthController } from './health.controller';
     MediaModule,
     ContentModule,
     MatchingModule,
+    ActivityModule,
   ],
   controllers: [HealthController],
   providers: [JobsService],

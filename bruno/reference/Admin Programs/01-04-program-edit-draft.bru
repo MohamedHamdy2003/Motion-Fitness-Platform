@@ -474,6 +474,6 @@ tests {
 
 docs {
   Contract version: v1 / 0.4.0.
-  Updates the current draft for this program using the latest server state. Revision metadata returned by GET is informational. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.
+  Updates the current draft for this program using the latest server state. Revision metadata returned by GET is informational. Updates are atomic. Editing a published program creates a new draft version.
   Never commit populated credentials or runtime tokens.
 }

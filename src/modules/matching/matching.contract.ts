@@ -8,7 +8,7 @@ export const matchingProfile = z
   .object({
     primaryGoal: code,
     fitnessLevel: code,
-    trainingDaysPerWeek: z.number().int().min(2).max(5),
+    trainingDaysPerWeek: z.number().int().min(2).max(6),
     age: z.number().int().min(18).max(120),
     heightCm: z.number().positive().max(1000),
     weightKg: z.number().positive().max(10000),

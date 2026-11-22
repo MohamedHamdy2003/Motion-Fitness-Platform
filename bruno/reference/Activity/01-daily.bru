@@ -1,0 +1,23 @@
+meta {
+  name: Daily
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/me/activity/daily
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Optional query date=YYYY-MM-DD. Defaults to the profile local date. Response: {date,water:{totalMl,goalMl,goalReached,logCount,recentLogs:[{id,milliliters,createdAt}]},steps:{count,goal,manuallyCompleted,goalReached}}.
+}

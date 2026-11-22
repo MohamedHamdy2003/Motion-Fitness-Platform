@@ -26,34 +26,38 @@ export class ProgramService {
   }
 
   async get(id: string) {
+    return this.db.transaction('REPEATABLE READ', (manager) =>
+      this.readProgram(manager, id),
+    );
+  }
+
+  private async readProgram(manager: EntityManager, id: string) {
     const [program] = await query(
-      this.db,
+      manager,
       `SELECT p.*,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.editorial_priority,pv.description,pv.required_equipment,pv.intended_audience,pv.nutrition_plan_version_id,pv.approved_hint_version_id,npv.duration_days FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true JOIN nutrition_plan_versions npv ON npv.id=pv.nutrition_plan_version_id WHERE p.id=$1`,
       [id],
     );
     if (!program) throw new ApiError('NOT_FOUND', 404);
     program.hints = await query(
-      this.db,
+      manager,
       `SELECT * FROM program_hint_versions WHERE program_version_id=$1 ORDER BY version`,
       [program.version_id],
     );
-    const [schedule, exercises, meals] = await Promise.all([
-      query(
-        this.db,
-        `SELECT mp.id AS month_id,mp.position AS month_position,mp.title AS month_title,w.id AS week_id,w.position AS week_position,d.id AS day_id,d.position AS day_position,d.kind,d.workout_revision_id,d.nutrition_template_day_id,wr.title AS workout_title,wr.description AS workout_description FROM monthly_plans mp LEFT JOIN plan_weeks w ON w.monthly_plan_id=mp.id LEFT JOIN plan_days d ON d.week_id=w.id LEFT JOIN workout_revisions wr ON wr.id=d.workout_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position`,
-        [program.version_id],
-      ),
-      query(
-        this.db,
-        `SELECT d.id AS day_id,we.id,we.exercise_revision_id,we.position,we.set_count,we.reps_min,we.reps_max,we.duration_seconds,we.rest_seconds,er.content FROM plan_days d JOIN plan_weeks w ON w.id=d.week_id JOIN monthly_plans mp ON mp.id=w.monthly_plan_id JOIN workout_exercises we ON we.workout_revision_id=d.workout_revision_id JOIN exercise_revisions er ON er.id=we.exercise_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position,we.position`,
-        [program.version_id],
-      ),
-      query(
-        this.db,
-        `SELECT nt.id AS day_id,ms.id,ms.position,ms.meal_type,ms.local_time,ms.default_meal_version_id,mv.meal_id,mv.version,mv.title,mv.status FROM nutrition_template_days nt JOIN meal_slots ms ON ms.template_day_id=nt.id JOIN meal_versions mv ON mv.id=ms.default_meal_version_id WHERE nt.nutrition_plan_version_id=$1 ORDER BY nt.day_position,ms.position`,
-        [program.nutrition_plan_version_id],
-      ),
-    ]);
+    const schedule = await query(
+      manager,
+      `SELECT mp.id AS month_id,mp.position AS month_position,mp.title AS month_title,w.id AS week_id,w.position AS week_position,d.id AS day_id,d.position AS day_position,d.kind,d.workout_revision_id,d.nutrition_template_day_id,wr.title AS workout_title,wr.description AS workout_description FROM monthly_plans mp LEFT JOIN plan_weeks w ON w.monthly_plan_id=mp.id LEFT JOIN plan_days d ON d.week_id=w.id LEFT JOIN workout_revisions wr ON wr.id=d.workout_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position`,
+      [program.version_id],
+    );
+    const exercises = await query(
+      manager,
+      `SELECT d.id AS day_id,we.id,we.exercise_revision_id,we.position,we.set_count,we.reps_min,we.reps_max,we.duration_seconds,we.rest_seconds,er.content FROM plan_days d JOIN plan_weeks w ON w.id=d.week_id JOIN monthly_plans mp ON mp.id=w.monthly_plan_id JOIN workout_exercises we ON we.workout_revision_id=d.workout_revision_id JOIN exercise_revisions er ON er.id=we.exercise_revision_id WHERE mp.program_version_id=$1 ORDER BY mp.position,w.position,d.position,we.position`,
+      [program.version_id],
+    );
+    const meals = await query(
+      manager,
+      `SELECT nt.id AS day_id,ms.id,ms.position,ms.meal_type,ms.local_time,ms.default_meal_version_id,mv.meal_id,mv.version,mv.title,mv.status FROM nutrition_template_days nt JOIN meal_slots ms ON ms.template_day_id=nt.id JOIN meal_versions mv ON mv.id=ms.default_meal_version_id WHERE nt.nutrition_plan_version_id=$1 ORDER BY nt.day_position,ms.position`,
+      [program.nutrition_plan_version_id],
+    );
     const monthMap = new Map<string, Record<string, any>>();
     const weekMap = new Map<string, Record<string, any>>();
     const dayMap = new Map<string, Record<string, any>>();

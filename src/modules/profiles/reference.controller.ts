@@ -157,7 +157,7 @@ export class ReferenceController {
         `SELECT code,label FROM fitness_levels WHERE active ORDER BY display_order,code`,
       ),
       training_days_per_week: Object.values(TrainingWeekday),
-      training_days_per_week_count: [2, 3, 4, 5],
+      training_days_per_week_count: [2, 3, 4, 5, 6],
       minimum_age: minimumAge,
       minimum_age_inclusive: false,
       policyStatus: 'CONFIGURED',

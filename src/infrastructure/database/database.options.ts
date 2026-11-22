@@ -1,4 +1,8 @@
 import { ProgramMatching1793448017000 } from './migrations/1793448017000-ProgramMatching';
+import { ProtectPublishedProgramStructure1793448018000 } from './migrations/1793448018000-ProtectPublishedProgramStructure';
+import { DecoupleProgramHintApprovers1793448019000 } from './migrations/1793448019000-DecoupleProgramHintApprovers';
+import { AlignTrainingAvailability1793448020000 } from './migrations/1793448020000-AlignTrainingAvailability';
+import { DailyActivity1793448021000 } from './migrations/1793448021000-DailyActivity';
 import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
@@ -71,6 +75,10 @@ export function databaseOptions(): DataSourceOptions {
       FoodDisplay1793448015000,
       RemoveIdempotency1793448016000,
       ProgramMatching1793448017000,
+      ProtectPublishedProgramStructure1793448018000,
+      DecoupleProgramHintApprovers1793448019000,
+      AlignTrainingAvailability1793448020000,
+      DailyActivity1793448021000,
     ],
     synchronize: false,
     migrationsRun: false,

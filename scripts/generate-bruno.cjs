@@ -334,7 +334,7 @@ add(
     },
   },
   {
-    docs: 'Requires gender, age strictly greater than 18, 2-5 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching queues a run when an active ruleset exists; otherwise returns CONFIGURATION_REQUIRED.',
+    docs: 'Requires gender, age strictly greater than 18, 2-6 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching queues a run when an active ruleset exists; otherwise returns CONFIGURATION_REQUIRED.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -876,7 +876,7 @@ write(
   '/admin/programs/{{programId}}',
   programEdit,
   {
-    docs: 'Edit requests do not need a client revision; the latest successful write is retained. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
+    docs: 'Updates are atomic. Editing a published program creates a new draft version. The latest successful write is retained.',
   },
 );
 write(

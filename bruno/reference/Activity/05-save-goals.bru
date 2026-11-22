@@ -1,0 +1,30 @@
+meta {
+  name: Save Goals
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/me/activity/goals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "waterGoalMl": 2500,
+    "stepsGoal": 10000
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Saves both targets. null resets a target to its default. Response: {waterGoalMl,stepsGoal}.
+}

@@ -27,7 +27,7 @@ users 1---N jobs (user_id is optional)
 users 1---N domain_events
 users 1---N ai_rewrite_runs
 users 1---0..1 account_deletions (user_id becomes NULL after account removal)
-users 1---N program_hint_versions through approved_by (optional approver)
+users 1---N program_hint_versions through approved_by (SET NULL on account deletion)
 
 auth_sessions 1---N auth_refresh_tokens
 auth_refresh_tokens 1---0..1 auth_refresh_tokens through parent_token_id (token rotation chain)
@@ -41,6 +41,14 @@ allergens 1---N user_allergies
 users N---N allergens through user_allergies
 food_reference_items 1---N user_disliked_foods
 users N---N food_reference_items through user_disliked_foods
+
+DAILY ACTIVITY
+--------------
+users 1---N water_logs (ON DELETE CASCADE)
+users 1---N daily_steps (ON DELETE CASCADE)
+daily_steps has one row for each user_id and local_date.
+Multiple water_logs entries can share a user_id and local_date.
+user_settings stores the current water_goal_ml and steps_goal.
 
 EXERCISE CONTENT
 ----------------
@@ -76,7 +84,8 @@ program_versions N---N fitness_levels through program_version_supported_levels
 program_versions 1---1 nutrition_plan_versions through nutrition_plan_version_id
 program_versions 1---N monthly_plans
 program_versions 1---N program_hint_versions
-program_versions 0..1---1 program_hint_versions through approved_hint_version_id (optional current approved hint)
+program_versions.approved_hint_version_id -> program_hint_versions.id (optional current approved hint)
+Program structure keeps its parent references. Published program eligibility rows are immutable.
 
 nutrition_plans 1---N nutrition_plan_versions
 nutrition_plan_versions 1---N nutrition_template_days
@@ -86,6 +95,12 @@ monthly_plans 1---N plan_weeks
 plan_weeks 1---N plan_days
 workout_revisions 1---N plan_days (optional for REST days)
 nutrition_template_days 1---0..1 plan_days
+
+PROGRAM RECOMMENDATIONS
+-----------------------
+users 1---N recommendation_runs (ON DELETE CASCADE)
+matching_rulesets 1---N recommendation_runs
+Simulation runs have no user_id. The active published ruleset is unique.
 
 SUPPORT TABLES / NON-RELATIONAL REFERENCES
 -------------------------------------------
@@ -130,9 +145,4 @@ JOIN pg_attribute AS referenced_column
  AND referenced_column.attnum = referenced_key.attnum
 WHERE foreign_key.contype = 'f'
   AND source_schema.nspname = current_schema()
-ORDER BY source_table.relname, source_key.column_order;
-
---
--- F05: users 1---N recommendation_runs (ON DELETE CASCADE); matching_rulesets 1---N recommendation_runs.
--- Simulation runs have no user_id. Active published matching ruleset is unique.
---
+ORDER BY source_table.relname, foreign_key.conname, source_key.column_order;

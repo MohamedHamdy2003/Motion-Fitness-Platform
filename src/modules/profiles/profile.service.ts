@@ -8,6 +8,19 @@ import { ApiError } from '../../common/http';
 import * as dto from './profile.dto';
 import { assertAgeEligible } from './profile.policy';
 
+// The matching profile includes age calculated in the user's timezone.
+const matchingProfileFields = [
+  'gender',
+  'date_of_birth',
+  'timezone',
+  'height_cm',
+  'weight_kg',
+  'target_weight_kg',
+  'primary_goal',
+  'fitness_level',
+  'training_days_per_week',
+] as const satisfies ReadonlyArray<keyof typeof dto.profileFields>;
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -165,7 +178,9 @@ export class ProfileService {
     return this.db.transaction(async (m) => {
       await this.lock(m, id);
       const profile = await this.updateProfile(m, id, input);
-      await this.matching.triggerUser(id, false, m);
+      if (matchingProfileFields.some((field) => input[field] !== undefined)) {
+        await this.matching.triggerUser(id, false, m);
+      }
       return profile;
     });
   }

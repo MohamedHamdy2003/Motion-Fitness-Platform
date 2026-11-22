@@ -84,7 +84,7 @@ beforeAll(async () => {
   await db.initialize();
   await db.runMigrations();
   // Dedicated *_test DB: clear published program fixtures before exercising historical rollback migrations.
-  await db.query('TRUNCATE programs,nutrition_plans CASCADE');
+  await db.query('TRUNCATE users,programs,nutrition_plans CASCADE');
   const migrations = await db.query('SELECT id FROM migrations');
   for (const ignored of migrations) {
     void ignored;
@@ -213,7 +213,15 @@ describe('foundation against PostgreSQL', () => {
     expect(onboarding.status, onboarding.text).toBe(200);
     expect(
       onboarding.body.primary_goals.map((item: { code: string }) => item.code),
-    ).toEqual(['FAT_LOSS', 'STRENGTH_HYPERTROPHY']);
+    ).toEqual([
+      'FAT_LOSS',
+      'STRENGTH_HYPERTROPHY',
+      'GET_FIT_TONED',
+      'IMPROVE_ENDURANCE',
+    ]);
+    expect(onboarding.body.training_days_per_week_count).toEqual([
+      2, 3, 4, 5, 6,
+    ]);
     expect(
       onboarding.body.fitness_levels.map((item: { code: string }) => item.code),
     ).toEqual(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
@@ -887,9 +895,16 @@ describe('profiles, onboarding and injuries', () => {
       name: 'Athlete',
       gender: 'FEMALE',
       height_cm: 175,
-      primary_goal: 'FAT_LOSS',
+      primary_goal: 'GET_FIT_TONED',
       fitness_level: 'BEGINNER',
-      training_days_per_week: ['SUNDAY', 'TUESDAY', 'THURSDAY'],
+      training_days_per_week: [
+        'SUNDAY',
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'SATURDAY',
+      ],
       timezone: 'Africa/Cairo',
       locale: 'ar',
       date_of_birth: '1998-03-14',
@@ -907,6 +922,11 @@ describe('profiles, onboarding and injuries', () => {
     expect(first.status, first.text).toBe(200);
     expect(first.body.matching.status).toBe('CONFIGURATION_REQUIRED');
     expect(first.body).not.toHaveProperty('profile_revision');
+    const profile = await api.get(prefix + '/me').set(bearer(r.accessToken));
+    expect(profile.body.profile).toMatchObject({
+      primary_goal: 'GET_FIT_TONED',
+      training_days_per_week: input.training_days_per_week,
+    });
     expect(
       (
         await api
@@ -1849,10 +1869,67 @@ it('saves an atomic paired program draft, publishes it, and versions later edits
   expect(nextDraft.status, nextDraft.text).toBe(200);
   expect(nextDraft.body.version).toBe(2);
   expect(nextDraft.body.status).toBe('DRAFT');
+  await expect(
+    db.query(
+      'UPDATE monthly_plans SET program_version_id=$1,position=2 WHERE program_version_id=$2',
+      [nextDraft.body.version_id, published.body.version_id],
+    ),
+  ).rejects.toThrow('Program structure cannot be moved between parents');
+  await expect(
+    db.query(
+      'DELETE FROM program_version_supported_levels WHERE program_version_id=$1',
+      [published.body.version_id],
+    ),
+  ).rejects.toThrow('Published program eligibility is immutable');
   expect(
     (await api.get(prefix + `/admin/programs/${created.body.id}`).set(headers))
       .body.title,
   ).toBe('Edited F04 fixture');
+
+  await expect(
+    db.query('UPDATE program_hint_versions SET approved_by=NULL WHERE id=$1', [
+      hint.body.id,
+    ]),
+  ).rejects.toThrow('Approved program hint is immutable');
+
+  const proof = await api
+    .post(prefix + '/auth/reauthenticate')
+    .set(headers)
+    .send({ method: 'PASSWORD', password, purpose: 'DELETE' });
+  expect(proof.status, proof.text).toBe(200);
+  const deletion = await api
+    .post(prefix + '/me/account-deletion')
+    .set(headers)
+    .send({ reauthenticationToken: proof.body.reauthenticationToken });
+  expect(deletion.status, deletion.text).toBe(202);
+
+  process.env.DELETION_RETENTION_APPROVED = 'true';
+  const { JobsService } =
+    await import('../../src/infrastructure/jobs/jobs.service.js');
+  await app.get(JobsService).processOne();
+  const deletionStatus = await api
+    .get(prefix + '/me/account-deletion')
+    .set('x-deletion-token', deletion.body.trackingToken);
+  expect(deletionStatus.body.status).toBe('COMPLETED');
+  expect(
+    await db.query('SELECT id FROM users WHERE id=$1', [user.user.id]),
+  ).toEqual([]);
+
+  const [retained] = await db.query(
+    `SELECT h.approved_by,h.approved_at,h.structured_hints,h.status,pv.approved_hint_version_id
+     FROM program_hint_versions h JOIN program_versions pv ON pv.id=h.program_version_id
+     WHERE h.id=$1`,
+    [hint.body.id],
+  );
+  expect(retained).toMatchObject({
+    approved_by: null,
+    approved_hint_version_id: hint.body.id,
+    status: 'APPROVED',
+    structured_hints: approvedHint.body.structured_hints,
+  });
+  expect(new Date(retained.approved_at).toISOString()).toBe(
+    approvedHint.body.approved_at,
+  );
 });
 
 it('limits OTP guesses, expires codes and invalidates older codes on resend', async () => {
@@ -2260,7 +2337,7 @@ describe('F05 program matching', () => {
       [nv, nutrition],
     );
     await db.query(
-      `INSERT INTO program_versions(id,program_id,version,status,title,primary_goal,ideal_level,training_days_per_week,description,nutrition_plan_version_id) VALUES($1,$2,1,'PUBLISHED','Candidate',$3,$4,$5,'Admin prepared program description',$6)`,
+      `INSERT INTO program_versions(id,program_id,version,title,primary_goal,ideal_level,training_days_per_week,description,nutrition_plan_version_id) VALUES($1,$2,1,'Candidate',$3,$4,$5,'Admin prepared program description',$6)`,
       [version, id, goal, level, days, nv],
     );
     await db.query(
@@ -2270,6 +2347,10 @@ describe('F05 program matching', () => {
     await db.query(
       `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
       [version, goal],
+    );
+    await db.query(
+      `UPDATE program_versions SET status='PUBLISHED' WHERE id=$1`,
+      [version],
     );
     return version;
   }
@@ -2336,6 +2417,38 @@ describe('F05 program matching', () => {
       ).body.runId,
     ).toBeNull();
   });
+  it('queues matching for recommendation inputs without queuing it for display fields', async () => {
+    const { headers } = await setup();
+    await program();
+
+    const displayEdit = await api
+      .patch(prefix + '/me')
+      .set(headers)
+      .send({ name: 'Updated athlete name', locale: 'ar' });
+    expect(displayEdit.status, displayEdit.text).toBe(200);
+    expect(displayEdit.body.name).toBe('Updated athlete name');
+    const beforeWeightEdit = await api
+      .get(prefix + '/me/matching/status')
+      .set(headers);
+    expect(beforeWeightEdit.body).toEqual({
+      status: 'NOT_STARTED',
+      runId: null,
+    });
+
+    const weightEdit = await api
+      .patch(prefix + '/me')
+      .set(headers)
+      .send({ weight_kg: 81 });
+    expect(weightEdit.status, weightEdit.text).toBe(200);
+    const afterWeightEdit = await api
+      .get(prefix + '/me/matching/status')
+      .set(headers);
+    expect(afterWeightEdit.body).toMatchObject({
+      status: 'PENDING',
+      runId: expect.any(String),
+    });
+  });
+
   it('returns NO_MATCH with zero provider calls for an empty eligible catalog', async () => {
     const { headers, matcher, service } = await setup();
     const select = vi.spyOn(matcher, 'select');
@@ -2550,5 +2663,109 @@ describe('F05 program matching', () => {
           .send({})
       ).body.status,
     ).toBe('NO_MATCH');
+  });
+});
+
+describe('Figma daily activity', () => {
+  it('stores water in the profile local day, sums entries and allows only the owner to remove them', async () => {
+    const athlete = await register();
+    const stranger = await register('activity-stranger@example.test');
+    const headers = bearer(athlete.accessToken);
+    await db.query(
+      `UPDATE user_profiles SET timezone='Pacific/Kiritimati' WHERE user_id=$1`,
+      [athlete.user.id],
+    );
+    const [today] = await db.query(
+      `SELECT (now() AT TIME ZONE 'Pacific/Kiritimati')::date::text AS date`,
+    );
+    const add = await api
+      .post(prefix + '/me/activity/water')
+      .set(headers)
+      .send({});
+    expect(add.status, add.text).toBe(201);
+    expect(add.body).toMatchObject({ date: today.date, milliliters: 250 });
+    await api
+      .post(prefix + '/me/activity/water')
+      .set(headers)
+      .send({ milliliters: 500 })
+      .expect(201);
+    const daily = await api
+      .get(prefix + '/me/activity/daily')
+      .set(headers)
+      .query({ date: today.date });
+    expect(daily.status, daily.text).toBe(200);
+    expect(daily.body.water).toMatchObject({
+      totalMl: 750,
+      goalMl: 2500,
+      logCount: 2,
+    });
+    await api
+      .delete(prefix + '/me/activity/water/' + add.body.id)
+      .set(bearer(stranger.accessToken))
+      .expect(404);
+    await api
+      .delete(prefix + '/me/activity/water/' + add.body.id)
+      .set(headers)
+      .expect(200);
+    const after = await api.get(prefix + '/me/activity/daily').set(headers);
+    expect(after.body.water.totalMl).toBe(500);
+    await api
+      .get(prefix + '/me/activity/daily?date=2100-01-01')
+      .set(headers)
+      .expect(422);
+    await api
+      .get(prefix + '/me/activity/daily?date=2026-02-30')
+      .set(headers)
+      .expect(400);
+    await api.get(prefix + '/me/activity/daily').expect(401);
+  });
+
+  it('persists editable goals and separate step completion without adding fabricated steps', async () => {
+    const athlete = await register();
+    const headers = bearer(athlete.accessToken);
+    const route = prefix + '/me/activity';
+    const goals = await api
+      .put(route + '/goals')
+      .set(headers)
+      .send({ waterGoalMl: 3000, stepsGoal: 8000 });
+    expect(goals.status, goals.text).toBe(200);
+    expect(goals.body).toEqual({ waterGoalMl: 3000, stepsGoal: 8000 });
+    await api
+      .put(route + '/steps')
+      .set(headers)
+      .send({ steps: 6240 })
+      .expect(200);
+    const completed = await api
+      .put(route + '/steps')
+      .set(headers)
+      .send({ manuallyCompleted: true });
+    expect(completed.body).toMatchObject({
+      count: 6240,
+      goal: 8000,
+      manuallyCompleted: true,
+      goalReached: true,
+    });
+    const daily = await api.get(route + '/daily').set(headers);
+    expect(daily.body.steps).toEqual({
+      count: 6240,
+      goal: 8000,
+      manuallyCompleted: true,
+      goalReached: true,
+    });
+    await api
+      .put(route + '/steps')
+      .set(headers)
+      .send({ manuallyCompleted: false })
+      .expect(200);
+    await api
+      .put(route + '/steps')
+      .set(headers)
+      .send({ steps: -1 })
+      .expect(400);
+    const reset = await api
+      .put(route + '/goals')
+      .set(headers)
+      .send({ waterGoalMl: null, stepsGoal: null });
+    expect(reset.body).toEqual({ waterGoalMl: 2500, stepsGoal: 10000 });
   });
 });
