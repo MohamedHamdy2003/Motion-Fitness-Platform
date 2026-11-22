@@ -86,6 +86,7 @@ const programFields = z
       z.literal(3),
       z.literal(4),
       z.literal(5),
+      z.literal(6),
     ]),
     editorialPriority: z.number().int().min(-1000).max(1000),
     description: text,
@@ -146,6 +147,11 @@ export const hintDraft = z
   .object({
     originalText: text,
     structuredHints: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+export const hintRewriteInput = z
+  .object({
+    originalText: text,
   })
   .strict();
 export type ProgramAggregate = z.infer<typeof programAggregate>;

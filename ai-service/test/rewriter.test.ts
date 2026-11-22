@@ -14,8 +14,8 @@ vi.mock('@mastra/core/agent', () => ({
   },
 }));
 import { rewrite, inputSchema } from '../src/agents/ai-rewriter';
-describe('private injury rewriter', () => {
-  it('returns validated structured output with versions', async () => {
+describe('private injury and program-hints rewriter', () => {
+  it('returns validated structured output with versions for injury descriptions', async () => {
     generate.mockResolvedValue({
       object: { description: 'My left knee hurts occasionally.' },
     });
@@ -32,6 +32,50 @@ describe('private injury rewriter', () => {
       instructionVersion: 'injury-rewrite-v1',
     });
   });
+
+  it('extracts structured program hints in PROGRAM_HINTS mode', async () => {
+    generate.mockResolvedValueOnce({
+      object: {
+        summary:
+          'Three-day full-body fat loss template with low-impact movements.',
+        intendedAudience: 'Beginners and intermediates seeking steady fat loss',
+        suitabilityNotes: [
+          'Low-impact lower body progressions',
+          'Minimal equipment',
+        ],
+        ambiguities: [],
+        unsupportedClaims: [],
+      },
+    });
+    const result = await rewrite('google/gemini-2.5-flash', {
+      mode: 'PROGRAM_HINTS',
+      title: 'Fat Loss Foundation 3D',
+      description: 'Three days of metabolic resistance training.',
+      primaryGoal: 'FAT_LOSS',
+      supportedLevels: ['BEGINNER', 'INTERMEDIATE'],
+      trainingDaysPerWeek: 3,
+      requiredEquipment: ['DUMBBELL'],
+      intendedAudience: 'Beginners and intermediates',
+      originalText:
+        'Best for users starting fat loss with dumbbells 3 days a week.',
+    });
+    expect(result).toEqual({
+      structuredHints: {
+        summary:
+          'Three-day full-body fat loss template with low-impact movements.',
+        intendedAudience: 'Beginners and intermediates seeking steady fat loss',
+        suitabilityNotes: [
+          'Low-impact lower body progressions',
+          'Minimal equipment',
+        ],
+        ambiguities: [],
+        unsupportedClaims: [],
+      },
+      modelVersion: 'google/gemini-2.5-flash',
+      instructionVersion: 'program-hints-rewrite-v1',
+    });
+  });
+
   it('rejects unchanged text and malformed outputs', async () => {
     const input = {
       mode: 'INJURY_DESCRIPTION' as const,

@@ -1,0 +1,23 @@
+meta {
+  name: Nutrition assignment
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/me/nutrition/assignment
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Reads the user's current program-linked nutrition assignment status and calendar bounds.
+}

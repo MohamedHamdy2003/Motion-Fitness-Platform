@@ -1,0 +1,29 @@
+meta {
+  name: Substitute whole meal
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/me/meals/{{scheduledMealId}}/substitutions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "selectedMealVersionId": "{{selectedMealVersionId}}"
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Replaces the scheduled meal with an eligible alternative from the same meal section before any item is consumed.
+}

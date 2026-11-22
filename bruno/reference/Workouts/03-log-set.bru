@@ -1,0 +1,31 @@
+meta {
+  name: Log or skip set
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/me/workouts/{{workoutSessionId}}/exercises/{{workoutExerciseId}}/sets/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "status": "COMPLETED",
+    "actualReps": 10,
+    "weightKg": 8
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Records one set. To mark it skipped send only {status: SKIPPED}. Returns the updated session.
+}

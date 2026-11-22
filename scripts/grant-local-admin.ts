@@ -12,26 +12,37 @@ async function main() {
     throw Error('Local development database required');
   const address = parse(email, process.argv[2]);
   await db.initialize();
-  const rows = await query(
-    db,
-    `INSERT INTO user_roles(user_id,role_code) SELECT id,'ADMIN' FROM users WHERE email_normalized=$1 AND status='ACTIVE' ON CONFLICT DO NOTHING RETURNING user_id`,
-    [address],
-  );
   const [user] = await db.query(
     `SELECT id FROM users WHERE email_normalized=$1 AND status='ACTIVE'`,
     [address],
   );
   if (!user) throw Error('Register a local account first');
-  process.stdout.write(
-    rows.length
-      ? 'Local admin role granted\n'
-      : 'Local admin role already present\n',
+  const [existingAdmin] = await query(
+    db,
+    `SELECT user_id FROM user_roles WHERE role_code='ADMIN' LIMIT 1`,
   );
+  if (existingAdmin) {
+    if (existingAdmin.user_id === user.id) {
+      process.stdout.write('Local admin role already present\n');
+      return;
+    }
+    throw Error('An admin account already exists');
+  }
+  await query(
+    db,
+    `INSERT INTO user_roles(user_id,role_code) VALUES($1,'ADMIN')`,
+    [user.id],
+  );
+  process.stdout.write('Local admin role granted\n');
 }
 void main()
-  .catch(() => {
+  .catch((error: unknown) => {
+    const msg =
+      error instanceof Error
+        ? error.message
+        : 'Unable to grant local admin role';
     process.stderr.write(
-      'Unable to grant local admin role; check environment, account and lookup seeds\n',
+      `${msg}; check environment, account and lookup seeds\n`,
     );
     process.exitCode = 1;
   })

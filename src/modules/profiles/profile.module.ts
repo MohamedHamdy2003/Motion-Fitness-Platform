@@ -1,3 +1,4 @@
+import { MatchingModule } from '../matching/matching.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProfileSchema, InjurySchema } from './profile.entity';
@@ -6,7 +7,10 @@ import { ReferenceController } from './reference.controller';
 import { ProfileService } from './profile.service';
 import { RewriterService } from '../../infrastructure/ai/rewriter.service';
 @Module({
-  imports: [TypeOrmModule.forFeature([ProfileSchema, InjurySchema])],
+  imports: [
+    TypeOrmModule.forFeature([ProfileSchema, InjurySchema]),
+    MatchingModule,
+  ],
   controllers: [ProfileController, ReferenceController],
   providers: [ProfileService, RewriterService],
 })

@@ -16,6 +16,9 @@ fs.writeFileSync(
   ) + '\n',
 );
 const variables = {
+  matchingModel: '',
+  matchingRulesetId: '',
+  matchingRunId: '',
   baseUrl: 'http://localhost:3100/api/v1',
   email: '',
   password: '',
@@ -331,7 +334,7 @@ add(
     },
   },
   {
-    docs: 'Requires gender, age strictly greater than 18, 2-5 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching remains PENDING until F05.',
+    docs: 'Requires gender, age strictly greater than 18, 2-6 unique fixed weekdays and food_preferences with allergen_codes and disliked_food_ids. Current and target weights have no measurement date or history. Matching queues a run when an active ruleset exists; otherwise returns CONFIGURATION_REQUIRED.',
   },
 );
 add('Get settings', 'GET', '/me/settings');
@@ -495,7 +498,7 @@ smoke('Settings', 'PATCH', '/me/settings', {
   theme: 'DARK',
 });
 smoke('Matching honest status', 'GET', '/me/matching/status', undefined, {
-  post: '  test("F05 is not implemented",()=>expect(res.getBody().reason).to.equal("F05_NOT_IMPLEMENTED"));',
+  post: '  test("Matching status",()=>expect(res.getBody().status).to.be.a("string"));',
 });
 smoke(
   'Rotate refresh',
@@ -630,6 +633,11 @@ for (const [kind, content] of [
     'PATCH',
     '/admin/' + kind + '/{{contentId}}',
     { content },
+    kind === 'ingredients'
+      ? {
+          docs: 'description is optional: omit it to preserve saved text, send a string to replace it, or null to clear it. Other ingredient content fields remain required.',
+        }
+      : {},
   );
 }
 write(
@@ -868,7 +876,7 @@ write(
   '/admin/programs/{{programId}}',
   programEdit,
   {
-    docs: 'Edit requests do not need a client revision; the latest successful write is retained. Updates are atomic; a published program creates a new draft version. Keep the idempotency key stable only when retrying the same request.',
+    docs: 'Updates are atomic. Editing a published program creates a new draft version. The latest successful write is retained.',
   },
 );
 write(

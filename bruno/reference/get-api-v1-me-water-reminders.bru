@@ -1,0 +1,15 @@
+meta {
+  name: Get Water Reminders
+  type: http
+  seq: 140
+}
+
+get {
+  url: {{baseUrl}}/me/water-reminders
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

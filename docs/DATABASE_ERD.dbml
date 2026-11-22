@@ -1,6 +1,6 @@
 Project Motion_Fitness_Platform {
   database_type: 'PostgreSQL'
-  Note: 'Relationship-focused ERD for the current dev schema. Includes all application tables, one view, and foreign-key relationships after migrations on dev. Selected non-key columns are included for readability.'
+  Note: 'Relationship-focused ERD for the current migrations. Includes the application tables and view with selected non-key columns. The migration ledger is managed by TypeORM.'
 }
 
 Table users {
@@ -9,17 +9,23 @@ Table users {
 }
 
 Table rate_limits {
-  key text [pk]
-  bucket bigint [pk]
+  key text [not null]
+  bucket bigint [not null]
+  indexes {
+    (key, bucket) [pk]
+  }
 }
 
 Table roles {
-  code text [pk, note: 'Current dev values: ATHLETE, CONTENT_EDITOR, NUTRITION_REVIEWER, EXERCISE_REVIEWER, ADMIN']
+  code text [pk, note: 'Supported roles: USER, ADMIN']
 }
 
 Table user_roles {
-  user_id uuid [pk]
-  role_code text [pk]
+  user_id uuid [not null]
+  role_code text [not null]
+  indexes {
+    (user_id, role_code) [pk]
+  }
 }
 
 Table auth_sessions {
@@ -72,17 +78,56 @@ Table genders {
   code text [pk, note: 'Current values: MALE, FEMALE']
 }
 
+Table primary_goals {
+  code text [pk]
+  label text [not null]
+  display_order integer [not null, unique]
+  active boolean [not null, default: true]
+}
+
+Table fitness_levels {
+  code text [pk]
+  label text [not null]
+  display_order integer [not null, unique]
+  active boolean [not null, default: true]
+}
+
 Table user_profiles {
   user_id uuid [pk]
   gender text
-  primary_goal text [note: 'CHECK values: FAT_LOSS, STRENGTH_HYPERTROPHY']
-  fitness_level text [note: 'CHECK values: BEGINNER, INTERMEDIATE, ADVANCED']
+  primary_goal text
+  fitness_level text
   avatar_media_id uuid
+  date_of_birth date
   weight_kg numeric
+  target_weight_kg numeric
+  training_weekdays text[]
+  training_days_per_week integer [note: '2 to 6']
+  timezone text [not null, default: 'UTC']
 }
 
 Table user_settings {
   user_id uuid [pk]
+  water_goal_ml integer [not null, default: 2500]
+  steps_goal integer [not null, default: 10000]
+}
+
+Table water_logs {
+  id uuid [pk]
+  user_id uuid [not null]
+  local_date date [not null]
+  milliliters integer [not null]
+  created_at timestamptz [not null, default: `clock_timestamp()`]
+}
+
+Table daily_steps {
+  user_id uuid [not null]
+  local_date date [not null]
+  steps integer [not null, default: 0]
+  manually_completed boolean [not null, default: false]
+  indexes {
+    (user_id, local_date) [pk]
+  }
 }
 
 Table body_areas_injuries {
@@ -112,8 +157,11 @@ Table user_food_preferences {
 }
 
 Table user_allergies {
-  user_id uuid [pk]
-  allergen_code text [pk]
+  user_id uuid [not null]
+  allergen_code text [not null]
+  indexes {
+    (user_id, allergen_code) [pk]
+  }
 }
 
 Table food_reference_items {
@@ -124,8 +172,11 @@ Table food_reference_items {
 }
 
 Table user_disliked_foods {
-  user_id uuid [pk]
-  food_id uuid [pk]
+  user_id uuid [not null]
+  food_id uuid [not null]
+  indexes {
+    (user_id, food_id) [pk]
+  }
 }
 
 Table jobs {
@@ -151,8 +202,11 @@ Table ai_rewrite_runs {
 }
 
 Table content_seed_imports {
-  dataset_id text [pk]
-  version integer [pk]
+  dataset_id text [not null]
+  version integer [not null]
+  indexes {
+    (dataset_id, version) [pk]
+  }
 }
 
 Table exercises {
@@ -177,8 +231,11 @@ Table ingredients {
 }
 
 Table ingredient_allergens {
-  ingredient_id uuid [pk]
-  allergen_code text [pk]
+  ingredient_id uuid [not null]
+  allergen_code text [not null]
+  indexes {
+    (ingredient_id, allergen_code) [pk]
+  }
 }
 
 Table foods {
@@ -197,8 +254,11 @@ Table food_versions {
 }
 
 Table food_ingredients {
-  food_version_id uuid [pk]
-  ingredient_id uuid [pk]
+  food_version_id uuid [not null]
+  ingredient_id uuid [not null]
+  indexes {
+    (food_version_id, ingredient_id) [pk]
+  }
   quantity_g numeric
 }
 
@@ -246,9 +306,12 @@ Table meal_versions {
 }
 
 Table meal_items {
-  meal_version_id uuid [pk]
-  position integer [pk]
+  meal_version_id uuid [not null]
+  position integer [not null]
   default_exchange_member_id uuid
+  indexes {
+    (meal_version_id, position) [pk]
+  }
 }
 
 Table programs {
@@ -259,15 +322,30 @@ Table programs {
 Table program_versions {
   id uuid [pk]
   program_id uuid
-  primary_goal text [note: 'CHECK values: FAT_LOSS, STRENGTH_HYPERTROPHY']
-  supported_goals text[]
-  ideal_level text [note: 'CHECK values: BEGINNER, INTERMEDIATE, ADVANCED']
-  supported_levels text[]
+  primary_goal text [not null]
+  ideal_level text [not null]
+  training_days_per_week integer [not null, note: '2 to 6']
   nutrition_plan_version_id uuid [unique]
   approved_hint_version_id uuid
   version integer
   indexes {
     (program_id, version) [unique]
+  }
+}
+
+Table program_version_supported_goals {
+  program_version_id uuid [not null]
+  primary_goal_code text [not null]
+  indexes {
+    (program_version_id, primary_goal_code) [pk]
+  }
+}
+
+Table program_version_supported_levels {
+  program_version_id uuid [not null]
+  fitness_level_code text [not null]
+  indexes {
+    (program_version_id, fitness_level_code) [pk]
   }
 }
 
@@ -363,6 +441,7 @@ Table program_hint_versions {
   id uuid [pk]
   program_version_id uuid
   approved_by uuid
+  approved_at timestamptz
   version integer
   indexes {
     (program_version_id, version) [unique]
@@ -378,7 +457,7 @@ Ref: user_roles.user_id > users.id [delete: cascade]
 Ref: user_roles.role_code > roles.code
 Ref: auth_sessions.user_id > users.id [delete: cascade]
 Ref: auth_refresh_tokens.session_id > auth_sessions.id [delete: cascade]
-Ref: auth_refresh_tokens.parent_token_id - auth_refresh_tokens.id [delete: cascade]
+Ref: auth_refresh_tokens.id - auth_refresh_tokens.parent_token_id [delete: cascade]
 Ref: verification_tokens.user_id > users.id [delete: cascade]
 Ref: verification_tokens.session_id > auth_sessions.id [delete: cascade]
 Ref: auth_challenges.user_id > users.id [delete: cascade]
@@ -386,23 +465,29 @@ Ref: auth_identities.user_id > users.id [delete: cascade]
 Ref: media_assets.owner_user_id > users.id [delete: cascade]
 
 // Profile, lookups, preferences and restrictions
-Ref: user_profiles.user_id - users.id [delete: cascade]
+Ref: users.id - user_profiles.user_id [delete: cascade]
 Ref: user_profiles.gender > genders.code
+Ref: user_profiles.primary_goal > primary_goals.code
+Ref: user_profiles.fitness_level > fitness_levels.code
 Ref: user_profiles.avatar_media_id > media_assets.id [delete: set null]
-Ref: user_settings.user_id - users.id [delete: cascade]
+Ref: users.id - user_settings.user_id [delete: cascade]
 Ref: body_areas_injuries.parent_code > body_areas_injuries.code
-Ref: user_restriction_states.user_id - users.id [delete: cascade]
+Ref: users.id - user_restriction_states.user_id [delete: cascade]
 Ref: user_injuries.user_id > users.id [delete: cascade]
 Ref: user_injuries.body_area_code > body_areas_injuries.code
-Ref: user_food_preferences.user_id - users.id [delete: cascade]
+Ref: users.id - user_food_preferences.user_id [delete: cascade]
 Ref: user_allergies.user_id > users.id [delete: cascade]
 Ref: user_allergies.allergen_code > allergens.code
 Ref: user_disliked_foods.user_id > users.id [delete: cascade]
 Ref: user_disliked_foods.food_id > food_reference_items.id
 
+// Daily activity
+Ref: water_logs.user_id > users.id [delete: cascade]
+Ref: daily_steps.user_id > users.id [delete: cascade]
+
 // User lifecycle and operational records
 Ref: jobs.user_id > users.id [delete: cascade]
-Ref: account_deletions.user_id - users.id [delete: set null]
+Ref: users.id - account_deletions.user_id [delete: set null]
 Ref: domain_events.user_id > users.id [delete: cascade]
 Ref: ai_rewrite_runs.user_id > users.id [delete: cascade]
 
@@ -414,8 +499,8 @@ Ref: workout_exercises.workout_revision_id > workout_revisions.id
 Ref: workout_exercises.exercise_revision_id > exercise_revisions.id
 
 // Food, ingredients and meals
-Ref: foods.id - food_reference_items.id
-Ref: ingredients.id - food_reference_items.id
+Ref: food_reference_items.id - foods.id
+Ref: food_reference_items.id - ingredients.id
 Ref: ingredient_allergens.ingredient_id > ingredients.id
 Ref: ingredient_allergens.allergen_code > allergens.code
 Ref: food_versions.food_id > foods.id
@@ -432,7 +517,13 @@ Ref: meal_items.default_exchange_member_id > food_exchange_members.id
 
 // Programs, workout plans and nutrition plans
 Ref: program_versions.program_id > programs.id
-Ref: program_versions.nutrition_plan_version_id - nutrition_plan_versions.id
+Ref: program_versions.primary_goal > primary_goals.code
+Ref: program_versions.ideal_level > fitness_levels.code
+Ref: program_version_supported_goals.program_version_id > program_versions.id [delete: cascade]
+Ref: program_version_supported_goals.primary_goal_code > primary_goals.code
+Ref: program_version_supported_levels.program_version_id > program_versions.id [delete: cascade]
+Ref: program_version_supported_levels.fitness_level_code > fitness_levels.code
+Ref: nutrition_plan_versions.id - program_versions.nutrition_plan_version_id
 Ref: program_versions.approved_hint_version_id > program_hint_versions.id
 Ref: nutrition_plan_versions.nutrition_plan_id > nutrition_plans.id
 Ref: nutrition_template_days.nutrition_plan_version_id > nutrition_plan_versions.id
@@ -442,6 +533,38 @@ Ref: monthly_plans.program_version_id > program_versions.id
 Ref: plan_weeks.monthly_plan_id > monthly_plans.id
 Ref: plan_days.week_id > plan_weeks.id
 Ref: plan_days.workout_revision_id > workout_revisions.id
-Ref: plan_days.nutrition_template_day_id - nutrition_template_days.id
+Ref: nutrition_template_days.id - plan_days.nutrition_template_day_id
 Ref: program_hint_versions.program_version_id > program_versions.id
-Ref: program_hint_versions.approved_by > users.id
+Ref: program_hint_versions.approved_by > users.id [delete: set null]
+
+
+Table matching_rulesets {
+ id uuid [pk]
+ status text
+ active boolean
+ instruction_version text
+ instructions text
+ model text
+ policy_version text
+ schema_version text
+ evaluation_reference text
+}
+Table recommendation_runs {
+ id uuid [pk]
+ user_id uuid
+ ruleset_id uuid
+ kind text
+ status text
+ input_hash text
+ profile_snapshot jsonb
+ metrics_snapshot jsonb
+ candidates jsonb
+ decision jsonb
+ attempts integer
+ lease_token uuid
+ lease_expires_at timestamptz
+ failure_code text
+ duration_ms integer
+}
+Ref: recommendation_runs.user_id > users.id [delete: cascade]
+Ref: recommendation_runs.ruleset_id > matching_rulesets.id

@@ -1,3 +1,15 @@
+import { ProgramMatching1793448017000 } from './migrations/1793448017000-ProgramMatching';
+import { ProtectPublishedProgramStructure1793448018000 } from './migrations/1793448018000-ProtectPublishedProgramStructure';
+import { DecoupleProgramHintApprovers1793448019000 } from './migrations/1793448019000-DecoupleProgramHintApprovers';
+import { AlignTrainingAvailability1793448020000 } from './migrations/1793448020000-AlignTrainingAvailability';
+import { DailyActivity1793448021000 } from './migrations/1793448021000-DailyActivity';
+import { AutomaticEnrollment1793448022000 } from './migrations/1793448022000-AutomaticEnrollment';
+import { ExerciseFitting1793448023000 } from './migrations/1793448023000-ExerciseFitting';
+import { SingleAdmin1793448024000 } from './migrations/1793448024000-SingleAdmin';
+import { WorkoutExecution1793448025000 } from './migrations/1793448025000-WorkoutExecution';
+import { UserNutritionExecution1793448026000 } from './migrations/1793448026000-UserNutritionExecution';
+import { NotificationsCheckInsSupportAndIndexes1793448027000 } from './migrations/1793448027000-NotificationsCheckInsSupportAndIndexes';
+import { AiUsageAndSystemMetrics1793448028000 } from './migrations/1793448028000-AiUsageAndSystemMetrics';
 import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
@@ -69,10 +81,26 @@ export function databaseOptions(): DataSourceOptions {
       RemoveExcludedFoodPreference1793448014000,
       FoodDisplay1793448015000,
       RemoveIdempotency1793448016000,
+      ProgramMatching1793448017000,
+      ProtectPublishedProgramStructure1793448018000,
+      DecoupleProgramHintApprovers1793448019000,
+      AlignTrainingAvailability1793448020000,
+      DailyActivity1793448021000,
+      AutomaticEnrollment1793448022000,
+      ExerciseFitting1793448023000,
+      SingleAdmin1793448024000,
+      WorkoutExecution1793448025000,
+      UserNutritionExecution1793448026000,
+      NotificationsCheckInsSupportAndIndexes1793448027000,
+      AiUsageAndSystemMetrics1793448028000,
     ],
     synchronize: false,
     migrationsRun: false,
     logging: false,
-    extra: { max: 10, connectionTimeoutMillis: 10000 },
+    extra: {
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    },
   };
 }

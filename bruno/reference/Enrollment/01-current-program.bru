@@ -1,0 +1,28 @@
+meta {
+  name: Current program
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/me/program
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.status === "ASSIGNED") bru.setVar("scheduledDate", body.localToday);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Reads the current assigned program. GET, no request body. Response when assigned: {status:"ASSIGNED",enrollmentId,recommendationRunId,startsOn,timezone,trainingWeekdays,localToday,programId,programVersionId,nutritionPlanVersionId,title,description}. Otherwise: {status,enrollmentId:null,recommendationRunId,failureCode}; status can be PREPARING, NO_MATCH, FAILED or NOT_ASSIGNED.
+}

@@ -10,7 +10,7 @@ Contract: v1 / 0.4.0. F00–F03 backend implementation and OTP email authenticat
 - Public food references exclude draft and archived foods. Publishing updates the visible title. Ingredient verification remains explicitly UNKNOWN or VERIFIED.
 - Gmail SMTP accepted a real verification/recovery OTP message in an earlier test. Captured/legacy mail is not forwarded when SMTP is enabled. Email links are superseded by OTP.
 - Google IDs are configured locally and live challenge issuance works. End-to-end Google mobile sign-in still requires a real Android ID token and nonce round trip. Sign in with Apple is deferred by user request.
-- AI rewrite adapter and private service exist, but no live provider/model is enabled. Matching, fitting, billing and the admin UI remain later features.
+- The private Mastra service has an injury rewrite adapter. Program selection was added to `dev` in F05 on 2026-11-18. Live provider operation is unverified. Program assignment, exercise fitting, billing and the admin UI remain later features.
 - Production uses AWS EC2 + RDS PostgreSQL + private S3. The user verified the public HTTPS `/health/ready` endpoint on 2026-11-02; that check confirmed the API and database, not S3 or SMTP.
 
 Current F04 CI on PR #36 and its `dev` merge: format, lint, typecheck, build, migrations, seeders, PostgreSQL integration, and Bruno passed; `Deploy EC2` was skipped because deployment only runs from `main`.

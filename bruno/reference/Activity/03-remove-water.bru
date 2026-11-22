@@ -1,0 +1,23 @@
+meta {
+  name: Remove Water
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/me/activity/water/{{activityWaterLogId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Removes your water entry. Set activityWaterLogId from the add response or daily recentLogs. Response: {id}.
+}

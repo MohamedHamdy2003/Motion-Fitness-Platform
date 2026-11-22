@@ -1,0 +1,15 @@
+meta {
+  name: List Admin Legal Documents
+  type: http
+  seq: 154
+}
+
+get {
+  url: {{baseUrl}}/admin/legal
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

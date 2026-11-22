@@ -1,0 +1,29 @@
+meta {
+  name: Set meal completion
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/me/meals/{{scheduledMealId}}/completion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "completed": true
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Marks all active items of a scheduled meal as completed or pending and updates consumed nutrient totals.
+}

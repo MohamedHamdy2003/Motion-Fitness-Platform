@@ -9,6 +9,7 @@ import { hash, randomToken } from '../../common/crypto';
 import { environment } from '../../config/environment';
 import { MailService } from '../../infrastructure/mail/mail.service';
 import { User, UserSchema } from './user.entity';
+import { initializeUser } from './initialize-user';
 
 @Injectable()
 export class AuthService {
@@ -17,18 +18,7 @@ export class AuthService {
     @Inject(MailService) private mail: MailService,
   ) {}
   async initializeUser(m: EntityManager, userId: string) {
-    for (const table of [
-      'user_profiles',
-      'user_settings',
-      'user_restriction_states',
-      'user_food_preferences',
-    ])
-      await query(m, `INSERT INTO ${table}(user_id) VALUES($1)`, [userId]);
-    await query(
-      m,
-      `INSERT INTO user_roles(user_id,role_code) VALUES($1,'USER')`,
-      [userId],
-    );
+    await initializeUser(m, userId);
   }
   async session(m: EntityManager, userId: string) {
     const id = randomUUID();

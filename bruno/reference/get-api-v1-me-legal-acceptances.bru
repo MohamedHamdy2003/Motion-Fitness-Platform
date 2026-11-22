@@ -1,0 +1,15 @@
+meta {
+  name: List Legal Acceptances
+  type: http
+  seq: 148
+}
+
+get {
+  url: {{baseUrl}}/me/legal-acceptances
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

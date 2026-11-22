@@ -1,0 +1,28 @@
+meta {
+  name: Workout exercise fitting
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/me/workouts/days/{{scheduledDayId}}/fitting
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Fitting is queued or decided", function () { expect([200, 202]).to.include(res.getStatus()); });
+  test("Returns a decision list", function () { expect(res.getBody().decisions).to.be.an("array"); });
+}
+
+docs {
+  Set scheduledDayId from a current enrollment day returned by GET /me/days/:date.
+  Returns {status, runId, decisions: [{workoutExerciseId, status}], failureCode}.
+  HTTP 202 means PENDING or RUNNING. Poll this request to get the current result. An assessed result is READY, NEEDS_REVIEW or FAILED. NOT_REQUIRED bypasses AI on rest days and when no injuries are reported.
+  A decision is NO_IDENTIFIED_CONFLICT, BLOCKED or NEEDS_REVIEW. It describes conflicts with reported injuries and conveys no clinical clearance.
+  Another account's day returns 404. A future day returns 409.
+}

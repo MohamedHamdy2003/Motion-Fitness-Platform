@@ -1,0 +1,15 @@
+meta {
+  name: Delete Admin FAQ
+  type: http
+  seq: 153
+}
+
+delete {
+  url: {{baseUrl}}/admin/faq/:id
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

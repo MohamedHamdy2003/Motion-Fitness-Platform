@@ -1,0 +1,32 @@
+meta {
+  name: 02-retry
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/me/matching/retry
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.runId) bru.setVar("matchingRunId", body.runId);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  User queues/reuses a decision for the current input and active ruleset; explicit retry replaces a failed run. Response: status PENDING/PROCESSING/MATCH/NO_MATCH/FAILED/STALE and runId; missing data gives INCOMPLETE_PROFILE, no published ruleset gives CONFIGURATION_REQUIRED. Poll GET status. Three requests per 15 minutes.
+}

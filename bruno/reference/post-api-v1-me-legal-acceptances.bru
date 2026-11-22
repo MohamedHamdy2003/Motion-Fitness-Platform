@@ -1,0 +1,15 @@
+meta {
+  name: Accept Legal Document
+  type: http
+  seq: 149
+}
+
+post {
+  url: {{baseUrl}}/me/legal-acceptances
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

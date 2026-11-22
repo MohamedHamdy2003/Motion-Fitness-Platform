@@ -1,0 +1,29 @@
+meta {
+  name: Substitute meal item
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/me/meal-items/{{scheduledMealItemId}}/substitutions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "selectedMemberId": "{{selectedExchangeMemberId}}"
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Swaps an uncompleted scheduled meal item with an eligible member from the same food exchange group.
+}

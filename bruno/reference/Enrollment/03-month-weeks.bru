@@ -1,0 +1,28 @@
+meta {
+  name: Month weeks
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/me/program/months/{{enrollmentMonthId}}/weeks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const week = (res.getBody().items || [])[0];
+  if (week) bru.setVar("enrollmentWeekId", week.id);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Lists the four weeks in an assigned month. Set enrollmentMonthId from Program months. GET, no request body. Response: {items:[{id,position,startsOn,endsOn}]}. Locked or unassigned month: 404.
+}

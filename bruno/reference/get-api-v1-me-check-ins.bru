@@ -1,0 +1,15 @@
+meta {
+  name: List Check-Ins
+  type: http
+  seq: 143
+}
+
+get {
+  url: {{baseUrl}}/me/check-ins
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

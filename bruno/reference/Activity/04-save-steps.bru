@@ -1,0 +1,30 @@
+meta {
+  name: Save Steps
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/me/activity/steps
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "steps": 6240,
+    "manuallyCompleted": false
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Send an absolute step count or a manual completion flag. Optional date defaults to today. Response: {date,count,goal,manuallyCompleted,goalReached}.
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Daily nutrition and meals
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/me/nutrition/days/{{scheduledDate}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const body = res.getBody();
+  if (body.meals?.[0]) {
+    bru.setVar("scheduledMealId", body.meals[0].id);
+    bru.setVar("scheduledMealItemId", body.meals[0].items?.[0]?.id);
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Returns the scheduled meals, items, portions, nutrient totals (planned, selected, consumed), and allergen/dislike flags for a local calendar date.
+}

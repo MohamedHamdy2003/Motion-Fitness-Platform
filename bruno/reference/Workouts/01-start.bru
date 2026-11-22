@@ -1,0 +1,27 @@
+meta {
+  name: Start or resume workout
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/me/workouts/days/{{scheduledDayId}}/start
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  const body = res.getBody(); if (body.id) { bru.setVar("workoutSessionId", body.id); bru.setVar("workoutExerciseId", body.exercises[0]?.id); }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Returns a session with exercises, sets, and progress. A fully blocked day may return status EXEMPT with id null.
+}

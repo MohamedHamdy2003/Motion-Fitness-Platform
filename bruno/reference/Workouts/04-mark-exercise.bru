@@ -1,0 +1,29 @@
+meta {
+  name: Mark exercise complete
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/me/workouts/{{workoutSessionId}}/exercises/{{workoutExerciseId}}/completion
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "completed": true
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Records manual completion without filling in any unrecorded sets or reps.
+}

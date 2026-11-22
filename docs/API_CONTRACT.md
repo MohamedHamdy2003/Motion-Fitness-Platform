@@ -6,12 +6,14 @@ Responses include `X-Request-Id` and `Cache-Control: no-store`. Client request I
 
 ```json
 {
+  "code": "EMAIL_ALREADY_REGISTERED",
+  "message": "Email already registered",
   "details": null,
   "requestId": "9897942b-1e2f-44fb-a932-d3b5e1c8b260"
 }
 ```
 
-Validation errors return `400 VALIDATION_ERROR`. The top-level `message` explains the first validation issue; every item in `details` includes its field `path`, validation `code`, and readable `message`. Rejected values and raw provider errors are excluded. Common errors: `401 UNAUTHENTICATED`, `SESSION_REVOKED`, `INVALID_CREDENTIALS` (`Email or password is incorrect.`), `CURRENT_PASSWORD_INCORRECT` (`Current password is incorrect.`), `INVALID_REFRESH_TOKEN`; `403 EMAIL_NOT_VERIFIED` (`Please verify your email before accessing Motion.`), `FRESH_REAUTHENTICATION_REQUIRED`; `404 NOT_FOUND`; `409 CONFLICT`, `EMAIL_ALREADY_REGISTERED` (`Email already registered` from `POST /auth/register`), `IDEMPOTENCY_CONFLICT`; `429 RATE_LIMITED`; `503 *_NOT_CONFIGURED`. Internal failures return `500 INTERNAL_ERROR` without SQL, tokens or sensitive text.
+Validation errors return `400 VALIDATION_ERROR`. The top-level `message` explains the first validation issue; every item in `details` includes its field `path`, validation `code`, and readable `message`. Rejected values and raw provider errors are excluded. Common errors: `401 UNAUTHENTICATED`, `SESSION_REVOKED`, `INVALID_CREDENTIALS` (`Email or password is incorrect.`), `CURRENT_PASSWORD_INCORRECT` (`Current password is incorrect.`), `INVALID_REFRESH_TOKEN`; `403 EMAIL_NOT_VERIFIED` (`Please verify your email before accessing Motion.`), `FRESH_REAUTHENTICATION_REQUIRED`; `404 NOT_FOUND`; `409 CONFLICT`, `EMAIL_ALREADY_REGISTERED` (`Email already registered` from `POST /auth/register`); `429 RATE_LIMITED`; `503 *_NOT_CONFIGURED`. Internal failures return `500 INTERNAL_ERROR` without SQL, tokens or sensitive text.
 
 ## Authentication
 
@@ -62,18 +64,18 @@ Delivery-dependent routes return `503 EMAIL_NOT_CONFIGURED` when disabled. `QUEU
 
 ## Profile and onboarding
 
-| Method/route              | Request                                                                                                                 | Response                                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET `/me`                 | —                                                                                                                       | 200 aggregate described below                                                       |
-| PATCH `/me`               | One or more profile fields                                                                                              | 200 updated profile                                                                 |
-| PUT `/me/onboarding`      | profile fields including `weight_kg` and `target_weight_kg`, plus `food_preferences:{allergen_codes,disliked_food_ids}` | 200 `{status:"COMPLETED",matching:{status:"PENDING",reason:"F05_NOT_IMPLEMENTED"}}` |
-| GET `/me/settings`        | —                                                                                                                       | 200 `{reminders,theme,quiet_hours,version}`                                         |
-| PATCH `/me/settings`      | Optional `reminders`, `theme`, `quiet_hours`                                                                            | 200 updated settings/version                                                        |
-| GET `/me/matching/status` | —                                                                                                                       | `{status:"NOT_STARTED"\|"PENDING",reason:"F05_NOT_IMPLEMENTED"}`                    |
+| Method/route              | Request                                                                                                                 | Response                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| GET `/me`                 | —                                                                                                                       | 200 aggregate described below                      |
+| PATCH `/me`               | One or more profile fields                                                                                              | 200 updated profile                                |
+| PUT `/me/onboarding`      | profile fields including `weight_kg` and `target_weight_kg`, plus `food_preferences:{allergen_codes,disliked_food_ids}` | 200 `{status:"COMPLETED",matching:{status,runId}}` |
+| GET `/me/settings`        | —                                                                                                                       | 200 `{reminders,theme,quiet_hours,version}`        |
+| PATCH `/me/settings`      | Optional `reminders`, `theme`, `quiet_hours`                                                                            | 200 updated settings/version                       |
+| GET `/me/matching/status` | —                                                                                                                       | `{status,runId}`                                   |
 
-All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender` (active code from `genders`; initial codes `MALE|FEMALE`); `height_cm`; current `weight_kg`; target `target_weight_kg` (positive number, optional for existing accounts and required during onboarding); `primary_goal` (active code from `primary_goals`; initial codes `FAT_LOSS|STRENGTH_HYPERTROPHY`); `fitness_level` (active code from `fitness_levels`; initial codes `BEGINNER|INTERMEDIATE|ADVANCED`); `training_days_per_week`, an array of 2–5 unique weekday codes from `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. An Admin may add or deactivate gender, goal and fitness-level codes; clients should always fetch the current active codes from the public reference endpoints. Existing profiles may have `gender:null` until updated.
+All routes in this section are protected. Profile fields: `name`, optional nullable `phone`; `gender` (active code from `genders`; initial codes `MALE|FEMALE`); `height_cm`; current `weight_kg`; target `target_weight_kg` (positive number, optional for existing accounts and required during onboarding); `primary_goal` (active code from `primary_goals`; initial codes `FAT_LOSS|STRENGTH_HYPERTROPHY|GET_FIT_TONED|IMPROVE_ENDURANCE`); `fitness_level` (active code from `fitness_levels`; initial codes `BEGINNER|INTERMEDIATE|ADVANCED`); `training_days_per_week`, an array of 2–6 unique weekday codes from `SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY`; IANA `timezone`; BCP47-style `locale`; `date_of_birth`; nullable `avatar_media_id` belonging to this user and finalized READY. An Admin may add or deactivate gender, goal and fitness-level codes; clients should always fetch the current active codes from the public reference endpoints. Existing profiles may have `gender:null` until updated.
 
-Onboarding requires name, gender, height, primary goal, fitness level, 2–5 fixed training weekdays, timezone, locale, date of birth, current `weight_kg`, target `target_weight_kg`, and a `food_preferences` object with `allergen_codes` and `disliked_food_ids` arrays. Empty arrays mean no selections. Preferences are validated and stored in the same transaction as the profile; later edits use `PUT /me/food-preferences`. The count is derived from the selected weekday array. Day values are saved exactly as selected; no weekday is inferred for existing accounts. Program templates continue to store a count and seven day positions, so future program assignment must map selected weekdays onto that program week. Approved policy: strictly older than 18, checked against the user's local date. Current and target weights have no measurement date or history. Clients do not send revision/version preconditions; server counters are internal.
+Onboarding requires name, gender, height, primary goal, fitness level, 2–6 fixed training weekdays, timezone, locale, date of birth, current `weight_kg`, target `target_weight_kg`, and a `food_preferences` object with `allergen_codes` and `disliked_food_ids` arrays. Empty arrays mean no selections. Preferences are validated and stored in the same transaction as the profile; later edits use `PUT /me/food-preferences`. The count is derived from the selected weekday array. Day values are saved exactly as selected; no weekday is inferred for existing accounts. Program templates continue to store a count and seven day positions, so future program assignment must map selected weekdays onto that program week. Approved policy: strictly older than 18, checked against the user's local date. Current and target weights have no measurement date or history. Clients do not send revision/version preconditions; server counters are internal.
 
 Example request:
 
@@ -108,6 +110,10 @@ Weights and height are positive JSON numbers; technical abuse bounds are 10000 k
 GET /me returns `{user,profile,injuries,injury_revision,food_preferences,matching}` under a repeatable-read snapshot. Current and target weights are in `profile.weight_kg` and `profile.target_weight_kg` as decimal strings or null. User exposes id/email/verified_at only. Injuries/preferences remain separate tables. No BMI classifications, programs, billing entitlement or AI matching are fabricated.
 
 Settings: `theme:SYSTEM|LIGHT|DARK`, reminders boolean, nullable `quiet_hours:{start:"22:00",end:"07:00"}`. These settings do not claim push delivery exists.
+
+## Daily activity
+
+Water entries, the daily step count, manual step goal completion and editable goals are available under `/me/activity`. All five routes require a verified account and default to the user's local date where applicable. See [activity requests and responses](TODAY_ENDPOINTS_2026-11-22.md).
 
 ## Injuries and transient rewrite
 
@@ -193,3 +199,13 @@ Verification status is UNKNOWN or VERIFIED; unknown nutrient values are null. So
 Admin media upload/finalize/read endpoints live under `/admin/media`. JPEG/PNG/WebP/MP4 uploads are limited to 100 MiB, checked against object metadata and initial signature bytes, and copied to a separate final key. DELETE archives an unreferenced library asset; existing signed URLs expire within five minutes. These APIs require configured S3 storage and do not expose a public athlete content catalog.
 
 Food display update: GET /references/foods returns {id,name,kind,description}. Render name verbatim; description is separate and nullable. Never split name on commas. Search matches both fields. INGREDIENT entries are active ingredients; FOOD entries require published food content. Food/ingredient admin payloads accept optional description. Known nutrition seed titles map explicitly to concise English names, preserving original source text in description. Custom names and published nutrition data are preserved.
+
+Ingredient description edits: omit content.description to preserve existing text; send a string to replace it, or null to clear it. Other required ingredient content fields remain required.
+
+## F05 program matching
+
+See [F05 workflow](F05_MATCHING_AR.md) and [new routes added on 18 November](TODAY_ENDPOINTS_2026-11-18.md). Onboarding queues/reuses a recommendation when an active matching ruleset exists; otherwise matching is {status:"CONFIGURATION_REQUIRED",runId:null}. GET /me/matching/status returns the current run, or NOT_STARTED with runId:null. The placeholder reason field is removed. PATCH /me also queues/reuses matching based on current relevant attributes; food-preference and injury writes do not trigger it.
+
+POST /me/matching/retry accepts {} and returns 201. Admin ruleset create/list, simulation, publication and run audit are restricted to ADMIN. Rule publication requires explicit qualityApproved:true and an evaluationReference. No ruleset is published by seed. The configured model must exactly match the private service's AI_MODEL.
+
+MATCH is a recommendation, with assignmentStatus:"NOT_ASSIGNED" and nextFeature:"F06". This slice exposes neither program assignment nor an athlete program catalog. Matching status fields are runId,status,selectedProgramVersionId,reasonCodes,failureCode,assignmentStatus,nextFeature,createdAt. Status codes include PENDING,PROCESSING,MATCH,NO_MATCH,FAILED,STALE. Reason codes are PROFILE_FIT,GOAL_FIT,LEVEL_FIT,SCHEDULE_FIT,NO_SUITABLE_PROGRAM. No generated medical explanation or BMI classification is returned. AI output may reference only a supplied candidate ID.

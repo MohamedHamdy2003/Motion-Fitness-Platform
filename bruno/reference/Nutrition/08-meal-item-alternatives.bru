@@ -1,0 +1,23 @@
+meta {
+  name: List meal item alternatives
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/me/meal-items/{{scheduledMealItemId}}/alternatives
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Lists published food exchange members from the same food section that do not conflict with the user's current allergies or dislikes.
+}

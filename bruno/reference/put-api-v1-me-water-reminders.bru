@@ -1,0 +1,15 @@
+meta {
+  name: Update Water Reminders
+  type: http
+  seq: 141
+}
+
+put {
+  url: {{baseUrl}}/me/water-reminders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

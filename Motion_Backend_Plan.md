@@ -1,6 +1,8 @@
 # Motion — Backend Implementation Plan
 
-**Version:** 2.22 · **Updated:** 2026-11-04 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; the next roadmap feature is F05 matching. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
+**Version:** 2.23 · **Updated:** 2026-11-18 · **Status:** F00–F03 are implemented and deployed. AWS EC2 + RDS PostgreSQL + S3 + HTTPS are active; GitHub Actions runs CI on `dev` and deploys only successful `main` pushes. F08 reusable food/meal library and F04 admin program builder are merged into `dev`; F05 recommendation selection is implemented on dev; the next roadmap feature is F06 enrollment/scheduling. Do not merge new work to `main` until the user explicitly asks for a release. Staging and later features remain pending.
+
+**Figma redesign update (2026-11-22):** The redesign branch adds the four initial goals, supports 2–6 fixed training weekdays, and implements daily water and step activity. See the [Figma-backed design and implementation order](docs/BACKEND_REDESIGN_AR.md). Subscription work is deferred. F06 assignment and scheduling remain the next program milestone.
 
 The requirements below reflect the latest agreed scope. Earlier proposals for nutrition AI, scheduled daily AI scans, storing original injury drafts, automatic meal blocking, and prohibiting food swaps are superseded. Unresolved product choices are listed in Section 12; implementation defaults are not new user requirements.
 
@@ -11,16 +13,16 @@ The requirements below reflect the latest agreed scope. Earlier proposals for nu
 ## 1. Product and Technology
 
 - Android and iOS fitness application with AI-assisted workout-program matching and reusable admin-managed nutrition linked to each program, with section-based food and whole-meal swaps without AI.
-- Admins create and publish multiple programs. Each user sees only their assigned program; no user-facing program catalog or manual program selection.
+- The single Admin creates and publishes program templates. NestJS automatically assigns an eligible selected program and its linked nutrition plan. Each user sees their assigned program.
 - NestJS + TypeScript + PostgreSQL + TypeORM + `@nestjs/typeorm`.
 - Authentication: signed JWT access tokens using the HTTP Bearer scheme: `Authorization: Bearer <access_token>`.
 - NestJS modular monolith with REST endpoints under `/api/v1`, plus a private TypeScript Mastra AI service. Store request/response contracts and examples alongside the code.
-- Admin Dashboard: program/food/meal content and sections, structured eligibility metadata, descriptions, hint rewriting/approval, publication, and restricted review queues. Frontend framework is a delivery decision.
-- Three independently callable AI components: `AiAssistedMatcher`, `AiProgramFitter`, and `AiRewriter`; no Mastra Workflow or agent-to-agent delegation. NestJS owns scheduling, authorization, validation, and persistence.
+- Admin Dashboard: program, exercise, food and meal content, structured eligibility metadata, descriptions, and publication. Individual program selection, coaching and individual health reviews are outside this dashboard. Frontend framework is a delivery decision.
+- `AiAssistedMatcher` and the injury preview mode of `AiRewriter` are implemented in the private Mastra service. `AiProgramFitter` and program-hint rewriting are planned. The choice of which AI components to retain is under review. NestJS owns scheduling, authorization, validation, and persistence.
 - Explicit migrations with `synchronize: false` and `migrationsRun: false`; shared DataSource configuration for the application and CLI.
 - Object Storage and CDN for images/videos; PostgreSQL stores records and file references.
 - PostgreSQL jobs/outbox for notifications, billing reconciliation, account deletion, and durable fitting jobs created only by a daily read/action. Daily fitting is request-driven; no scheduled daily AI scans or background injury rewriting.
-- Roles: Athlete, Content Editor/Coach, Nutrition Reviewer, Exercise Reviewer, Admin. Reviewer permissions are explicitly granted; an Admin role alone does not authorize exercise-clearance decisions.
+- Roles: `USER` and `ADMIN`. Provision a single Admin through a CLI that writes directly to PostgreSQL. The current CLI is local-development only. Production provisioning and enforcement of one Admin are still to be implemented.
 
 ## 2. Content Structure and Business Rules
 
@@ -90,7 +92,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Goal, gender and fitness level | Required primary_goal: FAT_LOSS or STRENGTH_HYPERTROPHY; self-reported gender: MALE or FEMALE from the genders lookup; fitness_level enum: BEGINNER, INTERMEDIATE or ADVANCED. Gender is not used to infer health, eligibility or calorie requirements. |
 | Age | Store `date_of_birth`; calculate age at assessment and include it in the matching snapshot |
 | Height and weight | `height_cm` and `weight_kg`, from the current profile revision in the request snapshot; `tall` is not a separate input |
-| Training availability | Required selection of 2-5 fixed weekdays from SUNDAY through SATURDAY; derive count for program matching. Include equipment/time constraints only after the corresponding onboarding fields exist |
+| Training availability | Required selection of 2–6 fixed weekdays from SUNDAY through SATURDAY. Derive count for program matching. Include equipment/time constraints after the corresponding onboarding fields exist |
 | BMI | `weight_kg / (height_cm / 100)^2`; contextual metric, never the sole selector |
 
 - BMI does not distinguish muscle from fat. Apply CDC adult categories only for ages 20+; unknown age or a younger user must not receive those adult labels. [CDC BMI limitations](https://www.cdc.gov/bmi/faq/) and [age-specific categories](https://www.cdc.gov/bmi/adult-calculator/bmi-categories.html).
@@ -164,10 +166,10 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 - Keep all current meal items visible. User selects an item and presses Replace; query other published, available members of the item's original food-section version, excluding its current choice and conflicts with current user restrictions/dislikes. Unknown relevant allergen metadata is not presented as a suitable alternative.
 - User selects the whole meal and presses Replace; query other published, available meal versions from the original meal section, excluding the currently selected meal identity. Return their item lists and flags. Suggested replacements exclude meals containing items that conflict with the user's current restrictions/dislikes or have unknown relevant allergen data. This filters new suggestions; it does not block the user's current meal.
 - Return one or more alternatives with stable ordering/pagination; the user chooses and confirms. If none exists, return NO_ALTERNATIVE and keep the current selection. Never move to another section or silently select a replacement.
-- For an item swap, accept selectedMemberId and Idempotency-Key. Lock the user and scheduled item, then validate ownership, section, availability, current preference flags and item state using the latest server state; update the selected food/portion and append a substitution record. Quantities come from admin data, not arbitrary client input. Last successful write wins when edits race.
-- For a whole-meal swap, accept selectedMealVersionId and Idempotency-Key. Lock the user and scheduled meal, then validate its section and every candidate item against the latest server state; atomically switch the selected meal and create its scheduled items. Previous item selections are retained as a superseded selection, never overwritten as if they were the new meal. Last successful write wins when edits race.
+- For an item swap, accept selectedMemberId. Lock the user and scheduled item, then validate ownership, section, availability, current preference flags and item state using the latest server state; update the selected food/portion and append a substitution record. Quantities come from admin data, not arbitrary client input. Last successful write wins when edits race.
+- For a whole-meal swap, accept selectedMealVersionId. Lock the user and scheduled meal, then validate its section and every candidate item against the latest server state; atomically switch the selected meal and create its scheduled items. Previous item selections are retained as a superseded selection, never overwritten as if they were the new meal. Last successful write wins when edits race.
 - Allow item swaps only on uncompleted current items. Allow whole-meal swaps only before any item in the current meal has been recorded as consumed; otherwise return MEAL_ALREADY_STARTED. Preserve past intake; no bulk future changes or shared-template edits.
-- Use a short transaction, consistent user/meal/item lock order and Idempotency-Key for swaps. A concurrent item swap, whole-meal swap, preference edit or completion is serialized against the latest server state; the last successful write wins.
+- Use a short transaction, consistent user/meal/item lock order for swaps. A concurrent item swap, whole-meal swap, preference edit or completion is serialized against the latest server state; the last successful write wins.
 - Enforce account/entitlement and assignment ownership before querying or changing personal meals. Reject operations on superseded item selections even if their IDs still exist in substitution history.
 - Preference changes affect the next read/query immediately. Compute food flags directly from current DB metadata; do not persist separate nutrition runs/restriction-cause graphs. Historical consumption snapshots and substitution history remain unchanged.
 - Original and selected food/meal references are separate. Repeated swaps stay in the original food section for that current meal selection, and the original meal section for the scheduled meal. A whole-meal swap uses the new meal's own item sections/portions.
@@ -176,8 +178,8 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 - Once day_number exceeds the linked plan duration, apply only the end-of-nutrition policy confirmed in Section 12; never fetch meals from another program or silently invent/repeat content. Until that policy is settled, this edge case remains a blocker for F08 scheduling, not a reason to block earlier available nutrition days.
 - On an accepted program change, switch the enrollment and nutrition assignment together at the same effective boundary. Preserve all prior meal selections, substitutions and consumption; never repoint old rows to the new plan or carry food substitutions into unrelated new items. Do not overwrite already consumed content when selecting that boundary.
 - Published program/nutrition links are immutable. Admin changes create new versions and do not silently update current users. Store planned, selected and consumed totals separately; swaps never count as consumption.
-- Exercise review remains in F09. There is no per-swap admin approval: admin maintains/publishes sections and content; users select their own eligible alternatives.
-- F09 exercise resolutions apply only to the reviewed injury/content/policy snapshot; changed inputs supersede the resolution. Keep the original AI result intact and apply the current authorized resolution when checking exercise completion.
+- The Admin maintains shared food and meal sections. The system filters eligible alternatives and the user picks an available swap.
+- F09 must define automatic handling of uncertain exercise assessments before enabling those exercises. Content management does not include review of individual users.
 
 **States:**
 
@@ -225,10 +227,9 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Nutrition templates | `nutrition_plans`: slug (program-owned schedule identity); `nutrition_plan_versions`: nutrition_plan_id, version, status, duration_days; `nutrition_template_days`: nutrition_plan_version_id, day_position; `meal_slots`: template_day_id, meal_type, local_time, default_meal_version_id |
 | Food preferences | `user_food_preferences`: user_id, revision; `user_allergies`: preference_id, allergen_id; `user_dislikes`: preference_id, ingredient_id; `user_food_dislikes`: preference_id, food_id; `user_dietary_restrictions`: preference_id, restriction_code |
 | Nutrition assignments | `nutrition_assignments`: user_id, enrollment_id UNIQUE, plan_version_id, start_local_date, timezone, effective_from/to, status; plan_version_id must match the enrollment program's nutrition_plan_version_id; `nutrition_days`: nutrition_assignment_id, day_number, template_day_id, local_date, timezone_at_schedule; display/swap queries use latest preferences |
-| Exercise restriction reviews | `exercise_restriction_reviews`: daily_exercise_restriction_id, injury_revision, reviewer_id nullable, state, reason, resolution_status nullable, resolved_at nullable; apply approved review overlays without rewriting the original run |
 | Scheduled meals | `scheduled_meals`: nutrition_day_id, meal_slot_id, original_meal_version_id, selected_meal_version_id, selection_version, version, status, completed_at; `scheduled_meal_items`: scheduled_meal_id, selection_version, template_meal_item_id, original_exchange_member_id, selected_exchange_member_id, exchange_units, portion_g, nutrient_snapshot, version, status, completed_at nullable; only items matching the meal current selection_version are active |
-| Food substitution history | `meal_item_substitutions`: scheduled_meal_item_id, from_member_id, to_member_id, resulting_item_version, portion_g, nutrient_snapshot, preference_id, idempotency_key_id, created_at; append-only |
-| Whole-meal substitution history | `meal_substitutions`: scheduled_meal_id, from_meal_version_id, to_meal_version_id, previous_selection_version, resulting_selection_version, preference_id, idempotency_key_id, created_at; append-only |
+| Food substitution history | `meal_item_substitutions`: scheduled_meal_item_id, from_member_id, to_member_id, resulting_item_version, portion_g, nutrient_snapshot, preference_id, created_at; append-only |
+| Whole-meal substitution history | `meal_substitutions`: scheduled_meal_id, from_meal_version_id, to_meal_version_id, previous_selection_version, resulting_selection_version, preference_id, created_at; append-only |
 | Restriction state | `user_restriction_states`: user_id UNIQUE, injury_revision; food preferences have their own `(user_id, revision)` counter; lock the user row when allocating either revision |
 | Injury records | `body_areas_injuries`: code, parent_id nullable; `user_injuries`: user_id, body_area_id, side nullable, description (final user-confirmed text only), version, status, confirmed_at, removed_at nullable |
 | Program hints | `program_hint_versions`: program_version_id, version, original_text, structured_hints, rewrite_ai_run_id nullable, status, approved_by nullable; published program pins one approved hint version |
@@ -240,7 +241,7 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 | Subscriptions | `subscriptions`: user_id, provider_product_id, provider, external_subscription_id, state, period_start/end, auto_renew, cancel_at_period_end |
 | Entitlements | `entitlements`: user_id, key, valid_from/until, source_subscription_id; nullable source only for a local development grant |
 | Billing | `payment_transactions`: user_id, subscription_id nullable, provider, provider_transaction_id, amount_minor, currency, status; `billing_events`: subscription_id nullable, provider, external_event_id, processing_state, effective_at, payload_redacted |
-| Idempotency and jobs | `idempotency_keys`: user_id, route_scope, key, request_hash, response_reference; `outbox_jobs`: event_type, deduplication_key UNIQUE, state, attempts, next_run_at, lease_owner nullable, lease_expires_at nullable, attempt_token nullable |
+| Jobs | `outbox_jobs`: event_type, deduplication_key UNIQUE, state, attempts, next_run_at, lease_owner nullable, lease_expires_at nullable, attempt_token nullable |
 | Notifications | `device_tokens`: user_id, device_id, token; `notifications`: user_id, type, payload, created_at, read_at nullable; `notification_deliveries`: notification_id nullable, recipient_user_id, device_token_id nullable, outbox_job_id, channel, state; delivery attempts are separate from inbox/read state |
 | Audit and deletion | `audit_logs`: actor_id nullable, action, resource_type/id, redacted changes; `account_deletion_jobs`: user_id nullable after deletion, state, cancellation_state, cleanup_state, tracking_token_hash, tracking_expires_at |
 | Support and legal | `faq_entries`: category, locale, question, answer; `legal_documents`: version, locale, content; `legal_acceptances`: user_id, legal_document_id, accepted_at |
@@ -251,17 +252,17 @@ These are product stages orchestrated by NestJS, not a Mastra Workflow or one lo
 - `approved_hint_version_id` must reference an approved hint belonging to the same program version; validate this before publication. Every new user has an initial empty food-preference revision so display/swap queries always have an explicit preference version.
 - Unique `(user_id, scheduled_day_id, injury_revision, content_hash, policy_version)` for workout fitting runs and `(fitting_run_id, workout_exercise_id)` for exercise decisions. No nutrition fitting-run records.
 - EXEMPT requires non-null exempted_at and exemption_fitting_run_id; the referenced run must belong to this scheduled day/user and have a current complete assessment with every effective decision BLOCKED at commit. Uniquely constrain non-null exemption_fitting_run_id. Month resolution and exemption writes are idempotent and transactional; retain finalized-month snapshots after later injury changes. Before finalizing a month, recheck every exemption against current inputs; stale exemptions cannot authorize an unlock.
-- Validate exercise result/review ownership and membership in its scheduled workout. Only current injury/content/policy revisions may authorize exercise completion; reviews cannot silently rewrite past results.
+- Validate exercise result ownership and membership in its scheduled workout. Only current injury, content and policy revisions may authorize exercise completion. Preserve past results.
 - Injury saves increment injury_revision atomically and invalidate workout results. Food preference saves create a new preference revision; reads/swaps always use the latest one. No global is_blocked column on shared foods/meals and no inherited meal block.
 
 - Unique: `(provider, provider_subject)` and `(user_id, provider)` for social identities; non-null email and slugs; child positions within parents; content versions within identities; profile/settings per user; `(user_id, role_id)`.
-- Unique: `(enrollment_id, local_date)` for scheduled days; one nutrition assignment per enrollment; no overlapping nutrition assignment date ranges per user (exclusive end dates), enforced by PostgreSQL exclusion constraint or serialized user-row locking; `(user_id, device_id)` for devices; review resolution requires current matching input/content/policy keys.
+- Unique: `(enrollment_id, local_date)` for scheduled days, one nutrition assignment per enrollment, and `(user_id, device_id)` for devices. Prevent overlapping nutrition assignments with exclusive end dates and enforce the rule with a PostgreSQL exclusion constraint or user-row locking.
 - Partial unique: one ACTIVE enrollment and one IN_PROGRESS workout session per user; one active published matching ruleset.
 - Unique `(user_id, request_key)` for matching requests; unique ruleset version and `(ruleset_id, program_version_id)`; validate instructions, response schema, permitted metric/model IDs, and typed eligibility conditions before publication.
 - Unique: enrollment recommendation_run_id; session scheduled_day_id; `(enrollment_id, plan_day_id)`; `(session_id, workout_exercise_id)`; `(session_exercise_id, set_number)`; `(enrollment_id, monthly_plan_id)`.
 - Unique: `(user_id, revision)` for preferences; `(nutrition_assignment_id, local_date)` and `(nutrition_assignment_id, day_number)` for nutrition days; `(nutrition_day_id, meal_slot_id)` for meals; `(scheduled_meal_id, selection_version, template_meal_item_id)` for scheduled items; `(user_id, local_date)` for targets; `(user_id, local_date, source)` for steps; `(user_id, client_event_id)` for water.
 - Unique `(provider, external_id)` combinations using the appropriate external-ID field for products, subscriptions, transactions, and events; scope idempotency keys by user and operation.
-- CHECK program_versions.training_days_per_week IN (2,3,4,5); profiles store 2-5 distinct weekday codes in `training_weekdays` and derive the count. Constrain primary_goal to FAT_LOSS/STRENGTH_HYPERTROPHY and fitness levels to BEGINNER/INTERMEDIATE/ADVANCED. supported_levels must be nonempty and contain only these values.
+- Program versions support 2–6 training days. Profiles store 2–6 distinct weekday codes in `training_weekdays` and derive the count. Profile and program codes reference `primary_goals` and `fitness_levels`. Each program's supported goal and level sets include its primary goal and ideal level respectively.
 - Require positive, non-null weight per measurement, and other positive values/ranges, including `reps_min <= reps_max`; REST days have no workout and TRAINING days require one.
 - Program aggregate commands use Idempotency-Key for retry-safe commands; edits follow last-successful-write semantics; write through one transaction-scoped EntityManager. Uploads and AI hint previews finish before save; never keep a transaction open while the Admin edits the form. Publication validates and publishes both paired versions atomically, with no provider calls inside the transaction.
 - Program aggregate save validates equal day counts and a one-to-one day mapping before commit. Enforce NOT NULL/UNIQUE nutrition_plan_version_id on program_versions and NOT NULL/UNIQUE nutrition_template_day_id on plan_days. Check each mapped nutrition day belongs to that program's paired nutrition version and matches its absolute ordinal; no extra or unmapped nutrition days. Cross-table counts require service validation in the transaction, not a simple SQL CHECK. All schedule writes use the aggregate service and lock the draft program version.
@@ -399,12 +400,10 @@ erDiagram
     food_exchange_members ||..o{ meal_item_substitutions : from_member_id
     food_exchange_members ||..o{ meal_item_substitutions : to_member_id
     user_food_preferences ||..o{ meal_item_substitutions : preference_id
-    idempotency_keys ||..o| meal_item_substitutions : idempotency_key_id
     scheduled_meals ||..o{ meal_substitutions : scheduled_meal_id
     meal_versions ||..o{ meal_substitutions : from_meal_version_id
     meal_versions ||..o{ meal_substitutions : to_meal_version_id
     user_food_preferences ||..o{ meal_substitutions : preference_id
-    idempotency_keys ||..o| meal_substitutions : idempotency_key_id
     users ||..o{ daily_targets : user_id
     users ||..o{ water_logs : user_id
     users ||..o{ step_daily_totals : user_id
@@ -430,8 +429,6 @@ erDiagram
     daily_fitting_runs o|..o| scheduled_days : exemption_fitting_run_id
     daily_fitting_runs ||..o{ daily_exercise_restrictions : fitting_run_id
     workout_exercises ||..o{ daily_exercise_restrictions : workout_exercise_id
-    daily_exercise_restrictions ||..o{ exercise_restriction_reviews : daily_exercise_restriction_id
-    users o|..o{ exercise_restriction_reviews : reviewer_id
     daily_fitting_runs o|..o{ session_exercises : fitting_run_id
 ```
 
@@ -453,7 +450,6 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||..o{ idempotency_keys : user_id
     users ||..o{ device_tokens : user_id
     users ||..o{ notifications : user_id
     notifications o|..o{ notification_deliveries : notification_id
@@ -497,10 +493,10 @@ erDiagram
 | F03 | Content/Media | Exercise/food/ingredient/media CRUD, draft/publish lifecycle, immutable revisions, upload/finalize with type/size validation, library seeds | F01 |
 | F04 | Admin Programs | Admin-only combined program/nutrition builder with atomic save and equal-day validation, matching metadata, month/week/day/workout content, exercise prescriptions, publish validation, description/hint drafts and approval, program seeds | F03 + F08 library; combined program/nutrition builder; rewriting via F16 |
 | F05 | AI-Assisted Program Matching | ProgramMatcher/AiAssistedMatcher, live DB candidates, versioned instructions/constraints, backend eligibility/result validation, admin simulation, expert evaluation fixtures, audit, retry/rematching | F02 + F04 + F16 |
-| F06 | Enrollment/Schedule/Access | Assign the matched version, schedule months, expose only the assigned program, preserve previous enrollments on confirmed replacement, lock reasons and content/video entitlement checks | F05 |
+| F06 | Enrollment/Schedule/Access | Automatically assign an eligible selected version and its linked nutrition plan, schedule months, expose the assigned program, preserve previous enrollments on replacement, and restrict video access to assigned content | F05 |
 | F07 | Workout execution | Start/resume, complete/skip sets, complete exercises/workouts, summaries, restriction-aware completion/progress and next-month unlock | F06; restriction enforcement via F17 |
 | F08 | Program-Linked Nutrition | Admin foods/meals and their sections, portions, program-owned paired nutrition schedules, program-linked assignments, per-item flags from current preferences, same-section SQL alternatives, user item/whole-meal swaps, totals and history | F02 + F03 for library; F04 for paired schedule construction; F06 for enrollment integration; nutrition logic makes no AI calls |
-| F09 | Exercise restriction review | Authorized review of uncertain exercise flags against current injury/content/policy revisions; no nutrition review queue or exercise substitutions | F17 |
+| F09 | Uncertain exercise assessments | Automated product behavior pending the decision on exercise fitting. An uncertain assessment does not clear an exercise. | F17 |
 | F10 | Daily goals | Water/step targets, water events, initially manual daily step totals, local dates, deduplication | F02 |
 | F11 | Billing | Android/iOS products, verify/restore purchases, entitlements, renewal/cancellation/expiry/refunds, authenticated events, reconciliation, sandbox integration | F01 + jobs + store accounts |
 | F12 | Home/Progress | Preparation states, today's workout/meals, water/steps, program progress and measurements using shared calculations | F07 + F08 + F10 |
@@ -508,7 +504,7 @@ erDiagram
 | F14 | Support/Subscription management | FAQ/search/categories, versioned terms/acceptance, subscription management, connect F01 deletion to provider-specific subscription management/cleanup | F01 + F11 + jobs |
 | F16 | AI Service/Rewriter | Private Mastra service, independent agents, typed contracts, hint rewriting and transient injury rewrite previews with user confirmation, restricted data access, audit, mocked evaluations | F00 + F01 |
 | F17 | Daily Program Fitting | Request-driven validation, no-injury/rest-day AI bypass, first-request fitting/cache, revision invalidation, exercise flags without cause mapping and workout completion guards; food policy belongs to F08 | Workout result schema after F00; runtime F02 + F03 + F06 + F16; no nutrition dependency |
-| F18 | Admin Dashboard | Program/content builder, descriptions/hints rewrite preview and approval, publication, matching simulations, food sections, meal sections, complete meals and combined program/nutrition schedule editing, domain-scoped review queues | F01 + F03 + F04 + F05 + F08 + F09 + F16 |
+| F18 | Admin Dashboard | Program and content builder, publication, food and meal sections, complete meals and combined program/nutrition schedule editing | F01 + F03 + F04 + F08 |
 | F15 | Release | Staging/deployment, secrets/HTTPS, backup/restore, monitoring, integration/basic performance tests, Green CI/release gates through GitHub Actions | All features |
 
 ### F01 — Authentication and Account Details
@@ -562,13 +558,12 @@ erDiagram
 | Admin content | `/admin/exercises`, `/admin/foods`, `/admin/ingredients`, `/admin/media/upload-intents`, `POST /admin/programs` (combined workout/nutrition aggregate), `PUT /admin/program-versions/{id}/content` (atomic draft schedule edits), `/admin/program-versions/{id}/publish`, `/admin/food-exchange-groups`, `/admin/food-exchange-group-versions/{id}/publish`, `/admin/meal-sections`, `/admin/meals`, `/admin/meal-versions/{id}/publish`; no standalone endpoint that detaches/replaces only the program nutrition schedule |
 | AI admin | `POST /admin/program-versions/{id}/hints/rewrite`, `PATCH /admin/program-versions/{id}/hints`, `POST /admin/program-versions/{id}/hints/approve`; restricted AI-run inspection |
 | Fitting | `GET /me/days/{date}/fitting`; daily content includes fitting/restriction status; daily reads/actions trigger validation and cached evaluation, users cannot write restriction decisions |
-| Exercise review | `GET /me/exercise-reviews/current`, `/admin/exercise-reviews` with domain-authorized claim/resolve operations; no replacement prescriptions |
 | Matching | `GET /me/matching/status`, `GET /me/program`, `POST /me/program/change/accept` with recommendationRunId; admin ruleset create/read/simulate/publish and run inspection under `/admin/matching` |
 | Schedule | `GET /me/program/months`, `/me/program/months/{monthId}/weeks`, `/me/program/weeks/{weekId}/days`, `/me/days/{date}`; reject content outside the assigned enrollment |
 | Workout | `POST /me/days/{date}/workout-session` (create/resume), `GET /me/workout-sessions/current`, `POST /me/workout-sessions/{id}/abandon`, `PUT /me/workout-sessions/{id}/exercises/{sessionExerciseId}/sets/{n}`, `PUT /me/workout-sessions/{id}/exercises/{sessionExerciseId}/completion`, `POST /me/workout-sessions/{id}/complete` |
 | Nutrition | `GET /me/nutrition/assignment`, `/me/nutrition/days/{date}`, `/me/meals/{id}`, `PUT /me/meals/{id}/completion`, `PUT /me/meal-items/{id}/completion` |
-| Food alternatives/swaps | `GET /me/meal-items/{id}/alternatives`, `POST /me/meal-items/{id}/substitutions` with Idempotency-Key and selectedMemberId; `GET /me/meal-items/{id}/substitutions`; last-write-wins validation against current server state |
-| Whole-meal alternatives/swaps | `GET /me/meals/{id}/alternatives`, `POST /me/meals/{id}/substitutions` with Idempotency-Key and selectedMealVersionId; `GET /me/meals/{id}/substitutions`; last-write-wins validation against current server state |
+| Food alternatives/swaps | `GET /me/meal-items/{id}/alternatives`, `POST /me/meal-items/{id}/substitutions` with selectedMemberId; `GET /me/meal-items/{id}/substitutions`; last-write-wins validation against current server state |
+| Whole-meal alternatives/swaps | `GET /me/meals/{id}/alternatives`, `POST /me/meals/{id}/substitutions` with selectedMealVersionId; `GET /me/meals/{id}/substitutions`; last-write-wins validation against current server state |
 | Goals | `GET /me/daily-goals?date=...`, `POST /me/water-logs`, `DELETE /me/water-logs/{id}`, `PUT /me/steps/{date}` |
 | Billing | `GET /billing/products`, `POST /billing/purchases/verify`, `/billing/purchases/restore`, `GET /me/subscription`, `POST /billing/events/{provider}` |
 | Dashboard | `GET /me/dashboard?date=...`, `GET /me/progress?from=...&to=...` |
@@ -595,7 +590,7 @@ erDiagram
 - Enforce role, ownership, and access policies. Users cannot access others' resources or locked month details by supplying IDs.
 - Hash passwords and refresh/reset tokens. Enforce single-use reset tokens, refresh rotation/replay revocation, and fresh verification for sensitive actions.
 - Standard error shape: `code/message/details/requestId`. Paginate lists, bound date ranges, and exclude secrets/allergy data from logs.
-- Use PUT for stable resource identities and Idempotency-Key for repeatable writes. Reusing a key with a different body returns 409.
+- Use PUT for stable resource identities and serialize writes against current server state.
 - Keep transactions short; provider/push calls run outside them. Use transactional outbox records only when durable work is required. Injury preview/save does not enqueue rewriting or fitting; a daily read/action may enqueue its fitting job. A lease takeover must reject late writes from the prior worker using an attempt/fencing token.
 - Keep entities within their modules; use `TypeOrmModule.forFeature`, repositories, and QueryBuilder for complex reads. Load relations explicitly without broad eager-loading/cascade defaults.
 - Centralize access, recommendation, completion, and nutrition-compatibility policies. Dashboard uses the same domain calculations.
@@ -708,7 +703,7 @@ admin-dashboard/
 
 ## 11. First Implementation Slice
 
-- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F05 matching. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
+- F08 reusable food/meal library and F04 paired admin program builder are implemented on `dev`. Delivery priority is now F06 enrollment/scheduling. F04 is a template builder only; user assignment is F06, and user-day workout/video playback is in later athlete-facing work. Keep the remaining roadmap and decisions below as product requirements, not claims of implemented features.
 - Handoff: [F00–F02 Implementation Handoff](docs/F00_F02_Implementation_Handoff.md). Include Bruno collections, local/production environment templates, request/response examples, integration assertions and a verified production HTTPS endpoint for mobile developers. Staging remains a later environment. No Swagger/OpenAPI tooling. Credentials and tokens must not be committed.
 - F02 injury rewriting still requires the minimal F16 private rewrite integration; do not silently remove that flow or claim unconfigured AI/social/email integrations work. Defer full Matcher/Fitter implementation. Food/meal library seed content is now sourced from USDA FoodData Central and is imported as drafts pending editorial review.
 
@@ -724,11 +719,11 @@ admin-dashboard/
 
 ## 12. Readiness and Decisions Before Their Feature
 
-- F17/F08 responsibility split is settled: retain AiProgramFitter for injury-description/exercise-description assessment only, daily and on demand. Food allergy/dislike/exclusion checks use structured backend queries only; no nutrition AI, free-text allergy assessment, or new AI food-restriction tables. The two other AI components remain AiAssistedMatcher and AiRewriter.
+- F17/F08 responsibility split: exercise restrictions belong to the workout domain. Food allergy and dislike checks use structured backend queries. Whether exercise fitting uses `AiProgramFitter` or structured rules is under review.
 - F00/F01 foundation and local authentication can start now. The list below gates the named integrations/features, not all coding. Do not claim the whole plan is implementation-complete until these choices are resolved.
 - F01: configure mobile Google client IDs, Apple App/Service IDs and keys when Apple sign-in is resumed, and email delivery for OTP verification/recovery. OTP flow does not require reset-password deep links.
-- F02/F05 approved 2026-11-04: users must be strictly older than 18. Current weight has no measurement date/history; users edit it themselves. Store date of birth and the user's 2-5 selected weekdays; derive training-day count for program matching.
-- F16/F17: approve exercise-description completeness, review-role qualifications, instruction/model evaluation thresholds, request timeout/lease limits, and provider data-retention settings. No clinical diagnosis or exercise substitutions. Food exchanges follow the deterministic F08 rules.
+- F02/F05 approved 2026-11-04: users must be strictly older than 18. Current weight has no measurement date/history. Users edit it themselves. Store date of birth and the user's selected weekdays. The Figma review raised the maximum training-day count to six.
+- F16/F17: decide which AI components to retain and define automated handling of uncertain exercise assessments. If keeping a model, evaluate instruction quality, timeouts and provider retention. Food exchanges follow the deterministic F08 rules.
 - F18: choose the Admin Dashboard frontend framework and deployment target.
 - F05: choose AI provider/model, data-handling settings, candidate-summary schema, instruction/constraint versions, retry limits, and expert-reviewed evaluation acceptance thresholds.
 - F07/F11: current default rejects protected writes after entitlement expiry, including an existing session; any grace policy requires an explicit decision.
@@ -740,9 +735,16 @@ admin-dashboard/
 - F04/F08 construction policy is settled: create a paired program/nutrition version with equal calendar-day counts in one transaction, selecting meals from the reusable library. This template invariant does not imply that a user finishes all workouts within those calendar dates.
 - F08 assignment policy is settled: Admin builds and links the paired nutrition-plan version within the program aggregate; the Matcher selects the program, and NestJS assigns the linked nutrition plan automatically. No separate nutrition selection engine or manual per-user nutrition assignment.
 - F08: approve food/meal section membership, fixed portions and household-to-gram conversions. Same-section membership alone does not mathematically guarantee similar nutrition; Admin owns content quality.
-- F09 operational dependency: name who can resolve NEEDS_REVIEW exercise cases before launch. Until then, do not auto-clear uncertain results; a review queue without an authorized reviewer is not an operational solution.
+- F09 readiness: determine how the app displays and handles an uncertain exercise result. The single Admin manages shared content and has no individual assessment workflow.
 - F08 implementation default: whole-meal replacement is available before any item has been consumed; this avoids rewriting intake history. Partial-consumption replacement would need a separate user-visible rule and is not assumed.
 - F11: finalize distribution countries, currency, pricing, products, developer accounts, and any subscription-management provider.
 - F14/F15: approve terms and deletion/retention policies; select hosting, storage/CDN, email, and push providers.
 
 **Current scope:** NestJS backend, Admin Dashboard, content-management APIs, private Mastra service, AI-assisted selection from existing programs, hint/injury rewriting, editable profile injuries/preferences, daily user-specific exercise restrictions, and reusable admin-managed nutrition linked to programs, with user-confirmed section-based item and whole-meal swaps without AI. HealthKit/Health Connect, custom model training, AI-generated/adaptive workouts, alternative exercises, AI-generated food substitutions, chat, live coaching, and multi-tenancy are outside the current implementation.
+
+
+### F05 delivery — 2026-11-18
+
+Implemented on the development branch: deterministic goal/day/level candidate filtering, the private Mastra AiAssistedMatcher adapter using the existing AI_MODEL/provider, immutable versioned matching rulesets, admin simulation and human-approved publication, durable leased recommendation runs with bounded retries, current-input/result validation, user status/retry, and onboarding/profile triggers. Audit metadata and minimized input/candidate snapshots live together in recommendation_runs; a separate ai_runs table is not needed for this slice. No direct identity data is sent to the model. No automatic publication, live paid evaluation, or medical fitness-quality claim is included. Expert evaluation and provider/retention configuration are still required before production activation.
+
+The next feature is F06 enrollment/scheduling, including atomic assignment of the recommended program and its paired nutrition plan. F05 returns a recommendation only; GET /me/program and replacement acceptance belong to that next feature. Client idempotency keys and client revision preconditions remain removed; internal run reuse and worker leases are server implementation details.

@@ -1,0 +1,23 @@
+meta {
+  name: List whole-meal alternatives
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/me/meals/{{scheduledMealId}}/alternatives
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  Lists published alternative meals from the same meal section that do not conflict with the user's current allergies or dislikes.
+}

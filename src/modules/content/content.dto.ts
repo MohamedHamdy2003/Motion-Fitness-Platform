@@ -57,7 +57,7 @@ export const food = z
 export const ingredient = z
   .object({
     title: text,
-    description: text.optional(),
+    description: text.nullable().optional(),
     dietaryTags: tags,
     allergenCodes: z
       .array(

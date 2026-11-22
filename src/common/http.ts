@@ -6,17 +6,37 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Request, Response } from 'express';
+export interface RateLimitMeta {
+  limit: number;
+  remaining: number;
+  resetAt: number;
+  retryAfterSeconds: number;
+}
 export class ApiError extends HttpException {
+  public rateLimit?: RateLimitMeta;
   constructor(
     public code: string,
     status = 400,
     message = apiErrorMessages[code] || code,
     public details: unknown = null,
+    rateLimit?: RateLimitMeta,
   ) {
     super(message, status);
+    this.rateLimit = rateLimit;
   }
 }
 const apiErrorMessages: Record<string, string> = {
+  AI_MATCHING_NOT_CONFIGURED:
+    'Program matching requires the private AI service and approved data settings.',
+  AI_MATCHING_UNAVAILABLE:
+    'Program selection is temporarily unavailable. Try again later.',
+  MATCHING_INVALID_OUTPUT:
+    'The program selector returned an invalid choice. No program was assigned.',
+  MATCHING_RULESET_IMMUTABLE:
+    'Published or archived matching rules cannot be edited or published again. Create a new draft.',
+  MATCHING_CONTEXT_TOO_LARGE:
+    'The eligible catalog exceeds the configured matching context size.',
+
   UNAUTHENTICATED: 'Please sign in to continue.',
   EMAIL_NOT_VERIFIED: 'Please verify your email before accessing Motion.',
   SESSION_REVOKED: 'This session is no longer active. Please sign in again.',
@@ -116,6 +136,17 @@ export class ErrorFilter implements ExceptionFilter {
             : pg.code === '23505'
               ? 409
               : 500;
+    if (error instanceof ApiError && error.rateLimit) {
+      res.setHeader('X-RateLimit-Limit', String(error.rateLimit.limit));
+      res.setHeader('X-RateLimit-Remaining', String(error.rateLimit.remaining));
+      res.setHeader('X-RateLimit-Reset', String(error.rateLimit.resetAt));
+      if (status === 429) {
+        res.setHeader(
+          'Retry-After',
+          String(Math.max(1, error.rateLimit.retryAfterSeconds)),
+        );
+      }
+    }
     res.status(status).json({
       code:
         error instanceof ApiError

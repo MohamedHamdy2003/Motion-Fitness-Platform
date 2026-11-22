@@ -6,6 +6,7 @@ node_modules
 dist
 coverage
 ai-service
+admin-dashboard
 docs
 bruno
 test

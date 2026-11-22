@@ -1,0 +1,15 @@
+meta {
+  name: Get Weight History
+  type: http
+  seq: 142
+}
+
+get {
+  url: {{baseUrl}}/me/weight-history
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

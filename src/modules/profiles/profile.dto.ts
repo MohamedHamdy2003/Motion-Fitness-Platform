@@ -51,7 +51,7 @@ export const profileFields = {
   training_days_per_week: z
     .array(z.enum(TrainingWeekday))
     .min(2)
-    .max(5)
+    .max(6)
     .refine((days) => new Set(days).size === days.length, {
       message: 'Training weekdays must not contain duplicates',
     }),

@@ -1,0 +1,29 @@
+meta {
+  name: Accept program change
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/me/program/change/accept
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "recommendationRunId": "{{recommendationRunId}}"
+  }
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Accepts a current program replacement recommendation, preserves the previous enrollment history, and schedules the first month of the newly assigned program.
+}

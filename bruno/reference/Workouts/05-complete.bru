@@ -1,0 +1,23 @@
+meta {
+  name: Complete workout
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/me/workouts/{{workoutSessionId}}/complete
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Validates the current assessment and completes all available exercises. Repeated completion returns the same completed session.
+}

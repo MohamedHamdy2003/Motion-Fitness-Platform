@@ -1,0 +1,23 @@
+meta {
+  name: 03-rulesets-list
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/admin/matching/rulesets?limit=30&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(200); });
+}
+
+docs {
+  ADMIN only. Response {items:[{id,status,active,instruction_version,instructions,model,policy_version,schema_version,evaluation_reference,created_at,published_at}],limit,offset}.
+}

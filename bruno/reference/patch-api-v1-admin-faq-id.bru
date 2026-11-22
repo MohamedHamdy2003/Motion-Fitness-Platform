@@ -1,0 +1,15 @@
+meta {
+  name: Update Admin FAQ
+  type: http
+  seq: 152
+}
+
+patch {
+  url: {{baseUrl}}/admin/faq/:id
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

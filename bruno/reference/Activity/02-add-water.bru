@@ -1,0 +1,33 @@
+meta {
+  name: Add Water
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/me/activity/water
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "milliliters": 250
+  }
+}
+
+script:post-response {
+  bru.setVar("activityWaterLogId", res.getBody().id);
+}
+
+tests {
+  test("HTTP status", function () { expect(res.getStatus()).to.equal(201); });
+}
+
+docs {
+  Adds one entry for today. Body {} uses 250 milliliters. Response: {id,date,milliliters,createdAt}.
+}
