@@ -21,13 +21,13 @@ Apple additionally requires Team ID, key ID, private signing key and a separate 
 
 Tests use real fixture signatures/JWKS and orchestration fixtures, including forged/expired/wrong-audience tokens, nonce reuse, email collision and linking conflicts. These tests are not live Google/Apple app verification. Provider accounts, client IDs, entitlements and Apple keys remain external dependencies.
 
-## Private AiRewriter
+## Private Mastra service
 
-The separate `ai-service/` contains only the minimal F16 INJURY_DESCRIPTION rewrite component. Matcher, Fitter, program hints, workflows and AI database access are not implemented in this slice. NestJS sends minimized body-area/side/description fields without identity. The private service validates the same bounded contract, authenticates a service Bearer token and has no database credentials or tools.
+The separate `ai-service/` implements the F16 injury-description preview and F05 program selection on the development branch. NestJS sends body area, side and the draft description for rewrite previews. Matching sends the validated profile snapshot and the programs filtered for eligibility. Neither route receives direct account identifiers. The service validates bounded requests, authenticates a service Bearer token, and has no database credentials or tools. Exercise fitting and program-hint rewriting remain planned. [F05 matching](F05_MATCHING_AR.md).
 
 Set AI_MODEL to an approved Mastra `provider/model` ID and configure that provider's credential. Provider/model choice, allowed free usage and provider retention are still unresolved; no model purchase or live model call has occurred. Set AI_RETENTION_APPROVED only after checking the chosen provider's actual data-handling configuration. Motion does not claim provider zero retention.
 
-Mastra memory/storage/exporters are not configured, its logger is disabled and generation tracing hides both input and output. Private server returns error codes only. Deployment ingress must not expose port 3001; NestJS-to-service Bearer token is still mandatory. In the supplied Docker network only, `http://ai:3001/internal/v1/rewrite` is allowed; externally hosted services require HTTPS. Never give this process DATABASE_URL.
+Generation tracing hides input and output and the private service uses a disabled logger. AWS Compose starts the API and Caddy. A separately deployed Mastra service needs private connectivity and a service Bearer token. The Backend accepts HTTP on the internal `ai:3001` address in a private network and requires HTTPS for other hosts in production. Keep `DATABASE_URL` exclusively on the Backend side.
 
 Preview timeout is 12 seconds in NestJS and model timeout 10 seconds; there are no automatic retries or fallback success. Unchanged output fails. Structured output does not prove medical or semantic correctness: before activation, evaluate preservation of location, side, negation, uncertainty and absence of invented diagnosis. The client explicitly confirms every save. The fixture test suite validates the boundary, not clinical accuracy.
 
