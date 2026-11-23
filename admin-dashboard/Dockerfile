@@ -7,5 +7,7 @@ COPY public ./public
 COPY src ./src
 RUN npm run build
 
-FROM caddy:2-alpine
-COPY --from=build /admin/dist /srv/admin
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /admin/dist /usr/share/nginx/html
+EXPOSE 8080

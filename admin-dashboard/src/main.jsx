@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   Apple,
-  ArrowRight,
+  ArrowLeft,
   Boxes,
   Dumbbell,
   FolderKanban,
@@ -19,6 +19,7 @@ import { AnalyticsStudio } from './AnalyticsStudio';
 import { LibraryEditor } from './LibraryEditor';
 import { MatchingStudio } from './MatchingStudio';
 import { ProgramEditor } from './ProgramEditor';
+import { readableCode } from './program';
 import { SupportStudio } from './SupportStudio';
 import { Brand, ContentList, ErrorNotice, Field, Notice, SideNav } from './ui';
 import './styles.css';
@@ -26,151 +27,147 @@ import './styles.css';
 const sections = [
   {
     key: 'analytics',
-    label: 'Analytics & Health',
-    singular: 'Report',
+    label: 'التحليلات وصحة النظام',
+    singular: 'تقرير',
     Icon: Activity,
     intro:
-      'Monitor Gemini API token usage, costs, server uptime, and live platform health.',
-  },
-  {
-    key: 'analytics',
-    label: 'Analytics & Health',
-    singular: 'Report',
-    Icon: Activity,
-    intro:
-      'Monitor Gemini API token usage, costs, server uptime, and live platform health.',
+      'متابعة استهلاك Gemini API، التكلفة التقديرية، جاهزية السيرفر، وحالة التكاملات الحية.',
   },
   {
     key: 'programs',
-    label: 'Programs',
-    singular: 'Program',
+    label: 'البرامج التدريبية',
+    singular: 'برنامج',
     Icon: Layers3,
-    intro: 'Build and publish training plans with paired nutrition schedules.',
+    intro: 'إنشاء ونشر البرامج التدريبية المزدوجة مع جداول التغذية اليومية.',
   },
   {
     key: 'exercises',
-    label: 'Exercises',
-    singular: 'Exercise',
+    label: 'مكتبة التمارين',
+    singular: 'تمرين',
     Icon: Dumbbell,
-    intro: 'Prepare shared exercises and instructions for training templates.',
+    intro: 'إدارة التمارين المشتركة، التعليمات، والعضلات المستهدفة.',
   },
   {
     key: 'meals',
-    label: 'Meals',
-    singular: 'Meal',
+    label: 'الوجبات',
+    singular: 'وجبة',
     Icon: Utensils,
-    intro: 'Build shared meals from food exchange groups and portions.',
+    intro: 'تجهيز الوجبات المشتركة من مجموعات التبادل الغذائي والكميات.',
   },
   {
     key: 'meal-sections',
-    label: 'Meal Sections',
-    singular: 'Meal Section',
+    label: 'أقسام الوجبات',
+    singular: 'قسم وجبات',
     Icon: FolderKanban,
-    intro: 'Organize interchangeable meal categories for full-meal swaps.',
+    intro: 'تصنيف الوجبات القابلة للاستبدال الكامل داخل نفس الفئة.',
   },
   {
     key: 'food-sections',
-    label: 'Food Sections',
-    singular: 'Food Section',
+    label: 'أقسام التبادل الغذائي',
+    singular: 'قسم تبادل غذائي',
     Icon: Boxes,
     intro:
-      'Manage food exchange groups and portion units for macro-balanced ingredient swaps.',
+      'إدارة مجموعات البدائل الغذائية لضبط السعرات والماكروز تلقائياً عند التبديل.',
   },
   {
     key: 'foods',
-    label: 'Foods',
-    singular: 'Food',
+    label: 'الأطعمة',
+    singular: 'طعام',
     Icon: Apple,
-    intro:
-      'Manage USDA and verified food items, macros per 100g, and ingredient links.',
+    intro: 'إدارة القيم الغذائية لكل 100 جم وربط الأطعمة بالمكونات الموثقة.',
   },
   {
     key: 'ingredients',
-    label: 'Ingredients',
-    singular: 'Ingredient',
+    label: 'المكونات',
+    singular: 'مكوّن',
     Icon: Wheat,
     intro:
-      'Manage verified ingredients and allergen tags used for safety filtering.',
+      'إدارة المكونات الموثقة ومسببات الحساسية لفحص أمان الوجبات تلقائياً.',
   },
   {
     key: 'matching',
-    label: 'AI Matching',
-    singular: 'Ruleset',
+    label: 'المطابقة الذكية',
+    singular: 'قاعدة مطابقة',
     Icon: Sparkles,
     intro:
-      'Configure remote Gemini matching rulesets and run synthetic profile simulations.',
+      'ضبط قواعد Gemini للمطابقة الآلية واختبار اختيار البرامج عبر المحاكي.',
   },
   {
     key: 'support',
-    label: 'FAQ & Legal',
-    singular: 'Document',
+    label: 'الأسئلة الشائعة والوثائق',
+    singular: 'وثيقة',
     Icon: HelpCircle,
-    intro: 'Manage bilingual FAQ entries and Terms & Privacy versions.',
+    intro:
+      'إدارة الأسئلة الشائعة ونسخ الشروط والأحكام وسياسة الخصوصية باللغتين.',
   },
 ];
 
 const columns = {
   programs: [
-    { label: 'Goal', value: (item) => item.primary_goal || '—' },
     {
-      label: 'Training days',
-      value: (item) => `${item.training_days_per_week} days / week`,
+      label: 'الهدف الأساسي',
+      value: (item) => readableCode(item.primary_goal) || '—',
     },
-    { label: 'Duration', value: (item) => `${item.month_count * 4} weeks` },
+    {
+      label: 'أيام التدريب',
+      value: (item) => `${item.training_days_per_week} أيام / أسبوع`,
+    },
+    { label: 'المدة', value: (item) => `${item.month_count * 4} أسبوعاً` },
   ],
   exercises: [
     {
-      label: 'Muscle groups',
-      value: (item) => item.content?.muscleGroups?.join(', ') || '—',
+      label: 'المجموعات العضلية',
+      value: (item) => item.content?.muscleGroups?.join('، ') || '—',
     },
-    { label: 'Version', value: (item) => item.version },
+    { label: 'الإصدار', value: (item) => `v${item.version}` },
   ],
-  meals: [{ label: 'Version', value: (item) => item.version }],
+  meals: [{ label: 'الإصدار', value: (item) => `v${item.version}` }],
   'meal-sections': [
     {
-      label: 'Published meals',
-      value: (item) => `${item.published_meal_count ?? 0} meals`,
+      label: 'الوجبات المنشورة',
+      value: (item) => `${item.published_meal_count ?? 0} وجبة`,
     },
   ],
   'food-sections': [
     {
-      label: 'Alternatives',
-      value: (item) => `${item.member_count ?? 0} foods`,
+      label: 'عدد البدائل',
+      value: (item) => `${item.member_count ?? 0} أطعمة`,
     },
-    { label: 'Version', value: (item) => item.version },
+    { label: 'الإصدار', value: (item) => `v${item.version}` },
   ],
   foods: [
     {
-      label: 'Energy',
+      label: 'السعرات',
       value: (item) =>
         item.content?.energyKcal100g != null
-          ? `${item.content.energyKcal100g} kcal/100g`
+          ? `${item.content.energyKcal100g} سعرة / 100جم`
           : '—',
     },
     {
-      label: 'Protein',
+      label: 'البروتين',
       value: (item) =>
         item.content?.proteinG100g != null
-          ? `${item.content.proteinG100g}g`
+          ? `${item.content.proteinG100g} جم`
           : '—',
     },
-    { label: 'Version', value: (item) => item.version },
+    { label: 'الإصدار', value: (item) => `v${item.version}` },
   ],
   ingredients: [
     {
-      label: 'Verification',
-      value: (item) => item.verification_status || '—',
+      label: 'التوثيق',
+      value: (item) =>
+        item.verification_status === 'VERIFIED' ? 'موثّق' : 'غير موثّق',
     },
     {
-      label: 'Allergens',
-      value: (item) => item.allergen_codes?.join(', ') || 'None',
+      label: 'مسببات الحساسية',
+      value: (item) => item.allergen_codes?.join('، ') || 'لا يوجد',
     },
   ],
 };
 
 function App() {
   const [session, setSession] = useState(null);
-  const [route, setRoute] = useState({ section: 'programs' });
+  const [route, setRoute] = useState({ section: 'analytics' });
   const [signedOut, setSignedOut] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [notice, setNotice] = useState('');
@@ -197,7 +194,7 @@ function App() {
 
   function canLeave() {
     return (
-      !dirty.current || window.confirm('Leave without saving your changes?')
+      !dirty.current || window.confirm('هل تريد المغادرة بدون حفظ التعديلات؟')
     );
   }
 
@@ -220,15 +217,15 @@ function App() {
     setSigningOut(true);
     try {
       await session.signOut();
-      setSignedOut('Signed out.');
+      setSignedOut('تم تسجيل الخروج بنجاح.');
     } catch {
       setSignedOut(
-        'Signed out of this tab. Motion could not confirm that the server session was revoked.',
+        'تم تسجيل الخروج من هذا المتصفح، تعذر تأكيد إلغاء الجلسة من الخادم.',
       );
     } finally {
       setDirty(false);
       setSession(null);
-      setRoute({ section: 'programs' });
+      setRoute({ section: 'analytics' });
       setNotice('');
       setSigningOut(false);
     }
@@ -242,8 +239,8 @@ function App() {
         onExpired={() => {
           setDirty(false);
           setSession(null);
-          setRoute({ section: 'programs' });
-          setSignedOut('Your session expired. Sign in again.');
+          setRoute({ section: 'analytics' });
+          setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
         }}
       />
     );
@@ -255,7 +252,7 @@ function App() {
   return (
     <div className="workspace">
       <a className="skip-link" href="#main">
-        Skip to content
+        تخطّي إلى المحتوى الرئيسي
       </a>
       <SideNav
         sections={sections}
@@ -266,8 +263,9 @@ function App() {
         signingOut={signingOut}
       />
       <main className="main-content" id="main" ref={main} tabIndex="-1">
-        <div className="breadcrumb" aria-label="Breadcrumb">
-          <span>Content</span> <span aria-hidden="true">/</span>{' '}
+        <div className="breadcrumb" aria-label="مسار التنقل">
+          <span>بوابة إدارة Motion</span>
+          <span aria-hidden="true">/</span>
           <strong>{section.label}</strong>
         </div>
         <div
@@ -334,43 +332,61 @@ function SignIn({ onSignIn, onExpired, notice }) {
   return (
     <main className="signin-page">
       <section className="signin-panel">
-        <Brand />
+        <div className="signin-header">
+          <Brand />
+        </div>
         <div className="signin-content">
-          <h1>Sign in to Motion Studio</h1>
+          <span className="eyebrow">لوحة التحكم التشغيلية</span>
+          <h1>تسجيل الدخول إلى إدارة Motion</h1>
           <p>
-            Use your verified administrator account to manage shared content.
+            استخدم حساب المدير المعتمد لإدارة البرامج التدريبية، مكتبة التغذية،
+            قواعد المطابقة، ومتابعة أداء الخادم.
           </p>
           <Notice text={!error ? notice : ''} />
           <ErrorNotice error={error} />
           <form onSubmit={submit}>
-            <Field label="Email">
+            <Field label="البريد الإلكتروني">
               <input
                 type="email"
                 name="email"
+                dir="ltr"
+                placeholder="admin@motion.app"
                 autoComplete="username"
                 required
               />
             </Field>
-            <Field label="Password">
+            <Field label="كلمة المرور">
               <input
                 type="password"
                 name="password"
+                dir="ltr"
                 autoComplete="current-password"
                 required
               />
             </Field>
             <button
-              className="button primary"
+              className="button primary signin-submit"
               type="submit"
               disabled={submitting}
             >
-              {submitting ? 'Signing in…' : 'Sign in'}
-              <ArrowRight size={19} />
+              <span>{submitting ? 'جارٍ التحقق…' : 'دخول إلى البوابة'}</span>
+              <ArrowLeft size={18} />
             </button>
           </form>
         </div>
+        <div className="signin-foot">
+          <small>Motion Platform · وصول محصور بمدير النظام</small>
+        </div>
       </section>
-      <div className="signin-image" aria-hidden="true" />
+      <div className="signin-image" aria-hidden="true">
+        <div className="signin-caption">
+          <span>نظام تشغيل متكامل</span>
+          <strong>
+            إدارة دقيقة للبرامج التدريبية والخطط الغذائية ومؤشرات الأداء من مكان
+            واحد.
+          </strong>
+        </div>
+      </div>
     </main>
   );
 }
@@ -413,13 +429,16 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
           <p>{section.intro}</p>
         </div>
         <button className="button primary" type="button" onClick={onCreate}>
-          <Plus size={21} /> New {section.singular.toLowerCase()}
+          <Plus size={19} /> إضافة {section.singular}
         </button>
       </header>
       {section.key === 'programs' && (
         <section className="library-banner" aria-labelledby="library-title">
-          <h2 id="library-title">The program library</h2>
-          <p>Manage your training and nutrition templates.</p>
+          <h2 id="library-title">مكتبة البرامج التدريبية</h2>
+          <p>
+            ابنِ برامج متكاملة بالتدريب والتغذية وانشرها ليتم مطابقتها تلقائياً
+            مع المتدربين.
+          </p>
         </section>
       )}
       <ContentList

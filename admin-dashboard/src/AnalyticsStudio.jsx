@@ -17,9 +17,9 @@ function formatUptime(seconds) {
   const days = Math.floor(s / 86400);
   const hours = Math.floor((s % 86400) / 3600);
   const mins = Math.floor((s % 3600) / 60);
-  if (days > 0) return `${days}d ${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m ${s % 60}s`;
+  if (days > 0) return `${days}ي ${hours}س ${mins}د`;
+  if (hours > 0) return `${hours}س ${mins}د`;
+  return `${mins}د ${s % 60}ث`;
 }
 
 function formatNumber(val) {
@@ -31,32 +31,26 @@ function formatUsd(val) {
   return num < 0.01 && num > 0 ? `$${num.toFixed(6)}` : `$${num.toFixed(4)}`;
 }
 
-function statusBadge(value) {
+function integrationStatusMeta(value) {
   const upper = String(value || '').toUpperCase();
-  if (
-    upper === 'UP' ||
-    upper === 'CONNECTED' ||
-    upper === 'SUCCEEDED' ||
-    upper === 'APPROVED' ||
-    upper.startsWith('CONFIGURED')
-  ) {
-    return 'PUBLISHED';
-  }
-  if (
-    upper === 'LOCAL_CAPTURE' ||
-    upper === 'NOT_CONFIGURED' ||
-    upper === 'NOT_APPROVED'
-  ) {
-    return 'DRAFT';
-  }
-  return 'ARCHIVED';
+  if (upper === 'UP') return { tone: 'PUBLISHED', label: 'يعمل' };
+  if (upper === 'CONNECTED') return { tone: 'PUBLISHED', label: 'متصل' };
+  if (upper === 'SUCCEEDED') return { tone: 'PUBLISHED', label: 'ناجح' };
+  if (upper === 'APPROVED') return { tone: 'PUBLISHED', label: 'مُفعّل' };
+  if (upper.startsWith('CONFIGURED'))
+    return { tone: 'PUBLISHED', label: 'مُعدّ' };
+  if (upper === 'LOCAL_CAPTURE') return { tone: 'DRAFT', label: 'وضع محلي' };
+  if (upper === 'NOT_CONFIGURED' || upper === 'NOT_APPROVED')
+    return { tone: 'DRAFT', label: 'غير مُفعّل' };
+  if (upper === 'FAILED') return { tone: 'ARCHIVED', label: 'فشل' };
+  return { tone: 'ARCHIVED', label: 'متوقف' };
 }
 
 const operationLabels = {
-  PROGRAM_MATCHING: 'Program Matching',
-  EXERCISE_FITTING: 'Daily Exercise Fitting',
-  INJURY_REWRITE: 'Injury Description Rewriter',
-  PROGRAM_HINTS_REWRITE: 'Program Hints Rewriter',
+  PROGRAM_MATCHING: 'مطابقة البرامج للمتدربين',
+  EXERCISE_FITTING: 'ملاءمة التمارين للإصابات',
+  INJURY_REWRITE: 'تحسين وصف الإصابات',
+  PROGRAM_HINTS_REWRITE: 'صياغة تلميحات البرامج',
 };
 
 export function AnalyticsStudio({ api }) {
@@ -93,8 +87,14 @@ export function AnalyticsStudio({ api }) {
         method: 'POST',
         body: {},
       });
+      const aiLabel =
+        probe.aiService.status === 'UP'
+          ? `يعمل (${probe.aiService.latencyMs}ms)`
+          : probe.aiService.status === 'NOT_CONFIGURED'
+            ? 'غير مُعدّ بعد'
+            : 'غير متاح';
       setNotice(
-        `Live health check recorded — DB: ${probe.database.ok ? `${probe.database.latencyMs}ms` : 'ERROR'}, Gemini AI Sidecar: ${probe.aiService.status}.`,
+        `تم تسجيل فحص مباشر — قاعدة البيانات: ${probe.database.ok ? `متصلة (${probe.database.latencyMs}ms)` : 'خطأ'} · خدمة Gemini AI: ${aiLabel}.`,
       );
       await loadOverview(days);
     } catch (reason) {
@@ -117,21 +117,22 @@ export function AnalyticsStudio({ api }) {
     <>
       <header className="page-heading">
         <div>
-          <h1>Analytics, Gemini Usage & Uptime</h1>
+          <h1>التحليلات واستهلاك Gemini وصحة النظام</h1>
           <p>
-            Monitor Gemini API token consumption, estimated cost, AI agent
-            latency, live server uptime, and external integration readiness.
+            متابعة استهلاك التوكنز والتكلفة التقديرية لوكلاء Gemini، زمن تشغيل
+            الخادم، وجاهزية التكاملات الخارجية.
           </p>
         </div>
         <div className="actions">
           <select
-            aria-label="Analytics period"
+            className="period-select"
+            aria-label="الفترة الزمنية"
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
           >
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
+            <option value={7}>آخر 7 أيام</option>
+            <option value={30}>آخر 30 يوماً</option>
+            <option value={90}>آخر 90 يوماً</option>
           </select>
           <button
             type="button"
@@ -139,8 +140,8 @@ export function AnalyticsStudio({ api }) {
             disabled={checking || loading}
             onClick={triggerLiveProbe}
           >
-            <RefreshCw size={17} />
-            {checking ? 'Probing…' : 'Run Live Health Check'}
+            <RefreshCw size={16} />
+            {checking ? 'جارٍ الفحص…' : 'فحص صحة النظام الآن'}
           </button>
         </div>
       </header>
@@ -150,46 +151,52 @@ export function AnalyticsStudio({ api }) {
 
       {loading && !data ? (
         <div className="loading-list" role="status">
-          <span className="spinner" /> Loading platform analytics…
+          <span className="spinner" /> جارٍ تحميل مؤشرات النظام…
         </div>
       ) : (
         data && (
           <>
-            <section className="kpi-grid" aria-label="Key metrics">
+            <section className="kpi-grid" aria-label="المؤشرات الرئيسية">
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <Sparkles size={16} /> Gemini Requests ({days}d)
+                  <Sparkles size={15} /> طلبات Gemini ({days} يوماً)
                 </div>
-                <div className="kpi-value">
+                <div className="kpi-value" dir="ltr">
                   {formatNumber(summary.totalRequests)}
                 </div>
                 <div className="kpi-meta">
-                  {summary.successRate}% success · {summary.avgLatencyMs}ms avg
+                  نسبة النجاح {summary.successRate}% · متوسط الاستجابة{' '}
+                  <span dir="ltr">{summary.avgLatencyMs}ms</span>
                 </div>
               </article>
 
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <Cpu size={16} /> Total Gemini Tokens
+                  <Cpu size={15} /> إجمالي التوكنز المستهلكة
                 </div>
-                <div className="kpi-value">
+                <div className="kpi-value" dir="ltr">
                   {formatNumber(summary.totalTokens)}
                 </div>
                 <div className="kpi-meta">
-                  In: {formatNumber(summary.totalInputTokens)} · Out:{' '}
-                  {formatNumber(summary.totalOutputTokens)}
+                  إدخال:{' '}
+                  <span dir="ltr">
+                    {formatNumber(summary.totalInputTokens)}
+                  </span>{' '}
+                  · إخراج:{' '}
+                  <span dir="ltr">
+                    {formatNumber(summary.totalOutputTokens)}
+                  </span>
                 </div>
               </article>
 
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <DollarSign size={16} /> Estimated Gemini Cost
+                  <DollarSign size={15} /> التكلفة التقديرية لـ Gemini
                 </div>
-                <div className="kpi-value">
+                <div className="kpi-value" dir="ltr">
                   {formatUsd(summary.estimatedCostUsd)}
                 </div>
-                <div className="kpi-meta">
-                  Model:{' '}
+                <div className="kpi-meta" dir="ltr">
                   {uptime.liveStatus.aiService.model ||
                     'google/gemini-2.5-flash'}
                 </div>
@@ -197,63 +204,64 @@ export function AnalyticsStudio({ api }) {
 
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <Server size={16} /> API Uptime & Availability
+                  <Server size={15} /> مدة تشغيل الخادم (Uptime)
                 </div>
                 <div className="kpi-value">
                   {formatUptime(uptime.apiUptimeSeconds)}
                 </div>
                 <div className="kpi-meta">
-                  DB 24h: {uptime.availability24h.databaseUptimePct}% · RAM:{' '}
-                  {uptime.memoryRssMb} MB
+                  توافر القاعدة (24س):{' '}
+                  {uptime.availability24h.databaseUptimePct}% · الذاكرة:{' '}
+                  <span dir="ltr">{uptime.memoryRssMb} MB</span>
                 </div>
               </article>
 
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <Users size={16} /> Athletes & Enrollments
+                  <Users size={15} /> المتدربون والبرامج النشطة
                 </div>
-                <div className="kpi-value">
+                <div className="kpi-value" dir="ltr">
                   {formatNumber(platform.activeUsers)}
                 </div>
                 <div className="kpi-meta">
-                  {formatNumber(platform.activeEnrollments)} enrolled ·{' '}
-                  {formatNumber(platform.publishedPrograms)} published programs
+                  {formatNumber(platform.activeEnrollments)} مشترك ببرامج ·{' '}
+                  {formatNumber(platform.publishedPrograms)} برنامج منشور
                 </div>
               </article>
 
               <article className="kpi-card">
                 <div className="kpi-label">
-                  <Activity size={16} /> Activity ({days}d)
+                  <Activity size={15} /> النشاط المسجل ({days} يوماً)
                 </div>
-                <div className="kpi-value">
+                <div className="kpi-value" dir="ltr">
                   {formatNumber(platform.completedWorkouts)}
                 </div>
                 <div className="kpi-meta">
-                  Workouts · {formatNumber(platform.completedMeals)} meals ·{' '}
-                  {formatNumber(platform.checkIns)} check-ins
+                  تمرين مكتمل · {formatNumber(platform.completedMeals)} وجبة ·{' '}
+                  {formatNumber(platform.checkIns)} متابعة دورية
                 </div>
               </article>
             </section>
 
-            <section className="editor-panel" style={{ marginTop: 24 }}>
+            <section className="editor-panel panel-spaced">
               <div className="editor-body">
                 <div className="section-heading">
                   <div>
-                    <h2>Daily Gemini Token Consumption</h2>
+                    <h2>الاستهلاك اليومي لتوكنز Gemini</h2>
                     <p>
-                      Daily token usage across matching, exercise fitting, and
-                      rewriter agents.
+                      توزيع الاستهلاك اليومي عبر وكلاء المطابقة وملاءمة التمارين
+                      وصياغة النصوص.
                     </p>
                   </div>
                 </div>
                 {dailySeries.length === 0 ? (
                   <p className="inline-help">
-                    No Gemini API calls have been recorded in the last {days}{' '}
-                    days yet. Run a matching simulation or onboard an athlete to
-                    see live usage telemetry here.
+                    لم تُسجّل استدعاءات لـ Gemini خلال آخر {days} يوماً بعد.
+                    جرّب تشغيل محاكاة مطابقة أو تسجيل متدرب لتظهر البيانات هنا
+                    فوراً.
                   </p>
                 ) : (
-                  <div className="usage-chart" role="list">
+                  <div className="usage-chart" role="list" dir="ltr">
                     {dailySeries.map((entry) => {
                       const heightPct = Math.max(
                         8,
@@ -289,27 +297,29 @@ export function AnalyticsStudio({ api }) {
               </div>
             </section>
 
-            <div className="field-grid" style={{ marginTop: 24 }}>
+            <div className="field-grid panel-spaced">
               <section className="editor-panel">
                 <div className="editor-body">
                   <div className="section-heading">
                     <div>
-                      <h2>Gemini Usage by AI Agent</h2>
-                      <p>Token volume, latency, and error count per agent.</p>
+                      <h2>تفصيل الاستهلاك حسب الوكيل (AI Agent)</h2>
+                      <p>
+                        عدد الاستدعاءات والتوكنز ومتوسط زمن الاستجابة لكل وكيل.
+                      </p>
                     </div>
                   </div>
                   {data.geminiUsage.byOperation.length === 0 ? (
-                    <p className="inline-help">No agent calls recorded yet.</p>
+                    <p className="inline-help">لا توجد استدعاءات مسجلة بعد.</p>
                   ) : (
-                    <div className="content-table-wrap">
-                      <table className="content-table">
+                    <div className="table-wrap">
+                      <table>
                         <thead>
                           <tr>
-                            <th>Agent</th>
-                            <th>Calls</th>
-                            <th>Tokens</th>
-                            <th>Latency</th>
-                            <th>Est. Cost</th>
+                            <th>الوكيل</th>
+                            <th>الاستدعاءات</th>
+                            <th>التوكنز</th>
+                            <th>الزمن</th>
+                            <th>التكلفة</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -322,20 +332,22 @@ export function AnalyticsStudio({ api }) {
                                 </strong>
                                 {row.failed > 0 && (
                                   <div className="muted-meta">
-                                    {row.failed} failed
+                                    {row.failed} فشل
                                   </div>
                                 )}
                               </td>
-                              <td>{formatNumber(row.requests)}</td>
-                              <td>
+                              <td dir="ltr">{formatNumber(row.requests)}</td>
+                              <td dir="ltr">
                                 {formatNumber(row.totalTokens)}
                                 <div className="muted-meta">
-                                  {formatNumber(row.inputTokens)} in /{' '}
-                                  {formatNumber(row.outputTokens)} out
+                                  {formatNumber(row.inputTokens)} /{' '}
+                                  {formatNumber(row.outputTokens)}
                                 </div>
                               </td>
-                              <td>{row.avgLatencyMs}ms</td>
-                              <td>{formatUsd(row.estimatedCostUsd)}</td>
+                              <td dir="ltr">{row.avgLatencyMs}ms</td>
+                              <td dir="ltr">
+                                {formatUsd(row.estimatedCostUsd)}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -350,157 +362,140 @@ export function AnalyticsStudio({ api }) {
                   <div className="section-heading">
                     <div>
                       <h2>
-                        <ShieldCheck
-                          size={18}
-                          style={{
-                            verticalAlign: 'text-bottom',
-                            marginRight: 6,
-                          }}
-                        />
-                        Live Uptime & Integrations Status
+                        <ShieldCheck size={18} className="heading-icon" />
+                        حالة التوافر والتكاملات الحية
                       </h2>
                       <p>
-                        Real-time connectivity for PostgreSQL, Gemini AI
-                        sidecar, email, S3, and OAuth keys.
+                        حالة الاتصال المباشر بقاعدة البيانات وخدمة Gemini
+                        والبريد والتخزين والمصادقة.
                       </p>
                     </div>
                   </div>
                   <div className="integration-grid">
-                    <div className="integration-pill">
-                      <div>
-                        <strong>
-                          <Database
-                            size={14}
-                            style={{ verticalAlign: 'middle', marginRight: 5 }}
-                          />
-                          PostgreSQL Database
-                        </strong>
-                        <div className="muted-meta">
-                          Live latency: {uptime.liveStatus.database.latencyMs}ms
-                          · 24h uptime:{' '}
-                          {uptime.availability24h.databaseUptimePct}%
-                        </div>
-                      </div>
-                      <Status
-                        value={statusBadge(uptime.integrations.database)}
-                      />
-                    </div>
-
-                    <div className="integration-pill">
-                      <div>
-                        <strong>Gemini AI Sidecar</strong>
-                        <div className="muted-meta">
-                          Status: {uptime.liveStatus.aiService.status}
-                          {uptime.liveStatus.aiService.latencyMs != null
-                            ? ` · ${uptime.liveStatus.aiService.latencyMs}ms`
-                            : ''}
-                          {uptime.availability24h.aiServiceUptimePct != null
-                            ? ` · 24h: ${uptime.availability24h.aiServiceUptimePct}%`
-                            : ''}
-                        </div>
-                      </div>
-                      <Status
-                        value={statusBadge(uptime.integrations.geminiAi)}
-                      />
-                    </div>
-
-                    <div className="integration-pill">
-                      <div>
-                        <strong>Transactional Email (OTP)</strong>
-                        <div className="muted-meta">
-                          {uptime.integrations.email}
-                        </div>
-                      </div>
-                      <Status value={statusBadge(uptime.integrations.email)} />
-                    </div>
-
-                    <div className="integration-pill">
-                      <div>
-                        <strong>S3 Media Storage</strong>
-                        <div className="muted-meta">
-                          {uptime.integrations.s3Storage}
-                        </div>
-                      </div>
-                      <Status
-                        value={statusBadge(uptime.integrations.s3Storage)}
-                      />
-                    </div>
-
-                    <div className="integration-pill">
-                      <div>
-                        <strong>Google / Apple OAuth</strong>
-                        <div className="muted-meta">
-                          Google: {uptime.integrations.googleOAuth} · Apple:{' '}
-                          {uptime.integrations.appleOAuth}
-                        </div>
-                      </div>
-                      <Status
-                        value={
+                    {[
+                      {
+                        title: 'قاعدة البيانات (PostgreSQL)',
+                        icon: Database,
+                        meta: `زمن الاستجابة: ${uptime.liveStatus.database.latencyMs}ms · توافر 24س: ${uptime.availability24h.databaseUptimePct}%`,
+                        status: uptime.integrations.database,
+                      },
+                      {
+                        title: 'خدمة Gemini AI الجانبية',
+                        meta:
+                          uptime.liveStatus.aiService.status === 'UP'
+                            ? `متصلة (${uptime.liveStatus.aiService.latencyMs}ms)${uptime.availability24h.aiServiceUptimePct != null ? ` · توافر 24س: ${uptime.availability24h.aiServiceUptimePct}%` : ''}`
+                            : uptime.liveStatus.aiService.status ===
+                                'NOT_CONFIGURED'
+                              ? 'بانتظار ضبط GEMINI_API_KEY وإعادة النشر'
+                              : 'تعذر الوصول إلى حاوية الذكاء الاصطناعي',
+                        status: uptime.integrations.geminiAi,
+                      },
+                      {
+                        title: 'البريد الإلكتروني (أكواد OTP)',
+                        meta: uptime.integrations.email,
+                        status: uptime.integrations.email,
+                      },
+                      {
+                        title: 'تخزين الوسائط (AWS S3)',
+                        meta: uptime.integrations.s3Storage,
+                        status: uptime.integrations.s3Storage,
+                      },
+                      {
+                        title: 'تسجيل الدخول عبر Google و Apple',
+                        meta: `Google: ${uptime.integrations.googleOAuth === 'CONFIGURED' ? 'مُفعّل' : 'غير مُعدّ'} · Apple: ${uptime.integrations.appleOAuth === 'CONFIGURED' ? 'مُفعّل' : 'غير مُعدّ'}`,
+                        status:
                           uptime.integrations.googleOAuth === 'CONFIGURED' ||
                           uptime.integrations.appleOAuth === 'CONFIGURED'
-                            ? 'PUBLISHED'
-                            : 'DRAFT'
-                        }
-                      />
-                    </div>
+                            ? 'CONFIGURED'
+                            : 'NOT_CONFIGURED',
+                      },
+                    ].map((row) => {
+                      const badge = integrationStatusMeta(row.status);
+                      return (
+                        <div className="integration-pill" key={row.title}>
+                          <div>
+                            <strong>{row.title}</strong>
+                            <div className="muted-meta">{row.meta}</div>
+                          </div>
+                          <Status
+                            value={badge.tone}
+                            customLabel={badge.label}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </section>
             </div>
 
-            <section className="editor-panel" style={{ marginTop: 24 }}>
+            <section className="editor-panel panel-spaced">
               <div className="editor-body">
                 <div className="section-heading">
                   <div>
-                    <h2>Recent Gemini API Calls</h2>
+                    <h2>سجل أحدث استدعاءات Gemini</h2>
                     <p>
-                      Latest 25 model invocations with token counts, latency,
-                      and failure codes (metadata only, zero user PII).
+                      آخر 25 استدعاءً للموديل بالتوكنز وزمن الاستجابة (بيانات
+                      تشغيلية فقط دون أي بيانات شخصية للمتدربين).
                     </p>
                   </div>
                 </div>
                 {data.geminiUsage.recentCalls.length === 0 ? (
-                  <p className="inline-help">No recent Gemini calls yet.</p>
+                  <p className="inline-help">لا توجد استدعاءات حديثة بعد.</p>
                 ) : (
-                  <div className="content-table-wrap">
-                    <table className="content-table">
+                  <div className="table-wrap">
+                    <table>
                       <thead>
                         <tr>
-                          <th>Timestamp</th>
-                          <th>Agent</th>
-                          <th>Model</th>
-                          <th>Status</th>
-                          <th>Tokens (In / Out)</th>
-                          <th>Latency</th>
-                          <th>Cost</th>
+                          <th>التوقيت</th>
+                          <th>الوكيل</th>
+                          <th>الموديل</th>
+                          <th>الحالة</th>
+                          <th>التوكنز (إدخال / إخراج)</th>
+                          <th>الزمن</th>
+                          <th>التكلفة</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {data.geminiUsage.recentCalls.map((call) => (
-                          <tr key={call.id}>
-                            <td>{new Date(call.createdAt).toLocaleString()}</td>
-                            <td>
-                              {operationLabels[call.operation] ||
-                                call.operation}
-                            </td>
-                            <td>{call.model}</td>
-                            <td>
-                              <Status value={statusBadge(call.status)} />
-                              {call.failureCode && (
-                                <div className="muted-meta">
-                                  {call.failureCode}
-                                </div>
-                              )}
-                            </td>
-                            <td>
-                              {formatNumber(call.totalTokens)} (
-                              {formatNumber(call.inputTokens)} /{' '}
-                              {formatNumber(call.outputTokens)})
-                            </td>
-                            <td>{call.latencyMs}ms</td>
-                            <td>{formatUsd(call.estimatedCostUsd)}</td>
-                          </tr>
-                        ))}
+                        {data.geminiUsage.recentCalls.map((call) => {
+                          const badge = integrationStatusMeta(call.status);
+                          return (
+                            <tr key={call.id}>
+                              <td dir="ltr">
+                                {new Date(call.createdAt).toLocaleString(
+                                  'ar-EG',
+                                )}
+                              </td>
+                              <td>
+                                {operationLabels[call.operation] ||
+                                  call.operation}
+                              </td>
+                              <td dir="ltr">
+                                <code>{call.model}</code>
+                              </td>
+                              <td>
+                                <Status
+                                  value={badge.tone}
+                                  customLabel={badge.label}
+                                />
+                                {call.failureCode && (
+                                  <div className="muted-meta" dir="ltr">
+                                    {call.failureCode}
+                                  </div>
+                                )}
+                              </td>
+                              <td dir="ltr">
+                                {formatNumber(call.totalTokens)} (
+                                {formatNumber(call.inputTokens)} /{' '}
+                                {formatNumber(call.outputTokens)})
+                              </td>
+                              <td dir="ltr">{call.latencyMs}ms</td>
+                              <td dir="ltr">
+                                {formatUsd(call.estimatedCostUsd)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

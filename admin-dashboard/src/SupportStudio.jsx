@@ -15,7 +15,7 @@ export function SupportStudio({ api }) {
   const [faqForm, setFaqForm] = useState({
     slug: '',
     category: 'PROGRAMS',
-    locale: 'en',
+    locale: 'ar',
     question: '',
     answer: '',
     displayOrder: 1,
@@ -25,8 +25,8 @@ export function SupportStudio({ api }) {
   const [legalForm, setLegalForm] = useState({
     type: 'TERMS',
     version: '1.1.0',
-    locale: 'en',
-    title: 'Motion Terms & Conditions',
+    locale: 'ar',
+    title: 'الشروط والأحكام لتطبيق Motion',
     content: '',
     active: true,
   });
@@ -63,20 +63,21 @@ export function SupportStudio({ api }) {
         body: {
           ...faqForm,
           slug:
-            faqForm.slug || slugify(`${faqForm.question}-${faqForm.locale}`),
+            faqForm.slug ||
+            slugify(`faq-${faqForm.category}-${Date.now()}-${faqForm.locale}`),
           displayOrder: Number(faqForm.displayOrder) || 0,
         },
       });
       setFaqForm({
         slug: '',
         category: 'PROGRAMS',
-        locale: 'en',
+        locale: 'ar',
         question: '',
         answer: '',
         displayOrder: faqItems.length + 1,
         active: true,
       });
-      setNotice('FAQ entry created.');
+      setNotice('تمت إضافة السؤال الشائع بنجاح.');
       await loadAll();
     } catch (reason) {
       setError(reason);
@@ -93,7 +94,7 @@ export function SupportStudio({ api }) {
         method: 'PATCH',
         body: { active: !item.active },
       });
-      setNotice(`FAQ "${item.slug}" updated.`);
+      setNotice(`تم تحديث حالة السؤال «${item.slug}».`);
       await loadAll();
     } catch (reason) {
       setError(reason);
@@ -105,7 +106,7 @@ export function SupportStudio({ api }) {
     setNotice('');
     try {
       await api(`/admin/faq/${item.id}`, { method: 'DELETE' });
-      setNotice(`FAQ "${item.slug}" deleted.`);
+      setNotice(`تم حذف السؤال «${item.slug}».`);
       await loadAll();
     } catch (reason) {
       setError(reason);
@@ -123,7 +124,7 @@ export function SupportStudio({ api }) {
         body: legalForm,
       });
       setNotice(
-        `Legal document ${legalForm.type} v${legalForm.version} (${legalForm.locale}) published.`,
+        `تم نشر الوثيقة ${legalForm.type === 'TERMS' ? 'الشروط والأحكام' : 'سياسة الخصوصية'} (${legalForm.version}).`,
       );
       await loadAll();
     } catch (reason) {
@@ -137,10 +138,10 @@ export function SupportStudio({ api }) {
     <>
       <header className="page-heading">
         <div>
-          <h1>Support, FAQ & Legal</h1>
+          <h1>الأسئلة الشائعة والوثائق القانونية</h1>
           <p>
-            Manage bilingual FAQ entries and versioned Terms & Privacy documents
-            shown in the mobile app.
+            إدارة محتوى مركز المساعدة ونسخ الشروط والأحكام وسياسة الخصوصية التي
+            تظهر داخل تطبيق الموبايل.
           </p>
         </div>
       </header>
@@ -154,35 +155,32 @@ export function SupportStudio({ api }) {
             <div className="section-heading">
               <div>
                 <h2>
-                  <HelpCircle
-                    size={18}
-                    style={{ verticalAlign: 'text-bottom', marginRight: 6 }}
-                  />
-                  Add FAQ Entry
+                  <HelpCircle size={18} className="heading-icon" />
+                  إضافة سؤال شائع
                 </h2>
-                <p>
-                  Publish searchable help center questions in English or Arabic.
-                </p>
+                <p>انشر أسئلة وأجوبة قابلة للبحث بالعربية أو الإنجليزية.</p>
               </div>
             </div>
             <form onSubmit={createFaq} className="field-grid">
-              <Field label="Question" full>
+              <Field label="السؤال" full>
                 <input
                   value={faqForm.question}
                   onChange={(e) =>
                     setFaqForm({
                       ...faqForm,
                       question: e.target.value,
-                      slug:
-                        faqForm.slug ||
-                        slugify(`${e.target.value}-${faqForm.locale}`),
                     })
                   }
                   required
                 />
               </Field>
-              <Field label="Slug">
+              <Field
+                label="المعرّف النصي (Slug)"
+                hint="أحرف إنجليزية صغيرة وشرطات فقط"
+              >
                 <input
+                  dir="ltr"
+                  placeholder="how-matching-works-ar"
                   value={faqForm.slug}
                   onChange={(e) =>
                     setFaqForm({ ...faqForm, slug: e.target.value })
@@ -190,8 +188,9 @@ export function SupportStudio({ api }) {
                   required
                 />
               </Field>
-              <Field label="Category">
+              <Field label="التصنيف">
                 <input
+                  dir="ltr"
                   value={faqForm.category}
                   onChange={(e) =>
                     setFaqForm({ ...faqForm, category: e.target.value })
@@ -199,18 +198,18 @@ export function SupportStudio({ api }) {
                   required
                 />
               </Field>
-              <Field label="Locale">
+              <Field label="اللغة">
                 <select
                   value={faqForm.locale}
                   onChange={(e) =>
                     setFaqForm({ ...faqForm, locale: e.target.value })
                   }
                 >
-                  <option value="en">English (en)</option>
-                  <option value="ar">Arabic (ar)</option>
+                  <option value="ar">العربية (ar)</option>
+                  <option value="en">الإنجليزية (en)</option>
                 </select>
               </Field>
-              <Field label="Display order">
+              <Field label="ترتيب العرض">
                 <input
                   type="number"
                   min="0"
@@ -220,7 +219,7 @@ export function SupportStudio({ api }) {
                   }
                 />
               </Field>
-              <Field label="Answer" full>
+              <Field label="الإجابة" full>
                 <textarea
                   rows="3"
                   value={faqForm.answer}
@@ -236,8 +235,8 @@ export function SupportStudio({ api }) {
                   type="submit"
                   disabled={savingFaq}
                 >
-                  <Plus size={18} />
-                  {savingFaq ? 'Saving…' : 'Create FAQ Entry'}
+                  <Plus size={17} />
+                  {savingFaq ? 'جارٍ الحفظ…' : 'إضافة السؤال'}
                 </button>
               </div>
             </form>
@@ -249,32 +248,30 @@ export function SupportStudio({ api }) {
             <div className="section-heading">
               <div>
                 <h2>
-                  <FileText
-                    size={18}
-                    style={{ verticalAlign: 'text-bottom', marginRight: 6 }}
-                  />
-                  Publish Legal Document Version
+                  <FileText size={18} className="heading-icon" />
+                  نشر إصدار وثيقة قانونية
                 </h2>
                 <p>
-                  Activating a new version automatically supersedes the previous
-                  active document for that type and locale.
+                  تفعيل إصدار جديد يستبدل تلقائياً الإصدار النشط السابق لنفس
+                  النوع واللغة.
                 </p>
               </div>
             </div>
             <form onSubmit={publishLegal} className="field-grid">
-              <Field label="Document type">
+              <Field label="نوع الوثيقة">
                 <select
                   value={legalForm.type}
                   onChange={(e) =>
                     setLegalForm({ ...legalForm, type: e.target.value })
                   }
                 >
-                  <option value="TERMS">Terms & Conditions (TERMS)</option>
-                  <option value="PRIVACY">Privacy Policy (PRIVACY)</option>
+                  <option value="TERMS">الشروط والأحكام (TERMS)</option>
+                  <option value="PRIVACY">سياسة الخصوصية (PRIVACY)</option>
                 </select>
               </Field>
-              <Field label="Version">
+              <Field label="رقم الإصدار">
                 <input
+                  dir="ltr"
                   value={legalForm.version}
                   onChange={(e) =>
                     setLegalForm({ ...legalForm, version: e.target.value })
@@ -282,18 +279,18 @@ export function SupportStudio({ api }) {
                   required
                 />
               </Field>
-              <Field label="Locale">
+              <Field label="اللغة">
                 <select
                   value={legalForm.locale}
                   onChange={(e) =>
                     setLegalForm({ ...legalForm, locale: e.target.value })
                   }
                 >
-                  <option value="en">English (en)</option>
-                  <option value="ar">Arabic (ar)</option>
+                  <option value="ar">العربية (ar)</option>
+                  <option value="en">الإنجليزية (en)</option>
                 </select>
               </Field>
-              <Field label="Title">
+              <Field label="عنوان الوثيقة">
                 <input
                   value={legalForm.title}
                   onChange={(e) =>
@@ -302,7 +299,7 @@ export function SupportStudio({ api }) {
                   required
                 />
               </Field>
-              <Field label="Document content" full>
+              <Field label="نص الوثيقة" full>
                 <textarea
                   rows="4"
                   value={legalForm.content}
@@ -318,8 +315,8 @@ export function SupportStudio({ api }) {
                   type="submit"
                   disabled={savingLegal}
                 >
-                  <Plus size={18} />
-                  {savingLegal ? 'Publishing…' : 'Publish Legal Version'}
+                  <Plus size={17} />
+                  {savingLegal ? 'جارٍ النشر…' : 'نشر الإصدار القانوني'}
                 </button>
               </div>
             </form>
@@ -327,28 +324,28 @@ export function SupportStudio({ api }) {
         </section>
       </div>
 
-      <section className="editor-panel" style={{ marginTop: 24 }}>
+      <section className="editor-panel panel-spaced">
         <div className="editor-body">
           <div className="section-heading">
             <div>
-              <h2>FAQ Catalog ({faqItems.length})</h2>
-              <p>Active and draft FAQ items across supported locales.</p>
+              <h2>سجل الأسئلة الشائعة ({faqItems.length})</h2>
+              <p>جميع الأسئلة النشطة والموقوفة باللغتين.</p>
             </div>
           </div>
           {loading ? (
             <div className="loading-list">
-              <span className="spinner" /> Loading FAQ entries…
+              <span className="spinner" /> جارٍ تحميل الأسئلة…
             </div>
           ) : (
-            <div className="content-table-wrap">
-              <table className="content-table">
+            <div className="table-wrap">
+              <table>
                 <thead>
                   <tr>
-                    <th>Question</th>
-                    <th>Category</th>
-                    <th>Locale</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>السؤال</th>
+                    <th>التصنيف</th>
+                    <th>اللغة</th>
+                    <th>الحالة</th>
+                    <th>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,12 +353,17 @@ export function SupportStudio({ api }) {
                     <tr key={item.id}>
                       <td>
                         <strong>{item.question}</strong>
-                        <div className="muted-meta">{item.slug}</div>
+                        <div className="muted-meta" dir="ltr">
+                          {item.slug}
+                        </div>
                       </td>
-                      <td>{item.category}</td>
-                      <td>{item.locale.toUpperCase()}</td>
+                      <td dir="ltr">{item.category}</td>
+                      <td>{item.locale === 'ar' ? 'العربية' : 'الإنجليزية'}</td>
                       <td>
-                        <Status value={item.active ? 'PUBLISHED' : 'DRAFT'} />
+                        <Status
+                          value={item.active ? 'PUBLISHED' : 'DRAFT'}
+                          customLabel={item.active ? 'نشط' : 'موقوف'}
+                        />
                       </td>
                       <td>
                         <div className="actions">
@@ -370,12 +372,12 @@ export function SupportStudio({ api }) {
                             className="button secondary compact"
                             onClick={() => toggleFaqActive(item)}
                           >
-                            {item.active ? 'Deactivate' : 'Activate'}
+                            {item.active ? 'إيقاف' : 'تفعيل'}
                           </button>
                           <button
                             type="button"
                             className="icon-button"
-                            aria-label="Delete FAQ"
+                            aria-label="حذف السؤال"
                             onClick={() => removeFaq(item)}
                           >
                             <Trash2 size={16} />
@@ -391,24 +393,24 @@ export function SupportStudio({ api }) {
         </div>
       </section>
 
-      <section className="editor-panel" style={{ marginTop: 24 }}>
+      <section className="editor-panel panel-spaced">
         <div className="editor-body">
           <div className="section-heading">
             <div>
-              <h2>Legal Document Versions ({legalItems.length})</h2>
-              <p>Terms & Conditions and Privacy Policy revision history.</p>
+              <h2>إصدارات الوثائق القانونية ({legalItems.length})</h2>
+              <p>سجل إصدارات الشروط والأحكام وسياسة الخصوصية.</p>
             </div>
           </div>
           {!loading && (
-            <div className="content-table-wrap">
-              <table className="content-table">
+            <div className="table-wrap">
+              <table>
                 <thead>
                   <tr>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>Version</th>
-                    <th>Locale</th>
-                    <th>Status</th>
+                    <th>العنوان</th>
+                    <th>النوع</th>
+                    <th>الإصدار</th>
+                    <th>اللغة</th>
+                    <th>الحالة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -417,11 +419,18 @@ export function SupportStudio({ api }) {
                       <td>
                         <strong>{doc.title}</strong>
                       </td>
-                      <td>{doc.type}</td>
-                      <td>v{doc.version}</td>
-                      <td>{doc.locale.toUpperCase()}</td>
                       <td>
-                        <Status value={doc.active ? 'PUBLISHED' : 'ARCHIVED'} />
+                        {doc.type === 'TERMS'
+                          ? 'الشروط والأحكام'
+                          : 'سياسة الخصوصية'}
+                      </td>
+                      <td dir="ltr">v{doc.version}</td>
+                      <td>{doc.locale === 'ar' ? 'العربية' : 'الإنجليزية'}</td>
+                      <td>
+                        <Status
+                          value={doc.active ? 'PUBLISHED' : 'ARCHIVED'}
+                          customLabel={doc.active ? 'نشط' : 'أرشيف'}
+                        />
                       </td>
                     </tr>
                   ))}
