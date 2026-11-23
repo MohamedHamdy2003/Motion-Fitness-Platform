@@ -45,14 +45,29 @@ export function estimateGeminiCostUsd(
   outputTokens: number,
 ): number {
   const normalized = model.toLowerCase();
-  let inputPerMillion = 0.15;
-  let outputPerMillion = 0.6;
+  let inputPerMillion = 0.3;
+  let outputPerMillion = 2.5;
   if (normalized.includes('pro')) {
     inputPerMillion = 1.25;
     outputPerMillion = 10.0;
-  } else if (normalized.includes('lite') || normalized.includes('2.0-flash')) {
+  } else if (normalized.includes('3.8-flash')) {
+    inputPerMillion = 0.75;
+    outputPerMillion = 3.75;
+  } else if (normalized.includes('3.6-flash')) {
+    inputPerMillion = 1.5;
+    outputPerMillion = 7.5;
+  } else if (normalized.includes('3.5-flash-lite')) {
+    inputPerMillion = 0.3;
+    outputPerMillion = 2.5;
+  } else if (
+    normalized.includes('2.5-flash-lite') ||
+    normalized.includes('2.0-flash')
+  ) {
     inputPerMillion = 0.1;
     outputPerMillion = 0.4;
+  } else if (normalized.includes('2.5-flash')) {
+    inputPerMillion = 0.15;
+    outputPerMillion = 0.6;
   }
   const cost =
     (Math.max(0, inputTokens) / 1_000_000) * inputPerMillion +
