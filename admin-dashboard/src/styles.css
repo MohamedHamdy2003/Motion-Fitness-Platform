@@ -1309,6 +1309,27 @@ tbody tr:hover {
   }
 }
 
+.session-restore {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--canvas);
+}
+
+.session-restore-card {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 30px 36px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
