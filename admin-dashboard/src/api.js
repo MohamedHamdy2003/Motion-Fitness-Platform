@@ -53,30 +53,145 @@ async function request(path, { body, method = 'GET', token } = {}) {
   return data;
 }
 
-export async function login(email, password, onExpired) {
-  let tokens = await request('/auth/login', {
-    method: 'POST',
-    body: { email, password },
-  });
-  let expiresAt = Date.now() + tokens.expiresIn * 1000;
+const STORAGE_KEY = 'motion.admin.session.v1';
+
+function readStoredSession() {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      typeof parsed.email !== 'string' ||
+      !parsed.email ||
+      typeof parsed.accessToken !== 'string' ||
+      !parsed.accessToken ||
+      typeof parsed.refreshToken !== 'string' ||
+      !parsed.refreshToken ||
+      typeof parsed.expiresAt !== 'number' ||
+      !Number.isFinite(parsed.expiresAt)
+    ) {
+      return null;
+    }
+    return {
+      email: parsed.email,
+      accessToken: parsed.accessToken,
+      refreshToken: parsed.refreshToken,
+      expiresAt: parsed.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSession(data) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignore storage quota or privacy-mode failures; in-memory session still works.
+  }
+}
+
+function clearStoredSession() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage errors on cleanup.
+  }
+}
+
+export function hasStoredSession() {
+  return Boolean(readStoredSession());
+}
+
+function createSession({
+  email,
+  tokens: initialTokens,
+  expiresAt: initialExpiresAt,
+  onExpired,
+}) {
+  let tokens = {
+    accessToken: initialTokens.accessToken,
+    refreshToken: initialTokens.refreshToken,
+  };
+  let expiresAt = initialExpiresAt;
   let refresh;
   let closed = false;
+
+  writeStoredSession({
+    email,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt,
+  });
+
+  function handleStorage(event) {
+    if (event.key !== STORAGE_KEY || closed) return;
+    if (!event.newValue) {
+      cleanup();
+      onExpired?.();
+      return;
+    }
+    const next = readStoredSession();
+    if (!next || next.email !== email) {
+      cleanup();
+      onExpired?.();
+      return;
+    }
+    tokens = {
+      accessToken: next.accessToken,
+      refreshToken: next.refreshToken,
+    };
+    expiresAt = next.expiresAt;
+  }
+
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    tokens = {};
+    window.removeEventListener('storage', handleStorage);
+  }
+
+  window.addEventListener('storage', handleStorage);
 
   async function refreshTokens(oldAccessToken) {
     if (closed) throw new Error('انتهت هذه الجلسة.');
     if (tokens.accessToken !== oldAccessToken) return;
+    const stored = readStoredSession();
+    if (
+      stored &&
+      stored.email === email &&
+      stored.accessToken !== oldAccessToken
+    ) {
+      tokens = {
+        accessToken: stored.accessToken,
+        refreshToken: stored.refreshToken,
+      };
+      expiresAt = stored.expiresAt;
+      return;
+    }
     refresh ||= request('/auth/refresh', {
       method: 'POST',
       body: { refreshToken: tokens.refreshToken },
     })
       .then((next) => {
-        tokens = next;
+        tokens = {
+          accessToken: next.accessToken,
+          refreshToken: next.refreshToken,
+        };
         expiresAt = Date.now() + next.expiresIn * 1000;
+        writeStoredSession({
+          email,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt,
+        });
       })
       .catch((error) => {
         if (error.status === 401 || error.status === 403) {
-          closed = true;
-          onExpired();
+          cleanup();
+          clearStoredSession();
+          onExpired?.();
         }
         throw error;
       })
@@ -103,18 +218,65 @@ export async function login(email, password, onExpired) {
     try {
       await api('/auth/logout', { method: 'POST' });
     } finally {
-      closed = true;
-      tokens = {};
+      cleanup();
+      clearStoredSession();
     }
   }
 
+  function destroy() {
+    cleanup();
+    clearStoredSession();
+  }
+
+  return { api, email, signOut, destroy };
+}
+
+export async function login(email, password, onExpired) {
+  const tokens = await request('/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  });
+  const expiresAt = Date.now() + tokens.expiresIn * 1000;
+  const session = createSession({ email, tokens, expiresAt, onExpired });
+
   try {
-    await api('/admin/programs?limit=1');
+    await session.api('/admin/programs?limit=1');
   } catch (error) {
-    await signOut().catch(() => {});
+    await session.signOut().catch(() => {});
     throw error;
   }
-  return { api, email, signOut };
+  return { api: session.api, email: session.email, signOut: session.signOut };
+}
+
+export async function restoreSession(onExpired) {
+  const stored = readStoredSession();
+  if (!stored) return null;
+
+  let ready = false;
+  const session = createSession({
+    email: stored.email,
+    tokens: {
+      accessToken: stored.accessToken,
+      refreshToken: stored.refreshToken,
+    },
+    expiresAt: stored.expiresAt,
+    onExpired: () => {
+      if (ready) onExpired?.();
+    },
+  });
+
+  try {
+    await session.api('/admin/programs?limit=1');
+    ready = true;
+    return { api: session.api, email: session.email, signOut: session.signOut };
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) {
+      session.destroy();
+      return null;
+    }
+    ready = true;
+    return { api: session.api, email: session.email, signOut: session.signOut };
+  }
 }
 
 export async function listAll(api, path) {

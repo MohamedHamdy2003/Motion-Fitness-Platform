@@ -14,7 +14,7 @@ import {
   Utensils,
   Wheat,
 } from 'lucide-react';
-import { listAll, login } from './api';
+import { hasStoredSession, listAll, login, restoreSession } from './api';
 import { AnalyticsStudio } from './AnalyticsStudio';
 import { LibraryEditor } from './LibraryEditor';
 import { MatchingStudio } from './MatchingStudio';
@@ -165,9 +165,47 @@ const columns = {
   ],
 };
 
+const studioOnlySections = new Set(['analytics', 'matching', 'support']);
+
+function readRouteFromHash() {
+  const raw = window.location.hash.replace(/^#\/?/, '').trim();
+  if (!raw) return { section: 'analytics' };
+  const [sectionKey, target] = raw.split('/');
+  if (!sections.some((entry) => entry.key === sectionKey)) {
+    return { section: 'analytics' };
+  }
+  if (!target || studioOnlySections.has(sectionKey)) {
+    return { section: sectionKey };
+  }
+  if (target === 'new') return { section: sectionKey, new: true };
+  try {
+    return { section: sectionKey, id: decodeURIComponent(target) };
+  } catch {
+    return { section: sectionKey };
+  }
+}
+
+function writeRouteToHash(next) {
+  let hash = `#${next.section}`;
+  if (!studioOnlySections.has(next.section)) {
+    if (next.new) hash += '/new';
+    else if (next.id) hash += `/${encodeURIComponent(next.id)}`;
+  }
+  window.history.replaceState(null, '', hash);
+}
+
+function clearRouteHash() {
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}${window.location.search}`,
+  );
+}
+
 function App() {
   const [session, setSession] = useState(null);
-  const [route, setRoute] = useState({ section: 'analytics' });
+  const [restoring, setRestoring] = useState(() => hasStoredSession());
+  const [route, setRoute] = useState(() => readRouteFromHash());
   const [signedOut, setSignedOut] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [notice, setNotice] = useState('');
@@ -177,6 +215,33 @@ function App() {
   const setDirty = useCallback((value) => {
     dirty.current = value;
   }, []);
+
+  const handleExpired = useCallback(() => {
+    setDirty(false);
+    setSession(null);
+    setRoute({ section: 'analytics' });
+    clearRouteHash();
+    setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
+  }, [setDirty]);
+
+  useEffect(() => {
+    if (!hasStoredSession()) {
+      setRestoring(false);
+      return;
+    }
+    let alive = true;
+    restoreSession(handleExpired)
+      .then((active) => {
+        if (!alive) return;
+        if (active) setSession(active);
+      })
+      .finally(() => {
+        if (alive) setRestoring(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [handleExpired]);
 
   useEffect(() => {
     function preventDataLoss(event) {
@@ -208,6 +273,7 @@ function App() {
     if (!canLeave()) return;
     setNotice(message || '');
     setRoute(next);
+    writeRouteToHash(next);
     setRouteFocus((value) => value + 1);
     window.scrollTo(0, 0);
   }
@@ -226,22 +292,32 @@ function App() {
       setDirty(false);
       setSession(null);
       setRoute({ section: 'analytics' });
+      clearRouteHash();
       setNotice('');
       setSigningOut(false);
     }
   }
 
+  if (restoring)
+    return (
+      <main className="session-restore" role="status" aria-live="polite">
+        <div className="session-restore-card">
+          <Brand />
+          <p>جارٍ استعادة الجلسة…</p>
+        </div>
+      </main>
+    );
+
   if (!session)
     return (
       <SignIn
         notice={signedOut}
-        onSignIn={(active) => setSession(active)}
-        onExpired={() => {
-          setDirty(false);
-          setSession(null);
-          setRoute({ section: 'analytics' });
-          setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
+        onSignIn={(active) => {
+          setSignedOut('');
+          setSession(active);
+          writeRouteToHash(route);
         }}
+        onExpired={handleExpired}
       />
     );
 
