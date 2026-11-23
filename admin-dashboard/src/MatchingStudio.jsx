@@ -137,7 +137,7 @@ export function MatchingStudio({ api }) {
         },
       );
       let detail = await api(`/admin/matching/runs/${run.runId}`);
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 16; i++) {
         if (detail.status !== 'PENDING' && detail.status !== 'PROCESSING') {
           break;
         }

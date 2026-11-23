@@ -14,14 +14,62 @@ if (process.env.GEMINI_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
   process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
 }
 
+const rawModel = (process.env.AI_MODEL || '').trim();
+const configuredModel = rawModel
+  ? rawModel.includes('/')
+    ? rawModel
+    : `google/${rawModel}`
+  : '';
+
 const secret = process.env.AI_SERVICE_TOKEN || '';
 if (
   secret.length < 32 ||
-  !process.env.AI_MODEL ||
+  !configuredModel ||
   process.env.AI_RETENTION_APPROVED !== 'true' ||
   process.env.DATABASE_URL
 )
   throw new Error('Private AI configuration incomplete or unsafe');
+
+function classifyAiErrorCode(error: unknown, url?: string): string {
+  const err = error as { name?: string; message?: string; statusCode?: number };
+  const msg = String(err?.message || '');
+  const upper = msg.toUpperCase();
+  if (msg === 'MODEL_MISMATCH') return 'MODEL_MISMATCH';
+  if (msg === 'INVALID_SELECTION') return 'INVALID_SELECTION';
+  if (msg === 'UNCHANGED_OUTPUT') return 'UNCHANGED_OUTPUT';
+  if (
+    err?.name === 'TimeoutError' ||
+    err?.name === 'AbortError' ||
+    upper.includes('ABORT') ||
+    upper.includes('TIMEOUT')
+  ) {
+    return 'AI_TIMEOUT';
+  }
+  if (
+    upper.includes('API KEY') ||
+    upper.includes('API_KEY') ||
+    err?.statusCode === 401 ||
+    err?.statusCode === 403
+  ) {
+    return 'API_KEY_INVALID';
+  }
+  if (
+    err?.statusCode === 429 ||
+    upper.includes('RESOURCE_EXHAUSTED') ||
+    upper.includes('QUOTA') ||
+    upper.includes('RATE LIMIT')
+  ) {
+    return 'GEMINI_RATE_LIMITED';
+  }
+  if (err?.statusCode === 404 || upper.includes('NOT FOUND')) {
+    return 'MODEL_NOT_FOUND';
+  }
+  return url === '/internal/v1/match'
+    ? 'MATCHING_FAILED'
+    : url === '/internal/v1/fit'
+      ? 'FITTING_FAILED'
+      : 'REWRITE_FAILED';
+}
 
 const stats = {
   startedAt: new Date().toISOString(),
@@ -57,7 +105,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200).end(
       JSON.stringify({
         status: 'ok',
-        model: process.env.AI_MODEL,
+        model: configuredModel,
         uptimeSeconds: Math.floor(process.uptime()),
         startedAt: stats.startedAt,
         metrics: {
@@ -133,26 +181,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
         return;
       }
-      const result = await matchProgram(
-        process.env.AI_MODEL!,
-        parsed.data,
-        (u) => {
-          usage = u;
-        },
-      );
-      recordUsageHeaders(
-        res,
-        process.env.AI_MODEL!,
-        usage,
-        Date.now() - started,
-      );
-      res.end(JSON.stringify(result));
-      recordUsageHeaders(
-        res,
-        process.env.AI_MODEL!,
-        usage,
-        Date.now() - started,
-      );
+      const result = await matchProgram(configuredModel, parsed.data, (u) => {
+        usage = u;
+      });
+      recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
       res.end(JSON.stringify(result));
       return;
     }
@@ -163,26 +195,10 @@ const server = createServer(async (req, res) => {
         res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
         return;
       }
-      const result = await fitProgram(
-        process.env.AI_MODEL!,
-        parsed.data,
-        (u) => {
-          usage = u;
-        },
-      );
-      recordUsageHeaders(
-        res,
-        process.env.AI_MODEL!,
-        usage,
-        Date.now() - started,
-      );
-      res.end(JSON.stringify(result));
-      recordUsageHeaders(
-        res,
-        process.env.AI_MODEL!,
-        usage,
-        Date.now() - started,
-      );
+      const result = await fitProgram(configuredModel, parsed.data, (u) => {
+        usage = u;
+      });
+      recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
       res.end(JSON.stringify(result));
       return;
     }
@@ -194,32 +210,33 @@ const server = createServer(async (req, res) => {
       res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
       return;
     }
-    const output = await rewrite(process.env.AI_MODEL!, input, (u) => {
+    const output = await rewrite(configuredModel, input, (u) => {
       usage = u;
     });
-    recordUsageHeaders(res, process.env.AI_MODEL!, usage, Date.now() - started);
+    recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
     res.end(JSON.stringify(output));
   } catch (error) {
     stats.requestsFailed += 1;
+    const code = classifyAiErrorCode(error, req.url);
+    const err = error as {
+      name?: string;
+      statusCode?: number;
+      message?: string;
+    };
+    console.error(
+      `[ai-service] ${req.url} failed (${code}): ${err?.name || 'Error'}${err?.statusCode ? ` [${err.statusCode}]` : ''} ${String(err?.message || '').slice(0, 200)}`,
+    );
+    if (res.headersSent || res.writableEnded) return;
     if (error instanceof InvalidFittingOutput) {
       res
         .writeHead(502)
         .end(JSON.stringify({ code: 'FITTING_INVALID_OUTPUT' }));
       return;
     }
-    res.writeHead(503).end(
-      JSON.stringify({
-        code:
-          req.url === '/internal/v1/match'
-            ? 'MATCHING_FAILED'
-            : req.url === '/internal/v1/fit'
-              ? 'FITTING_FAILED'
-              : 'REWRITE_FAILED',
-      }),
-    );
+    res.writeHead(503).end(JSON.stringify({ code }));
   }
 });
-server.requestTimeout = 30000;
+server.requestTimeout = 45000;
 server.headersTimeout = 10000;
 server.keepAliveTimeout = 65000;
 server.listen(

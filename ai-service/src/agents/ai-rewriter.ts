@@ -85,7 +85,7 @@ export async function rewrite(
       {
         structuredOutput: { schema: programHintsOutputSchema },
         maxSteps: 1,
-        abortSignal: AbortSignal.timeout(12000),
+        abortSignal: AbortSignal.timeout(25000),
         tracingOptions: { hideInput: true, hideOutput: true },
       },
     );
@@ -104,7 +104,7 @@ export async function rewrite(
     {
       structuredOutput: { schema: outputSchema },
       maxSteps: 1,
-      abortSignal: AbortSignal.timeout(10000),
+      abortSignal: AbortSignal.timeout(25000),
       tracingOptions: { hideInput: true, hideOutput: true },
     },
   );

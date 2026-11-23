@@ -62,7 +62,7 @@ export class AiProgramFitter {
         },
         body,
         redirect: 'error',
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       });
     } catch {
       await this.usage?.record({
@@ -80,12 +80,19 @@ export class AiProgramFitter {
       process.env.AI_MODEL || 'google/gemini-2.5-flash',
     );
     if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as {
+        code?: string;
+      } | null;
+      const diagnosticCode =
+        typeof errorBody?.code === 'string' && errorBody.code.length <= 64
+          ? errorBody.code
+          : `HTTP_${response.status}`;
       await this.usage?.record({
         operation: 'EXERCISE_FITTING',
         model: headerUsage.model,
         status: 'FAILED',
         latencyMs: Date.now() - started,
-        failureCode: 'AI_FITTING_UNAVAILABLE',
+        failureCode: diagnosticCode,
       });
       throw new ApiError('AI_FITTING_UNAVAILABLE', 503);
     }
