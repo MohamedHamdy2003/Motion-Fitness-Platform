@@ -13,8 +13,6 @@ import {
   BarChart3,
   Boxes,
   Dumbbell,
-  Eye,
-  EyeOff,
   FolderKanban,
   HelpCircle,
   Layers3,
@@ -589,7 +587,6 @@ function App() {
 
 function SignIn({ onSignIn, onExpired, notice }) {
   const [submitting, setSubmitting] = useState(false);
-  const [visible, setVisible] = useState(false);
   const [error, setError] = useState(null);
 
   async function submit(event) {
@@ -639,31 +636,16 @@ function SignIn({ onSignIn, onExpired, notice }) {
                     required
                   />
                 </Field>
-                <div className="password-field">
-                  <Field label="كلمة المرور">
-                    <div className="field-control">
-                      <input
-                        type={visible ? 'text' : 'password'}
-                        name="password"
-                        dir="ltr"
-                        placeholder="••••••••"
-                        autoComplete="current-password"
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="icon-button eye"
-                        aria-label={
-                          visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'
-                        }
-                        aria-pressed={visible}
-                        onClick={() => setVisible((prev) => !prev)}
-                      >
-                        {visible ? <EyeOff size={19} /> : <Eye size={19} />}
-                      </button>
-                    </div>
-                  </Field>
-                </div>
+                <Field label="كلمة المرور">
+                  <input
+                    type="password"
+                    name="password"
+                    dir="ltr"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    required
+                  />
+                </Field>
               </div>
               <button
                 className="button primary auth-submit"

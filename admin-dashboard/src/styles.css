@@ -1691,26 +1691,6 @@ tbody tr:hover {
   font-size: 16px;
 }
 
-.password-field {
-  position: relative;
-}
-
-.field-control {
-  position: relative;
-}
-
-.password-field input {
-  padding-inline-end: 50px;
-}
-
-.eye {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--brand-muted);
-}
-
 .auth-submit {
   width: 100%;
   min-height: 50px;

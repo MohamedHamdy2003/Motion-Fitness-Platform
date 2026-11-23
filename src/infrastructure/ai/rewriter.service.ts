@@ -105,10 +105,19 @@ export class RewriterService {
           side: input.side ?? null,
           description: input.description,
         }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(30000),
       });
       tokenUsage = extractUsageFromHeaders(response.headers, tokenUsage.model);
-      if (!response.ok) throw new ApiError('AI_REWRITE_UNAVAILABLE', 503);
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          code?: string;
+        } | null;
+        const diagnostic =
+          typeof errorBody?.code === 'string' && errorBody.code.length <= 64
+            ? errorBody.code
+            : 'AI_REWRITE_UNAVAILABLE';
+        throw new ApiError(diagnostic, 503);
+      }
       const text = await response.text();
       if (text.length > 15000)
         throw new ApiError('AI_REWRITE_INVALID_OUTPUT', 502);
@@ -179,10 +188,19 @@ export class RewriterService {
           mode: 'PROGRAM_HINTS',
           ...snapshot,
         }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(30000),
       });
       tokenUsage = extractUsageFromHeaders(response.headers, tokenUsage.model);
-      if (!response.ok) throw new ApiError('AI_REWRITE_UNAVAILABLE', 503);
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as {
+          code?: string;
+        } | null;
+        const diagnostic =
+          typeof errorBody?.code === 'string' && errorBody.code.length <= 64
+            ? errorBody.code
+            : 'AI_REWRITE_UNAVAILABLE';
+        throw new ApiError(diagnostic, 503);
+      }
       const text = await response.text();
       if (text.length > 20000)
         throw new ApiError('AI_REWRITE_INVALID_OUTPUT', 502);

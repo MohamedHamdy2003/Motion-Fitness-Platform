@@ -48,7 +48,7 @@ export class AiAssistedMatcher implements ProgramMatcher {
           'content-type': 'application/json',
         },
         body,
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       });
     } catch {
       await this.usage?.record({
@@ -63,12 +63,19 @@ export class AiAssistedMatcher implements ProgramMatcher {
 
     const headerUsage = extractUsageFromHeaders(response.headers, input.model);
     if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as {
+        code?: string;
+      } | null;
+      const diagnosticCode =
+        typeof errorBody?.code === 'string' && errorBody.code.length <= 64
+          ? errorBody.code
+          : `HTTP_${response.status}`;
       await this.usage?.record({
         operation: 'PROGRAM_MATCHING',
         model: headerUsage.model,
         status: 'FAILED',
         latencyMs: Date.now() - started,
-        failureCode: 'AI_MATCHING_UNAVAILABLE',
+        failureCode: diagnosticCode,
       });
       throw new ApiError('AI_MATCHING_UNAVAILABLE', 503);
     }

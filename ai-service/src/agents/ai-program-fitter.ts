@@ -88,7 +88,7 @@ export async function fitProgram(
     .generate(JSON.stringify(input), {
       structuredOutput: { schema: fitterOutput },
       maxSteps: 1,
-      abortSignal: AbortSignal.timeout(12000),
+      abortSignal: AbortSignal.timeout(25000),
       tracingOptions: { hideInput: true, hideOutput: true },
     });
   if (onUsage) {
