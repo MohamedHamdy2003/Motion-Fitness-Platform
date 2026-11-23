@@ -4,34 +4,65 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
+  LoaderCircle,
   LogOut,
+  PanelRightClose,
+  PanelRightOpen,
   Search,
+  X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-export function Brand() {
+export function Brand({ compact = false }) {
   return (
     <div className="brand">
-      <span className="brand-mark" aria-hidden="true">
+      <span className="brand-badge" aria-hidden="true">
         <i />
         <i />
         <i />
       </span>
-      <span className="brand-copy">
-        <strong>MOTION</strong>
-        <small>بوابة الإدارة</small>
-      </span>
+      {!compact && (
+        <span className="brand-copy">
+          <strong>MOTION</strong>
+          <small>بوابة الإدارة</small>
+        </span>
+      )}
     </div>
   );
 }
 
+export function ButtonContent({ busy, children }) {
+  return (
+    <span className="button-content">
+      <span className="button-rest" aria-hidden={busy ? 'true' : undefined}>
+        {children}
+      </span>
+      {busy && (
+        <span
+          className="button-progress"
+          role="status"
+          aria-label="جارٍ التنفيذ"
+        >
+          <LoaderCircle size={18} className="spin" aria-hidden="true" />
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function SideNav({
+  sidebarRef,
   section,
   sections,
   onNavigate,
   session,
-  onSignOut,
-  signingOut,
+  onRequestSignOut,
+  logoutTriggerRef,
+  collapsed,
+  onToggleCollapsed,
+  mobileOpen,
+  compactNavigation,
+  onCloseMobile,
 }) {
   const groups = [
     {
@@ -53,11 +84,56 @@ export function SideNav({
   ];
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-top">
+    <aside
+      ref={sidebarRef}
+      className={'sidebar' + (mobileOpen ? ' is-open' : '')}
+      aria-label="التنقل الرئيسي"
+      inert={compactNavigation && !mobileOpen ? '' : undefined}
+      aria-hidden={compactNavigation && !mobileOpen ? true : undefined}
+    >
+      <div className="sidebar-brand">
         <Brand />
+        <span className="sidebar-mark" aria-hidden="true">
+          <span className="brand-badge">
+            <i />
+            <i />
+            <i />
+          </span>
+        </span>
+        <button
+          type="button"
+          className="icon-button mobile-close"
+          aria-label="إغلاق القائمة"
+          onClick={onCloseMobile}
+        >
+          <X size={20} />
+        </button>
       </div>
-      <nav aria-label="أقسام بوابة الإدارة" className="sidebar-nav">
+
+      <button
+        type="button"
+        className="sidebar-toggle"
+        aria-label={
+          collapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'
+        }
+        aria-expanded={!collapsed}
+        aria-controls="motion-admin-navigation"
+        title={collapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
+        onClick={onToggleCollapsed}
+      >
+        {collapsed ? (
+          <PanelRightOpen size={19} aria-hidden="true" />
+        ) : (
+          <PanelRightClose size={19} aria-hidden="true" />
+        )}
+        <span className="nav-label">طي القائمة</span>
+      </button>
+
+      <nav
+        id="motion-admin-navigation"
+        aria-label="أقسام بوابة الإدارة"
+        className="sidebar-nav"
+      >
         {groups.map((group) => {
           const items = group.keys
             .map((key) => sections.find((entry) => entry.key === key))
@@ -70,29 +146,35 @@ export function SideNav({
                   key={key}
                   type="button"
                   aria-current={key === section ? 'page' : undefined}
+                  aria-label={label}
+                  title={collapsed && !compactNavigation ? label : undefined}
                   onClick={() => onNavigate({ section: key })}
                 >
-                  <Icon size={18} strokeWidth={1.9} />
-                  <span>{label}</span>
+                  <Icon size={20} strokeWidth={1.85} aria-hidden="true" />
+                  <span className="nav-label">{label}</span>
                 </button>
               ))}
             </div>
           );
         })}
       </nav>
+
       <div className="sidebar-footer">
-        <span className="account" title={session.email}>
-          <CircleUserRound size={18} />
+        <span className="sidebar-account" title={session.email}>
+          <CircleUserRound size={18} aria-hidden="true" />
           <span dir="ltr">{session.email}</span>
         </span>
         <button
-          className="sign-out"
+          ref={logoutTriggerRef}
+          className="logout"
           type="button"
-          onClick={onSignOut}
-          disabled={signingOut}
+          aria-label="تسجيل الخروج"
+          aria-haspopup="dialog"
+          title={collapsed && !compactNavigation ? 'تسجيل الخروج' : undefined}
+          onClick={onRequestSignOut}
         >
-          <LogOut size={17} />
-          <span>{signingOut ? 'جارٍ تسجيل الخروج…' : 'تسجيل الخروج'}</span>
+          <LogOut size={19} strokeWidth={1.85} aria-hidden="true" />
+          <span className="nav-label">تسجيل الخروج</span>
         </button>
       </div>
     </aside>
@@ -103,7 +185,7 @@ export function ErrorNotice({ error, onRetry }) {
   if (!error) return null;
   return (
     <div className="notice error" role="alert">
-      <AlertCircle size={19} />
+      <AlertCircle size={19} aria-hidden="true" />
       <div>
         <strong>{error.message}</strong>
         {error.details?.length > 0 && (
@@ -117,7 +199,11 @@ export function ErrorNotice({ error, onRetry }) {
           <small dir="ltr">رقم الطلب: {error.requestId}</small>
         )}
         {onRetry && (
-          <button className="button compact" type="button" onClick={onRetry}>
+          <button
+            className="button secondary compact"
+            type="button"
+            onClick={onRetry}
+          >
             إعادة المحاولة
           </button>
         )}
@@ -140,7 +226,9 @@ export function Status({ value, customLabel }) {
       ? 'published'
       : value === 'ARCHIVED'
         ? 'archived'
-        : 'draft';
+        : value === 'INFO'
+          ? 'info'
+          : 'draft';
   const label =
     customLabel ||
     (value === 'PUBLISHED'
@@ -269,7 +357,7 @@ export function ContentList({
           <input
             type="search"
             aria-label={`بحث في ${label}`}
-            placeholder={`ابحث بالاسم أو المعرّف…`}
+            placeholder="ابحث بالاسم أو المعرّف…"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
