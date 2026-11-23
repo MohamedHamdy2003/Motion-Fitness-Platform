@@ -8,13 +8,19 @@ export const AGENT_LABELS = {
 };
 
 const AGENT_COLORS = {
-  PROGRAM_MATCHING: '#008657',
-  EXERCISE_FITTING: '#cf480d',
-  INJURY_REWRITE: '#205fb8',
-  PROGRAM_HINTS_REWRITE: '#d97706',
+  PROGRAM_MATCHING: 'var(--chart-line)',
+  EXERCISE_FITTING: 'var(--chart-accent)',
+  INJURY_REWRITE: 'var(--chart-blue)',
+  PROGRAM_HINTS_REWRITE: 'var(--chart-amber)',
 };
 
-const FALLBACK_COLORS = ['#008657', '#cf480d', '#205fb8', '#0a8991', '#d97706'];
+const FALLBACK_COLORS = [
+  'var(--chart-line)',
+  'var(--chart-accent)',
+  'var(--chart-blue)',
+  'var(--chart-teal)',
+  'var(--chart-amber)',
+];
 
 function shortCairoDate(isoDate) {
   const [y, m, d] = String(isoDate || '')
@@ -217,8 +223,14 @@ export function MotionTrendChart({ series }) {
           >
             <defs>
               <linearGradient id="motionTrendFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#008657" stopOpacity="0.24" />
-                <stop offset="100%" stopColor="#008657" stopOpacity="0.01" />
+                <stop
+                  offset="0%"
+                  style={{ stopColor: 'var(--chart-line)', stopOpacity: 0.28 }}
+                />
+                <stop
+                  offset="100%"
+                  style={{ stopColor: 'var(--chart-line)', stopOpacity: 0.01 }}
+                />
               </linearGradient>
             </defs>
 
@@ -229,7 +241,7 @@ export function MotionTrendChart({ series }) {
                   y1={tick.y}
                   x2={width - padRight}
                   y2={tick.y}
-                  stroke="#e4eae5"
+                  stroke="var(--chart-grid)"
                   strokeDasharray={tick.ratio === 0 ? undefined : '3 4'}
                 />
                 <text
@@ -252,7 +264,7 @@ export function MotionTrendChart({ series }) {
                 width={56}
                 height={Math.max(6, padTop + plotH - points[0].y)}
                 rx={8}
-                fill="#008657"
+                fill="var(--chart-line)"
                 tabIndex={0}
                 role="button"
                 aria-label={`${shortCairoDate(points[0].point.date)}: ${formatNumber(points[0].point.totalTokens)} توكن`}
@@ -267,7 +279,7 @@ export function MotionTrendChart({ series }) {
                 <path
                   d={linePath}
                   fill="none"
-                  stroke="#008657"
+                  stroke="var(--chart-line)"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -281,7 +293,7 @@ export function MotionTrendChart({ series }) {
                 y1={padTop}
                 x2={hovered.x}
                 y2={padTop + plotH}
-                stroke="#cf480d"
+                stroke="var(--chart-accent)"
                 strokeWidth="1.25"
                 strokeDasharray="3 3"
               />
@@ -317,8 +329,16 @@ export function MotionTrendChart({ series }) {
                       cx={pt.x}
                       cy={pt.y}
                       r={isActive ? 5.5 : 3}
-                      fill={isActive ? '#cf480d' : '#ffffff'}
-                      stroke={isActive ? '#17332b' : '#008657'}
+                      fill={
+                        isActive
+                          ? 'var(--chart-accent)'
+                          : 'var(--chart-dot-fill)'
+                      }
+                      stroke={
+                        isActive
+                          ? 'var(--chart-dot-active-stroke)'
+                          : 'var(--chart-line)'
+                      }
                       strokeWidth={isActive ? 2.5 : 2}
                     />
                   )}
@@ -448,7 +468,7 @@ export function MotionAgentDonut({ operations }) {
                 cy="80"
                 r={radius}
                 fill="none"
-                stroke="#edf3ef"
+                stroke="var(--chart-track)"
                 strokeWidth="18"
               />
               <g transform="rotate(-90 80 80)">
@@ -648,7 +668,7 @@ export function MotionLatencyBarChart({ checks }) {
               y1={padTop + plotH}
               x2={width - padSide}
               y2={padTop + plotH}
-              stroke="#e4eae5"
+              stroke="var(--chart-grid)"
             />
             {ordered.map((check, idx) => {
               const val = values[idx] ?? 0;
@@ -665,14 +685,14 @@ export function MotionLatencyBarChart({ checks }) {
               const isPeak = idx === peakIndex && maxMs > 0;
               const isHovered = hoveredIdx === idx;
               const fill = isError
-                ? '#c3343f'
+                ? 'var(--chart-error)'
                 : val === 0
-                  ? '#e4eae5'
+                  ? 'var(--chart-grid)'
                   : isPeak
-                    ? '#cf480d'
+                    ? 'var(--chart-accent)'
                     : isHovered
-                      ? '#17332b'
-                      : '#008657';
+                      ? 'var(--chart-bar-hover)'
+                      : 'var(--chart-line)';
               const showLabel =
                 ordered.length <= 6 ||
                 idx === 0 ||

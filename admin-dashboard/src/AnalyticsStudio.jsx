@@ -387,13 +387,13 @@ export function AnalyticsStudio({ api, onNavigate }) {
                 <span
                   style={{
                     width: `${inputPct}%`,
-                    background: '#008657',
+                    background: 'var(--chart-line)',
                   }}
                 />
                 <span
                   style={{
                     width: `${outputPct}%`,
-                    background: '#cf480d',
+                    background: 'var(--chart-accent)',
                   }}
                 />
               </div>
@@ -636,7 +636,10 @@ export function AnalyticsStudio({ api, onNavigate }) {
                             <span
                               style={{
                                 width: `${pct}%`,
-                                background: idx === 0 ? '#cf480d' : '#008657',
+                                background:
+                                  idx === 0
+                                    ? 'var(--chart-accent)'
+                                    : 'var(--chart-line)',
                               }}
                             />
                           </div>

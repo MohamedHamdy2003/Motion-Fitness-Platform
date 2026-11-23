@@ -1,23 +1,46 @@
 :root {
+  color-scheme: light;
   --brand-primary: #008657;
   --brand-primary-hover: #006d46;
+  --brand-primary-ink: #008657;
   --brand-secondary: #e7faf0;
   --brand-background: #fffdf9;
   --brand-surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-elevated: #f5fbf7;
+  --surface-tint: #f1fcf6;
+  --surface-hover: #f3fcf7;
+  --surface-subtle: #f8fcf9;
+  --surface-seg: #f3f8f5;
+  --surface-seg-active: #ffffff;
+  --surface-input: #ffffff;
+  --surface-sidebar: #ffffff;
+  --surface-glass-blur: 0px;
   --brand-text: #17332b;
   --brand-muted: #596c64;
+  --placeholder-ink: #7c8d85;
   --brand-border: #e4eae5;
+  --brand-border-soft: #c7efda;
+  --brand-border-accent: #bcebd3;
   --brand-accent: #c74713;
   --brand-success: #007b4e;
   --brand-success-bg: #dbf8e9;
+  --brand-success-border: #a7f3d0;
   --brand-warning: #914800;
   --brand-warning-bg: #fff0d2;
+  --brand-warning-border: #fde68a;
   --brand-error: #c3343f;
   --brand-error-bg: #fff0f1;
+  --brand-error-border: #fecdd3;
   --brand-info: #205fb8;
   --brand-info-bg: #eaf3ff;
+  --brand-info-border: #bfdbfe;
+  --brand-orange-ink: #b43a06;
+  --brand-orange-bg: #fff0e6;
+  --brand-orange-border: #ffd4bc;
   --brand-disabled: #eef2ef;
   --brand-focus: #00a66b;
+  --focus-ring: 0 0 0 4px #00a66b18;
   --brand-font: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
   --dashboard-type-body: 16px;
   --dashboard-type-page: 26px;
@@ -41,8 +64,37 @@
   --radius-panel: 16px;
   --shadow-dialog: 0 24px 80px #17332b26;
   --shadow-panel: 0 4px 24px #17332b06;
+  --shadow-sidebar: -8px 0 24px rgb(13 34 28 / 3%);
+  --backdrop-overlay: rgb(25 57 46 / 36%);
   --brand-action: #cf480d;
   --brand-action-hover: #b43a06;
+  --nav-active-mark: #ff9b58;
+  --code-bg: #f1fcf6;
+  --code-border: #d5eee0;
+  --code-block-bg: #17332b;
+  --code-block-ink: #e7faf0;
+  --spinner-track: #d5eee0;
+  --shimmer-a: #e7f2ec;
+  --shimmer-b: #f5fbf7;
+  --bar-track: #edf3ef;
+  --share-track: #dfe9e3;
+  --chart-grid: #e4eae5;
+  --chart-track: #edf3ef;
+  --chart-line: #008657;
+  --chart-accent: #cf480d;
+  --chart-blue: #205fb8;
+  --chart-amber: #d97706;
+  --chart-teal: #0a8991;
+  --chart-error: #c3343f;
+  --chart-dot-fill: #ffffff;
+  --chart-dot-active-stroke: #17332b;
+  --chart-bar-hover: #17332b;
+  --chart-tooltip-bg: #17332b;
+  --chart-tooltip-ink: #f4fcf8;
+  --chart-tooltip-title: #ff9b58;
+  --chart-tooltip-border: transparent;
+  --auth-brand-gradient: linear-gradient(145deg, #009b65, #007750 55%, #005d40);
+  --body-bg-glow: none;
   --motion-fast: 150ms;
   --motion-component: 240ms;
   --motion-feedback: 180ms;
@@ -51,4 +103,99 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --brand-primary: #0f9d6e;
+  --brand-primary-hover: #0d855d;
+  --brand-primary-ink: #34d399;
+  --brand-secondary: rgb(16 185 129 / 13%);
+  --brand-background: #07110e;
+  --brand-surface: rgb(14 29 24 / 76%);
+  --surface-solid: #0d1d18;
+  --surface-elevated: rgb(22 44 36 / 62%);
+  --surface-tint: rgb(16 185 129 / 9%);
+  --surface-hover: rgb(52 211 153 / 8%);
+  --surface-subtle: rgb(17 35 29 / 68%);
+  --surface-seg: rgb(7 17 14 / 64%);
+  --surface-seg-active: rgb(24 52 42 / 92%);
+  --surface-input: rgb(8 19 15 / 74%);
+  --surface-sidebar: rgb(11 23 19 / 84%);
+  --surface-glass-blur: 16px;
+  --brand-text: #edf7f2;
+  --brand-muted: #8ea99d;
+  --placeholder-ink: #627e72;
+  --brand-border: rgb(167 243 208 / 11%);
+  --brand-border-soft: rgb(52 211 153 / 24%);
+  --brand-border-accent: rgb(52 211 153 / 34%);
+  --brand-accent: #fb923c;
+  --brand-success: #4ade80;
+  --brand-success-bg: rgb(34 197 94 / 15%);
+  --brand-success-border: rgb(74 222 128 / 28%);
+  --brand-warning: #fbbf24;
+  --brand-warning-bg: rgb(245 158 11 / 15%);
+  --brand-warning-border: rgb(251 191 36 / 28%);
+  --brand-error: #fb7185;
+  --brand-error-bg: rgb(244 63 94 / 15%);
+  --brand-error-border: rgb(251 113 133 / 28%);
+  --brand-info: #60a5fa;
+  --brand-info-bg: rgb(59 130 246 / 15%);
+  --brand-info-border: rgb(96 165 250 / 28%);
+  --brand-orange-ink: #fdba74;
+  --brand-orange-bg: rgb(249 115 22 / 16%);
+  --brand-orange-border: rgb(251 146 60 / 30%);
+  --brand-disabled: rgb(148 168 159 / 14%);
+  --brand-focus: #34d399;
+  --focus-ring: 0 0 0 4px rgb(52 211 153 / 20%);
+  --shadow-dialog: 0 28px 90px rgb(0 0 0 / 62%);
+  --shadow-panel:
+    0 8px 32px rgb(0 0 0 / 28%), inset 0 1px 0 rgb(255 255 255 / 4%);
+  --shadow-sidebar: -12px 0 36px rgb(0 0 0 / 35%);
+  --backdrop-overlay: rgb(2 8 6 / 68%);
+  --brand-action: #e55918;
+  --brand-action-hover: #cf4a0e;
+  --nav-active-mark: #ff9b58;
+  --code-bg: rgb(16 185 129 / 12%);
+  --code-border: rgb(52 211 153 / 22%);
+  --code-block-bg: rgb(5 12 10 / 90%);
+  --code-block-ink: #d1fae5;
+  --spinner-track: rgb(52 211 153 / 20%);
+  --shimmer-a: rgb(20 40 33 / 75%);
+  --shimmer-b: rgb(35 68 56 / 80%);
+  --bar-track: rgb(167 243 208 / 12%);
+  --share-track: rgb(167 243 208 / 14%);
+  --chart-grid: rgb(167 243 208 / 11%);
+  --chart-track: rgb(167 243 208 / 12%);
+  --chart-line: #34d399;
+  --chart-accent: #fb923c;
+  --chart-blue: #60a5fa;
+  --chart-amber: #fbbf24;
+  --chart-teal: #2dd4bf;
+  --chart-error: #fb7185;
+  --chart-dot-fill: #0b1814;
+  --chart-dot-active-stroke: #edf7f2;
+  --chart-bar-hover: #a7f3d0;
+  --chart-tooltip-bg: rgb(7 19 15 / 94%);
+  --chart-tooltip-ink: #edf7f2;
+  --chart-tooltip-title: #fdba74;
+  --chart-tooltip-border: rgb(52 211 153 / 28%);
+  --auth-brand-gradient: linear-gradient(
+    145deg,
+    #0b5a3f 0%,
+    #073d2b 52%,
+    #042419 100%
+  );
+  --body-bg-glow:
+    radial-gradient(
+      ellipse 78% 52% at 14% -8%,
+      rgb(16 185 129 / 12%),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 56% 42% at 88% 106%,
+      rgb(249 115 22 / 7%),
+      transparent 58%
+    );
 }
