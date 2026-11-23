@@ -1,14 +1,26 @@
+import '@fontsource/ibm-plex-sans-arabic/400.css';
+import '@fontsource/ibm-plex-sans-arabic/500.css';
+import '@fontsource/ibm-plex-sans-arabic/600.css';
+import '@fontsource/ibm-plex-sans-arabic/700.css';
+import './tokens.css';
+import './styles.css';
+
 import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity,
   Apple,
   ArrowLeft,
+  BarChart3,
   Boxes,
   Dumbbell,
+  Eye,
+  EyeOff,
   FolderKanban,
   HelpCircle,
   Layers3,
+  Maximize2,
+  Menu,
+  Minimize2,
   Plus,
   Sparkles,
   Utensils,
@@ -17,19 +29,28 @@ import {
 import { hasStoredSession, listAll, login, restoreSession } from './api';
 import { AnalyticsStudio } from './AnalyticsStudio';
 import { LibraryEditor } from './LibraryEditor';
+import { LogoutConfirmation } from './LogoutConfirmation';
 import { MatchingStudio } from './MatchingStudio';
+import { Presence } from './presence';
 import { ProgramEditor } from './ProgramEditor';
 import { readableCode } from './program';
 import { SupportStudio } from './SupportStudio';
-import { Brand, ContentList, ErrorNotice, Field, Notice, SideNav } from './ui';
-import './styles.css';
+import {
+  Brand,
+  ButtonContent,
+  ContentList,
+  ErrorNotice,
+  Field,
+  Notice,
+  SideNav,
+} from './ui';
 
 const sections = [
   {
     key: 'analytics',
     label: 'التحليلات وصحة النظام',
     singular: 'تقرير',
-    Icon: Activity,
+    Icon: BarChart3,
     intro:
       'متابعة استهلاك Gemini API، التكلفة التقديرية، جاهزية السيرفر، وحالة التكاملات الحية.',
   },
@@ -167,6 +188,16 @@ const columns = {
 
 const studioOnlySections = new Set(['analytics', 'matching', 'support']);
 
+function formatTodayCairo() {
+  return new Intl.DateTimeFormat('ar-EG', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Africa/Cairo',
+  }).format(new Date());
+}
+
 function readRouteFromHash() {
   const raw = window.location.hash.replace(/^#\/?/, '').trim();
   if (!raw) return { section: 'analytics' };
@@ -207,11 +238,21 @@ function App() {
   const [restoring, setRestoring] = useState(() => hasStoredSession());
   const [route, setRoute] = useState(() => readRouteFromHash());
   const [signedOut, setSignedOut] = useState('');
-  const [signingOut, setSigningOut] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [notice, setNotice] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(
+    () => window.matchMedia('(max-width: 960px)').matches,
+  );
   const dirty = useRef(false);
   const [routeFocus, setRouteFocus] = useState(0);
-  const main = useRef(null);
+  const mainRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const logoutTriggerRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+
   const setDirty = useCallback((value) => {
     dirty.current = value;
   }, []);
@@ -220,6 +261,8 @@ function App() {
     setDirty(false);
     setSession(null);
     setRoute({ section: 'analytics' });
+    setMobileOpen(false);
+    setLogoutOpen(false);
     clearRouteHash();
     setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
   }, [setDirty]);
@@ -244,6 +287,42 @@ function App() {
   }, [handleExpired]);
 
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 960px)');
+    const update = () => {
+      setCompactNavigation(media.matches);
+      setMobileOpen(false);
+    };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    sidebarRef.current?.querySelector('button:not([disabled])')?.focus();
+    const onEscape = (event) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener('keydown', onEscape);
+      previous?.focus?.();
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () =>
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
     function preventDataLoss(event) {
       if (!dirty.current) return;
       event.preventDefault();
@@ -254,8 +333,25 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (routeFocus > 0) main.current?.focus();
+    if (routeFocus > 0) mainRef.current?.focus();
   }, [routeFocus]);
+
+  useEffect(() => {
+    const activeSection = sections.find((entry) => entry.key === route.section);
+    document.title = session
+      ? `Motion - الإدارة - ${activeSection?.label || 'لوحة التحكم'}`
+      : 'Motion - الإدارة - تسجيل الدخول';
+  }, [route.section, session]);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      void document.documentElement
+        .requestFullscreen?.()
+        .catch(() => undefined);
+    } else {
+      void document.exitFullscreen?.().catch(() => undefined);
+    }
+  }
 
   function canLeave() {
     return (
@@ -268,34 +364,37 @@ function App() {
       next.section === route.section &&
       next.id === route.id &&
       next.new === route.new
-    )
+    ) {
+      setMobileOpen(false);
       return;
+    }
     if (!canLeave()) return;
     setNotice(message || '');
     setRoute(next);
+    setMobileOpen(false);
     writeRouteToHash(next);
     setRouteFocus((value) => value + 1);
     window.scrollTo(0, 0);
   }
 
-  async function logOut() {
-    if (!canLeave()) return;
-    setSigningOut(true);
-    try {
-      await session.signOut();
-      setSignedOut('تم تسجيل الخروج بنجاح.');
-    } catch {
-      setSignedOut(
-        'تم تسجيل الخروج من هذا المتصفح، تعذر تأكيد إلغاء الجلسة من الخادم.',
-      );
-    } finally {
-      setDirty(false);
-      setSession(null);
-      setRoute({ section: 'analytics' });
-      clearRouteHash();
-      setNotice('');
-      setSigningOut(false);
-    }
+  async function confirmLogOut() {
+    await session.signOut();
+    setDirty(false);
+    setSession(null);
+    setRoute({ section: 'analytics' });
+    clearRouteHash();
+    setNotice('');
+    setSignedOut('تم تسجيل الخروج بنجاح.');
+  }
+
+  function forceLocalLogOut() {
+    window.localStorage.removeItem('motion.admin.session.v1');
+    setDirty(false);
+    setSession(null);
+    setRoute({ section: 'analytics' });
+    clearRouteHash();
+    setNotice('');
+    setSignedOut('تم إنهاء الجلسة محلياً من هذا المتصفح.');
   }
 
   if (restoring)
@@ -303,6 +402,7 @@ function App() {
       <main className="session-restore" role="status" aria-live="polite">
         <div className="session-restore-card">
           <Brand />
+          <span className="spinner" aria-hidden="true" />
           <p>جارٍ استعادة الجلسة…</p>
         </div>
       </main>
@@ -321,36 +421,132 @@ function App() {
       />
     );
 
-  const section = sections.find((entry) => entry.key === route.section);
+  const section =
+    sections.find((entry) => entry.key === route.section) || sections[0];
   const navigatingEditor = route.id || route.new;
   const onBack = (message) => navigate({ section: section.key }, message);
 
   return (
-    <div className="workspace">
-      <a className="skip-link" href="#main">
+    <div
+      className="app-shell"
+      data-sidebar-collapsed={collapsed}
+      data-fullscreen={fullscreen || undefined}
+    >
+      <a className="skip-link" href="#main" inert={mobileOpen ? '' : undefined}>
         تخطّي إلى المحتوى الرئيسي
       </a>
+
+      <div className="mobile-top" inert={mobileOpen ? '' : undefined}>
+        <Brand />
+        <button
+          ref={menuTriggerRef}
+          type="button"
+          className="icon-button"
+          aria-label="فتح القائمة"
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu size={20} />
+        </button>
+      </div>
+
+      <Presence>
+        {mobileOpen && (
+          <button
+            type="button"
+            className="nav-backdrop"
+            aria-label="إغلاق القائمة"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+      </Presence>
+
       <SideNav
+        sidebarRef={sidebarRef}
         sections={sections}
         section={section.key}
         onNavigate={navigate}
         session={session}
-        onSignOut={logOut}
-        signingOut={signingOut}
+        collapsed={collapsed}
+        onToggleCollapsed={() => setCollapsed((value) => !value)}
+        mobileOpen={mobileOpen}
+        compactNavigation={compactNavigation}
+        onCloseMobile={() => setMobileOpen(false)}
+        logoutTriggerRef={logoutTriggerRef}
+        onRequestSignOut={() => {
+          if (!canLeave()) return;
+          setMobileOpen(false);
+          setLogoutOpen(true);
+        }}
       />
-      <main className="main-content" id="main" ref={main} tabIndex="-1">
-        <div className="breadcrumb" aria-label="مسار التنقل">
-          <span>بوابة إدارة Motion</span>
-          <span aria-hidden="true">/</span>
-          <strong>{section.label}</strong>
-        </div>
+
+      {logoutOpen && (
+        <LogoutConfirmation
+          appName="بوابة إدارة Motion"
+          confirm={confirmLogOut}
+          forceLocal={forceLocalLogOut}
+          closed={() => {
+            setLogoutOpen(false);
+            requestAnimationFrame(() => {
+              (compactNavigation
+                ? menuTriggerRef.current
+                : logoutTriggerRef.current
+              )?.focus();
+            });
+          }}
+        />
+      )}
+
+      <main
+        className="workspace"
+        id="main"
+        ref={mainRef}
+        tabIndex="-1"
+        inert={mobileOpen ? '' : undefined}
+      >
+        <header className="topbar">
+          <div className="topbar-start">
+            <button
+              type="button"
+              className="fullscreen-toggle"
+              aria-label={fullscreen ? 'إنهاء ملء الشاشة' : 'ملء الشاشة'}
+              aria-pressed={fullscreen}
+              title={
+                fullscreen
+                  ? 'إنهاء ملء الشاشة (Esc)'
+                  : 'عرض الصفحة بارتفاع كامل'
+              }
+              onClick={toggleFullscreen}
+            >
+              {fullscreen ? (
+                <Minimize2 size={15} aria-hidden="true" />
+              ) : (
+                <Maximize2 size={15} aria-hidden="true" />
+              )}
+            </button>
+            <span>بوابة إدارة Motion</span>
+            <span className="topbar-crumb" aria-hidden="true">
+              /
+            </span>
+            <span className="topbar-crumb">{section.label}</span>
+          </div>
+          <div className="topbar-meta">
+            <span className="rt-pill is-connected">
+              <span className="rt-dot" aria-hidden="true" />
+              متصل بالخادم
+            </span>
+            <span>{formatTodayCairo()}</span>
+          </div>
+        </header>
+
         <div
-          className="animate-pane"
+          className="workspace-body"
           key={`${section.key}-${route.id || (route.new ? 'new' : 'list')}`}
+          data-route={section.key}
         >
           <Notice text={notice} />
           {section.key === 'analytics' ? (
-            <AnalyticsStudio api={session.api} />
+            <AnalyticsStudio api={session.api} onNavigate={navigate} />
           ) : section.key === 'matching' ? (
             <MatchingStudio api={session.api} />
           ) : section.key === 'support' ? (
@@ -381,6 +577,11 @@ function App() {
             />
           )}
         </div>
+
+        <footer className="main-footer">
+          <span>Motion · بوابة الإدارة التشغيلية</span>
+          <span dir="ltr">{session.email}</span>
+        </footer>
       </main>
     </div>
   );
@@ -388,6 +589,7 @@ function App() {
 
 function SignIn({ onSignIn, onExpired, notice }) {
   const [submitting, setSubmitting] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [error, setError] = useState(null);
 
   async function submit(event) {
@@ -397,7 +599,13 @@ function SignIn({ onSignIn, onExpired, notice }) {
     setError(null);
     setSubmitting(true);
     try {
-      onSignIn(await login(data.get('email'), data.get('password'), onExpired));
+      onSignIn(
+        await login(
+          String(data.get('email') || '').trim(),
+          String(data.get('password') || ''),
+          onExpired,
+        ),
+      );
     } catch (reason) {
       setError(reason);
     } finally {
@@ -406,63 +614,145 @@ function SignIn({ onSignIn, onExpired, notice }) {
   }
 
   return (
-    <main className="signin-page">
-      <section className="signin-panel">
-        <div className="signin-header">
-          <Brand />
-        </div>
-        <div className="signin-content">
-          <span className="eyebrow">لوحة التحكم التشغيلية</span>
-          <h1>تسجيل الدخول إلى إدارة Motion</h1>
-          <p>
-            استخدم حساب المدير المعتمد لإدارة البرامج التدريبية، مكتبة التغذية،
-            قواعد المطابقة، ومتابعة أداء الخادم.
+    <main className="auth-layout">
+      <section className="auth-main">
+        <div className="auth-form">
+          <div className="auth-mobile-brand">
+            <Brand />
+          </div>
+          <h1>أهلًا بعودتك</h1>
+          <p className="auth-subtitle">
+            سجّل دخولك لإدارة منصة Motion والبرامج التدريبية.
           </p>
           <Notice text={!error ? notice : ''} />
           <ErrorNotice error={error} />
           <form onSubmit={submit}>
-            <Field label="البريد الإلكتروني">
-              <input
-                type="email"
-                name="email"
-                dir="ltr"
-                placeholder="admin@motion.app"
-                autoComplete="username"
-                required
-              />
-            </Field>
-            <Field label="كلمة المرور">
-              <input
-                type="password"
-                name="password"
-                dir="ltr"
-                autoComplete="current-password"
-                required
-              />
-            </Field>
-            <button
-              className="button primary signin-submit"
-              type="submit"
-              disabled={submitting}
-            >
-              <span>{submitting ? 'جارٍ التحقق…' : 'دخول إلى البوابة'}</span>
-              <ArrowLeft size={18} />
-            </button>
+            <fieldset disabled={submitting}>
+              <div className="form-stack">
+                <Field label="البريد الإلكتروني">
+                  <input
+                    type="email"
+                    name="email"
+                    dir="ltr"
+                    placeholder="admin@motion.app"
+                    autoComplete="username"
+                    required
+                  />
+                </Field>
+                <div className="password-field">
+                  <Field label="كلمة المرور">
+                    <div className="field-control">
+                      <input
+                        type={visible ? 'text' : 'password'}
+                        name="password"
+                        dir="ltr"
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="icon-button eye"
+                        aria-label={
+                          visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'
+                        }
+                        aria-pressed={visible}
+                        onClick={() => setVisible((prev) => !prev)}
+                      >
+                        {visible ? <EyeOff size={19} /> : <Eye size={19} />}
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+              </div>
+              <button
+                className="button primary auth-submit"
+                type="submit"
+                disabled={submitting}
+              >
+                <ButtonContent busy={submitting}>
+                  <span>تسجيل الدخول</span>
+                  <ArrowLeft size={18} aria-hidden="true" />
+                </ButtonContent>
+              </button>
+            </fieldset>
           </form>
-        </div>
-        <div className="signin-foot">
-          <small>Motion Platform · وصول محصور بمدير النظام</small>
+          <div className="auth-foot">
+            Motion Platform · وصول محصور بحساب مدير النظام المعتمد
+          </div>
         </div>
       </section>
-      <div className="signin-image" aria-hidden="true">
-        <div className="signin-caption">
-          <span>نظام تشغيل متكامل</span>
-          <strong>
-            إدارة دقيقة للبرامج التدريبية والخطط الغذائية ومؤشرات الأداء من مكان
-            واحد.
-          </strong>
+
+      <aside className="auth-brand" aria-hidden="true">
+        <div className="auth-brand-logo">
+          <Brand />
         </div>
-      </div>
+        <h2>مساحة هادئة ليومٍ حافل.</h2>
+        <p>
+          من إدارة البرامج التدريبية والخطط الغذائية حتى متابعة أداء الذكاء
+          الاصطناعي والخادم.
+        </p>
+        <svg
+          className="auth-artwork"
+          viewBox="0 0 460 320"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            cx="150"
+            cy="270"
+            r="175"
+            stroke="#ff9b58"
+            strokeWidth="1.5"
+            strokeOpacity="0.65"
+          />
+          <circle
+            cx="180"
+            cy="295"
+            r="138"
+            stroke="#d4ffea"
+            strokeWidth="1.2"
+            strokeOpacity="0.45"
+          />
+          <path
+            d="M35 320C55 245 105 188 188 148C145 208 118 265 98 320H35Z"
+            fill="url(#leafGlow)"
+            fillOpacity="0.28"
+          />
+          <path
+            d="M115 320C142 238 198 175 288 128C236 196 206 258 186 320H115Z"
+            fill="url(#leafGlow)"
+            fillOpacity="0.18"
+          />
+          <path
+            d="M12 248C66 202 126 170 206 154"
+            stroke="#d4ffea"
+            strokeWidth="1.4"
+            strokeOpacity="0.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M72 308C124 242 184 198 274 166"
+            stroke="#d4ffea"
+            strokeWidth="1.2"
+            strokeOpacity="0.38"
+            strokeLinecap="round"
+          />
+          <defs>
+            <linearGradient
+              id="leafGlow"
+              x1="40"
+              y1="128"
+              x2="260"
+              y2="320"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop stopColor="#d4ffea" />
+              <stop offset="1" stopColor="#005d40" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </aside>
     </main>
   );
 }
@@ -505,7 +795,7 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
           <p>{section.intro}</p>
         </div>
         <button className="button primary" type="button" onClick={onCreate}>
-          <Plus size={19} /> إضافة {section.singular}
+          <Plus size={18} /> إضافة {section.singular}
         </button>
       </header>
       {section.key === 'programs' && (

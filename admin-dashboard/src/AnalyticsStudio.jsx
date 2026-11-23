@@ -1,16 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Cloud,
   Cpu,
   Database,
   DollarSign,
+  KeyRound,
+  Layers3,
+  Mail,
   RefreshCw,
   Server,
   ShieldCheck,
   Sparkles,
   Users,
 } from 'lucide-react';
-import { ErrorNotice, Notice, Status } from './ui';
+import {
+  AGENT_LABELS,
+  MotionAgentDonut,
+  MotionLatencyBarChart,
+  MotionTrendChart,
+} from './AnalyticsCharts';
+import { ButtonContent, ErrorNotice, Notice, Status } from './ui';
+import './analytics.css';
+
+const RANGE_OPTIONS = [
+  { days: 7, label: '7 أيام' },
+  { days: 30, label: '30 يوماً' },
+  { days: 90, label: '90 يوماً' },
+];
 
 function formatUptime(seconds) {
   const s = Math.max(0, Number(seconds) || 0);
@@ -33,27 +53,47 @@ function formatUsd(val) {
 
 function integrationStatusMeta(value) {
   const upper = String(value || '').toUpperCase();
-  if (upper === 'UP') return { tone: 'PUBLISHED', label: 'يعمل' };
-  if (upper === 'CONNECTED') return { tone: 'PUBLISHED', label: 'متصل' };
-  if (upper === 'SUCCEEDED') return { tone: 'PUBLISHED', label: 'ناجح' };
-  if (upper === 'APPROVED') return { tone: 'PUBLISHED', label: 'مُفعّل' };
+  if (upper === 'UP')
+    return { tone: 'PUBLISHED', pill: 'is-green', label: 'يعمل' };
+  if (upper === 'CONNECTED')
+    return { tone: 'PUBLISHED', pill: 'is-green', label: 'متصل' };
+  if (upper === 'SUCCEEDED')
+    return { tone: 'PUBLISHED', pill: 'is-green', label: 'ناجح' };
+  if (upper === 'APPROVED')
+    return { tone: 'PUBLISHED', pill: 'is-green', label: 'مُفعّل' };
   if (upper.startsWith('CONFIGURED'))
-    return { tone: 'PUBLISHED', label: 'مُعدّ' };
-  if (upper === 'LOCAL_CAPTURE') return { tone: 'DRAFT', label: 'وضع محلي' };
+    return { tone: 'PUBLISHED', pill: 'is-green', label: 'مُعدّ' };
+  if (upper === 'LOCAL_CAPTURE')
+    return { tone: 'DRAFT', pill: 'is-amber', label: 'وضع محلي' };
   if (upper === 'NOT_CONFIGURED' || upper === 'NOT_APPROVED')
-    return { tone: 'DRAFT', label: 'غير مُفعّل' };
-  if (upper === 'FAILED') return { tone: 'ARCHIVED', label: 'فشل' };
-  return { tone: 'ARCHIVED', label: 'متوقف' };
+    return { tone: 'DRAFT', pill: 'is-amber', label: 'غير مُفعّل' };
+  if (upper === 'FAILED')
+    return { tone: 'ARCHIVED', pill: 'is-red', label: 'فشل' };
+  return { tone: 'ARCHIVED', pill: 'is-red', label: 'متوقف' };
 }
 
-const operationLabels = {
-  PROGRAM_MATCHING: 'مطابقة البرامج للمتدربين',
-  EXERCISE_FITTING: 'ملاءمة التمارين للإصابات',
-  INJURY_REWRITE: 'تحسين وصف الإصابات',
-  PROGRAM_HINTS_REWRITE: 'صياغة تلميحات البرامج',
-};
+function AnalyticsSkeleton() {
+  return (
+    <div
+      className="rst-analytics"
+      aria-label="جارٍ تحميل مؤشرات النظام"
+      aria-busy="true"
+      role="status"
+    >
+      <div className="rst-sk-grid">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="rst-sk-card" />
+        ))}
+      </div>
+      <div className="rst-grid-primary">
+        <div className="rst-sk-chart" />
+        <div className="rst-sk-chart" />
+      </div>
+    </div>
+  );
+}
 
-export function AnalyticsStudio({ api }) {
+export function AnalyticsStudio({ api, onNavigate }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,22 +101,25 @@ export function AnalyticsStudio({ api }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
 
-  async function loadOverview(period = days) {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api(`/admin/analytics/overview?days=${period}`);
-      setData(res);
-    } catch (reason) {
-      setError(reason);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const loadOverview = useCallback(
+    async (period) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api(`/admin/analytics/overview?days=${period}`);
+        setData(res);
+      } catch (reason) {
+        setError(reason);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api],
+  );
 
   useEffect(() => {
     void loadOverview(days);
-  }, [days]);
+  }, [days, loadOverview]);
 
   async function triggerLiveProbe() {
     setChecking(true);
@@ -108,403 +151,631 @@ export function AnalyticsStudio({ api }) {
   const platform = data?.platform;
   const uptime = data?.uptime;
   const dailySeries = data?.geminiUsage?.dailySeries || [];
-  const maxDailyTokens = Math.max(
+  const byOperation = data?.geminiUsage?.byOperation || [];
+  const recentCalls = data?.geminiUsage?.recentCalls || [];
+  const recentChecks = uptime?.recentChecks || [];
+
+  const totalTokensForBar = Math.max(
     1,
-    ...dailySeries.map((entry) => Number(entry.totalTokens) || 0),
+    (summary?.totalInputTokens || 0) + (summary?.totalOutputTokens || 0),
+  );
+  const inputPct = Math.round(
+    ((summary?.totalInputTokens || 0) / totalTokensForBar) * 100,
+  );
+  const outputPct = Math.max(0, 100 - inputPct);
+
+  const maxOpTokens = Math.max(
+    1,
+    ...byOperation.map((row) => Number(row.totalTokens) || 0),
   );
 
+  const engagementRows = platform
+    ? [
+        {
+          key: 'activeUsers',
+          label: 'المتدربون النشطون',
+          sub: `من إجمالي ${formatNumber(platform.totalUsers)} مستخدم مسجّل`,
+          value: Number(platform.activeUsers) || 0,
+        },
+        {
+          key: 'onboardedUsers',
+          label: 'مكتملو ملف التعريف (Onboarding)',
+          sub: 'حسابات جاهزة للمطابقة التلقائية',
+          value: Number(platform.onboardedUsers) || 0,
+        },
+        {
+          key: 'activeEnrollments',
+          label: 'الاشتراكات النشطة في البرامج',
+          sub: `${formatNumber(platform.publishedPrograms)} برنامج منشور حالياً`,
+          value: Number(platform.activeEnrollments) || 0,
+        },
+        {
+          key: 'completedWorkouts',
+          label: `جلسات التمرين المكتملة (${days} يوماً)`,
+          sub: 'الالتزام بالتمارين اليومية',
+          value: Number(platform.completedWorkouts) || 0,
+        },
+        {
+          key: 'completedMeals',
+          label: `الوجبات المكتملة (${days} يوماً)`,
+          sub: `${formatNumber(platform.checkIns)} متابعة وزن خلال الفترة`,
+          value: Number(platform.completedMeals) || 0,
+        },
+      ]
+    : [];
+  const maxEngagement = Math.max(1, ...engagementRows.map((r) => r.value));
+
+  const liveAlerts = [];
+  if (uptime) {
+    if (!uptime.liveStatus.database.ok) {
+      liveAlerts.push({
+        key: 'db-down',
+        tone: 'is-danger',
+        text: 'تنبيه عاجل: تعذر الاتصال بقاعدة البيانات PostgreSQL',
+      });
+    }
+    if (uptime.liveStatus.aiService.status === 'DOWN') {
+      liveAlerts.push({
+        key: 'ai-down',
+        tone: 'is-danger',
+        text: 'حاوية Gemini AI لا تستجيب حالياً',
+      });
+    } else if (uptime.liveStatus.aiService.status === 'NOT_CONFIGURED') {
+      liveAlerts.push({
+        key: 'ai-unconfigured',
+        tone: 'is-warning',
+        text: 'خدمة Gemini AI بانتظار استكمال إعداد المتغيرات',
+      });
+    }
+    if ((summary?.failedRequests || 0) > 0) {
+      liveAlerts.push({
+        key: 'ai-failures',
+        tone: 'is-warning',
+        text: `${formatNumber(summary.failedRequests)} استدعاء فاشل لـ Gemini خلال آخر ${days} يوماً`,
+      });
+    }
+    if (uptime.integrations.s3Storage === 'NOT_CONFIGURED') {
+      liveAlerts.push({
+        key: 's3-info',
+        tone: 'is-info',
+        text: 'تخزين الوسائط AWS S3 غير مُعدّ بعد',
+      });
+    }
+  }
+
   return (
-    <>
-      <header className="page-heading">
-        <div>
-          <h1>التحليلات واستهلاك Gemini وصحة النظام</h1>
-          <p>
+    <div className="rst-analytics" data-refreshing={loading && Boolean(data)}>
+      <section
+        className="rst-hero"
+        aria-label="تحليلات المنصة واختيار الفترة الزمنية"
+      >
+        <div className="rst-hero-brand">
+          <div className="rst-hero-eyebrow">
+            <span className="rst-hero-dot" aria-hidden="true" />
+            <span>منصة Motion · المتابعة التشغيلية</span>
+          </div>
+          <h1 className="rst-hero-title">
+            التحليلات واستهلاك Gemini وصحة النظام
+          </h1>
+          <p className="rst-hero-sub">
             متابعة استهلاك التوكنز والتكلفة التقديرية لوكلاء Gemini، زمن تشغيل
-            الخادم، وجاهزية التكاملات الخارجية.
+            الخادم، وجاهزية التكاملات الحية.
           </p>
         </div>
-        <div className="actions">
-          <select
-            className="period-select"
-            aria-label="الفترة الزمنية"
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+
+        <div className="rst-controls">
+          <div
+            className="rst-seg"
+            role="group"
+            aria-label="الفترة الزمنية للتحليلات"
           >
-            <option value={7}>آخر 7 أيام</option>
-            <option value={30}>آخر 30 يوماً</option>
-            <option value={90}>آخر 90 يوماً</option>
-          </select>
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.days}
+                type="button"
+                className={days === option.days ? 'active' : ''}
+                aria-pressed={days === option.days}
+                onClick={() => setDays(option.days)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
-            className="button primary"
+            className={'rst-refresh-btn' + (loading ? ' spinning' : '')}
+            aria-label="تحديث البيانات"
+            title="تحديث البيانات"
+            disabled={loading}
+            onClick={() => void loadOverview(days)}
+          >
+            <RefreshCw size={17} aria-hidden="true" />
+          </button>
+
+          <button
+            type="button"
+            className="button action"
             disabled={checking || loading}
             onClick={triggerLiveProbe}
           >
-            <RefreshCw size={16} />
-            {checking ? 'جارٍ الفحص…' : 'فحص صحة النظام الآن'}
+            <ButtonContent busy={checking}>
+              <span>فحص صحة النظام الآن</span>
+              <ArrowLeft size={17} aria-hidden="true" />
+            </ButtonContent>
           </button>
         </div>
-      </header>
+      </section>
 
-      <ErrorNotice error={error} />
+      <ErrorNotice error={error} onRetry={() => void loadOverview(days)} />
       <Notice text={notice} />
 
-      {loading && !data ? (
-        <div className="loading-list" role="status">
-          <span className="spinner" /> جارٍ تحميل مؤشرات النظام…
-        </div>
-      ) : (
-        data && (
-          <>
-            <section className="kpi-grid" aria-label="المؤشرات الرئيسية">
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <Sparkles size={15} /> طلبات Gemini ({days} يوماً)
-                </div>
-                <div className="kpi-value" dir="ltr">
-                  {formatNumber(summary.totalRequests)}
-                </div>
-                <div className="kpi-meta">
-                  نسبة النجاح {summary.successRate}% · متوسط الاستجابة{' '}
-                  <span dir="ltr">{summary.avgLatencyMs}ms</span>
-                </div>
-              </article>
+      {loading && !data && <AnalyticsSkeleton />}
 
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <Cpu size={15} /> إجمالي التوكنز المستهلكة
+      {data && summary && platform && uptime && (
+        <>
+          <section className="rst-alerts" aria-label="تنبيهات النظام الحية">
+            {liveAlerts.length > 0 ? (
+              liveAlerts.map((alert) => (
+                <div
+                  key={alert.key}
+                  className={`rst-alert-pill ${alert.tone}`}
+                  role="status"
+                >
+                  <AlertTriangle size={15} aria-hidden="true" />
+                  <span>{alert.text}</span>
                 </div>
-                <div className="kpi-value" dir="ltr">
-                  {formatNumber(summary.totalTokens)}
-                </div>
-                <div className="kpi-meta">
-                  إدخال:{' '}
-                  <span dir="ltr">
-                    {formatNumber(summary.totalInputTokens)}
-                  </span>{' '}
-                  · إخراج:{' '}
-                  <span dir="ltr">
-                    {formatNumber(summary.totalOutputTokens)}
+              ))
+            ) : (
+              <div className="rst-alert-pill is-ok" role="status">
+                <CheckCircle2 size={15} aria-hidden="true" />
+                <span>
+                  النظام يعمل بسلاسة — قاعدة البيانات وخدمة Gemini تعمل بكفاءة
+                  ولا توجد تنبيهات عاجلة الآن.
+                </span>
+              </div>
+            )}
+          </section>
+
+          <section
+            className="rst-kpi-grid"
+            aria-label="المؤشرات التنفيذية لمنصة Motion"
+          >
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-emerald" aria-hidden="true">
+                    <Sparkles size={17} />
                   </span>
-                </div>
-              </article>
+                  طلبات Gemini ({days} يوماً)
+                </span>
+                <span
+                  className={
+                    'rst-delta numeric ' +
+                    (summary.successRate >= 95
+                      ? 'is-good'
+                      : summary.successRate >= 80
+                        ? 'is-flat'
+                        : 'is-bad')
+                  }
+                >
+                  نجاح {summary.successRate}%
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatNumber(summary.totalRequests)}
+              </div>
+              <div className="rst-kpi-foot numeric">
+                متوسط الاستجابة: <bdi>{summary.avgLatencyMs}ms</bdi> · فشل:{' '}
+                {formatNumber(summary.failedRequests)}
+              </div>
+            </article>
 
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <DollarSign size={15} /> التكلفة التقديرية لـ Gemini
-                </div>
-                <div className="kpi-value" dir="ltr">
-                  {formatUsd(summary.estimatedCostUsd)}
-                </div>
-                <div className="kpi-meta" dir="ltr">
-                  {uptime.liveStatus.aiService.model ||
-                    'google/gemini-2.5-flash'}
-                </div>
-              </article>
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-orange" aria-hidden="true">
+                    <Cpu size={17} />
+                  </span>
+                  إجمالي التوكنز المستهلكة
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatNumber(summary.totalTokens)}
+              </div>
+              <div className="rst-bar" aria-hidden="true">
+                <span
+                  style={{
+                    width: `${inputPct}%`,
+                    background: '#008657',
+                  }}
+                />
+                <span
+                  style={{
+                    width: `${outputPct}%`,
+                    background: '#cf480d',
+                  }}
+                />
+              </div>
+              <div className="rst-kpi-foot numeric">
+                إدخال: <bdi>{formatNumber(summary.totalInputTokens)}</bdi> ·
+                إخراج: <bdi>{formatNumber(summary.totalOutputTokens)}</bdi>
+              </div>
+            </article>
 
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <Server size={15} /> مدة تشغيل الخادم (Uptime)
-                </div>
-                <div className="kpi-value">
-                  {formatUptime(uptime.apiUptimeSeconds)}
-                </div>
-                <div className="kpi-meta">
-                  توافر القاعدة (24س):{' '}
-                  {uptime.availability24h.databaseUptimePct}% · الذاكرة:{' '}
-                  <span dir="ltr">{uptime.memoryRssMb} MB</span>
-                </div>
-              </article>
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-gold" aria-hidden="true">
+                    <DollarSign size={17} />
+                  </span>
+                  التكلفة التقديرية لـ Gemini
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatUsd(summary.estimatedCostUsd)}
+              </div>
+              <div className="rst-kpi-foot" dir="ltr">
+                {uptime.liveStatus.aiService.model || 'google/gemini-2.5-flash'}
+              </div>
+            </article>
 
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <Users size={15} /> المتدربون والبرامج النشطة
-                </div>
-                <div className="kpi-value" dir="ltr">
-                  {formatNumber(platform.activeUsers)}
-                </div>
-                <div className="kpi-meta">
-                  {formatNumber(platform.activeEnrollments)} مشترك ببرامج ·{' '}
-                  {formatNumber(platform.publishedPrograms)} برنامج منشور
-                </div>
-              </article>
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-emerald" aria-hidden="true">
+                    <Server size={17} />
+                  </span>
+                  مدة تشغيل الخادم (Uptime)
+                </span>
+                <span className="rst-delta is-good numeric">
+                  {uptime.availability24h.databaseUptimePct}%
+                </span>
+              </div>
+              <div className="rst-kpi-val">
+                {formatUptime(uptime.apiUptimeSeconds)}
+              </div>
+              <div className="rst-kpi-foot numeric">
+                توافر القاعدة (24س) · الذاكرة:{' '}
+                <bdi>{uptime.memoryRssMb} MB</bdi>
+              </div>
+            </article>
 
-              <article className="kpi-card">
-                <div className="kpi-label">
-                  <Activity size={15} /> النشاط المسجل ({days} يوماً)
-                </div>
-                <div className="kpi-value" dir="ltr">
-                  {formatNumber(platform.completedWorkouts)}
-                </div>
-                <div className="kpi-meta">
-                  تمرين مكتمل · {formatNumber(platform.completedMeals)} وجبة ·{' '}
-                  {formatNumber(platform.checkIns)} متابعة دورية
-                </div>
-              </article>
-            </section>
+            <button
+              type="button"
+              className="rst-kpi"
+              onClick={() => onNavigate?.({ section: 'programs' })}
+            >
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-blue" aria-hidden="true">
+                    <Users size={17} />
+                  </span>
+                  المتدربون والبرامج النشطة
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatNumber(platform.activeUsers)}
+              </div>
+              <div className="rst-kpi-foot numeric">
+                {formatNumber(platform.activeEnrollments)} مشترك ·{' '}
+                {formatNumber(platform.publishedPrograms)} برنامج منشور ←
+              </div>
+            </button>
 
-            <section className="editor-panel panel-spaced">
-              <div className="editor-body">
-                <div className="section-heading">
-                  <div>
-                    <h2>الاستهلاك اليومي لتوكنز Gemini</h2>
-                    <p>
-                      توزيع الاستهلاك اليومي عبر وكلاء المطابقة وملاءمة التمارين
-                      وصياغة النصوص.
-                    </p>
-                  </div>
-                </div>
-                {dailySeries.length === 0 ? (
-                  <p className="inline-help">
-                    لم تُسجّل استدعاءات لـ Gemini خلال آخر {days} يوماً بعد.
-                    جرّب تشغيل محاكاة مطابقة أو تسجيل متدرب لتظهر البيانات هنا
-                    فوراً.
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-emerald" aria-hidden="true">
+                    <Activity size={17} />
+                  </span>
+                  النشاط المسجل ({days} يوماً)
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatNumber(platform.completedWorkouts)}
+              </div>
+              <div className="rst-kpi-foot numeric">
+                تمرين مكتمل · {formatNumber(platform.completedMeals)} وجبة ·{' '}
+                {formatNumber(platform.checkIns)} متابعة وزن
+              </div>
+            </article>
+          </section>
+
+          <div className="rst-grid-primary">
+            <MotionTrendChart series={dailySeries} />
+            <MotionAgentDonut operations={byOperation} />
+          </div>
+
+          <div className="rst-grid-secondary">
+            <MotionLatencyBarChart checks={recentChecks} />
+
+            <section className="panel rst-card">
+              <div className="rst-card-head">
+                <div>
+                  <h2>
+                    <ShieldCheck size={17} className="heading-icon" />
+                    حالة التكاملات والخدمات الحية
+                  </h2>
+                  <p className="rst-card-sub">
+                    ملخص الاتصال المباشر بقواعد البيانات والذكاء الاصطناعي
+                    والمصادقة
                   </p>
-                ) : (
-                  <div className="usage-chart" role="list" dir="ltr">
-                    {dailySeries.map((entry) => {
-                      const heightPct = Math.max(
-                        8,
-                        Math.round(
-                          ((Number(entry.totalTokens) || 0) / maxDailyTokens) *
-                            100,
-                        ),
-                      );
-                      return (
-                        <div
-                          className="usage-bar-col"
-                          key={entry.date}
-                          role="listitem"
-                          title={`${entry.date}: ${formatNumber(entry.totalTokens)} tokens (${entry.requests} reqs, ${formatUsd(entry.estimatedCostUsd)})`}
+                </div>
+              </div>
+
+              <div className="rst-menu-rows">
+                {[
+                  {
+                    title: 'قاعدة البيانات PostgreSQL',
+                    Icon: Database,
+                    meta: `${uptime.liveStatus.database.latencyMs}ms · توافر ${uptime.availability24h.databaseUptimePct}%`,
+                    status: uptime.integrations.database,
+                  },
+                  {
+                    title: 'خدمة Gemini AI الجانبية',
+                    Icon: Sparkles,
+                    meta:
+                      uptime.liveStatus.aiService.status === 'UP'
+                        ? `${uptime.liveStatus.aiService.latencyMs}ms`
+                        : 'تحقق من الإعداد',
+                    status: uptime.integrations.geminiAi,
+                  },
+                  {
+                    title: 'البريد الإلكتروني (OTP)',
+                    Icon: Mail,
+                    meta: uptime.integrations.email,
+                    status: uptime.integrations.email,
+                  },
+                  {
+                    title: 'تخزين الوسائط AWS S3',
+                    Icon: Cloud,
+                    meta: uptime.integrations.s3Storage,
+                    status: uptime.integrations.s3Storage,
+                  },
+                  {
+                    title: 'مصادقة Google و Apple',
+                    Icon: KeyRound,
+                    meta: `G: ${uptime.integrations.googleOAuth === 'CONFIGURED' ? 'مُفعّل' : '—'} · A: ${uptime.integrations.appleOAuth === 'CONFIGURED' ? 'مُفعّل' : '—'}`,
+                    status:
+                      uptime.integrations.googleOAuth === 'CONFIGURED' ||
+                      uptime.integrations.appleOAuth === 'CONFIGURED'
+                        ? 'CONFIGURED'
+                        : 'NOT_CONFIGURED',
+                  },
+                ].map((row) => {
+                  const badge = integrationStatusMeta(row.status);
+                  return (
+                    <div className="rst-menu-row" key={row.title}>
+                      <span className="rst-menu-title">
+                        <row.Icon size={16} aria-hidden="true" />
+                        {row.title}
+                      </span>
+                      <span className="rst-pills numeric">
+                        <span className="rst-pill" dir="ltr">
+                          {row.meta}
+                        </span>
+                        <span className={`rst-pill ${badge.pill}`}>
+                          {badge.label}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="rst-quick">
+                <button
+                  type="button"
+                  className="button primary"
+                  onClick={() => onNavigate?.({ section: 'matching' })}
+                >
+                  إدارة المطابقة الذكية
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => onNavigate?.({ section: 'programs' })}
+                >
+                  إدارة البرامج
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <div className="rst-grid-tables">
+            <section className="panel rst-card">
+              <div className="rst-card-head">
+                <div>
+                  <h2>أداء وكلاء الذكاء الاصطناعي</h2>
+                  <p className="rst-card-sub">
+                    ترتيب الوكلاء حسب حجم استهلاك التوكنز ومتوسط زمن الاستجابة
+                  </p>
+                </div>
+              </div>
+
+              {byOperation.length === 0 ? (
+                <div className="rst-chart-empty">
+                  <p>لا توجد استدعاءات مسجلة للوكلاء خلال هذه الفترة.</p>
+                </div>
+              ) : (
+                <ol className="rst-rank-list">
+                  {byOperation.map((row, idx) => {
+                    const pct = Math.max(
+                      8,
+                      Math.round(
+                        ((Number(row.totalTokens) || 0) / maxOpTokens) * 100,
+                      ),
+                    );
+                    return (
+                      <li key={row.operation} className="rst-rank-row">
+                        <span
+                          className={
+                            'rst-rank-num numeric' +
+                            (idx === 0 ? ' is-top' : '')
+                          }
                         >
-                          <div className="usage-bar-value">
-                            {formatNumber(entry.totalTokens)}
-                          </div>
-                          <div className="usage-bar-track">
-                            <div
-                              className="usage-bar-fill"
-                              style={{ height: `${heightPct}%` }}
+                          {idx + 1}
+                        </span>
+                        <div className="rst-rank-main">
+                          <span className="rst-rank-title">
+                            {AGENT_LABELS[row.operation] || row.operation}
+                          </span>
+                          <span className="rst-rank-sub numeric">
+                            <span>{formatNumber(row.requests)} استدعاء</span>
+                            <span>
+                              متوسط <bdi>{row.avgLatencyMs}ms</bdi>
+                            </span>
+                            {row.failed > 0 && (
+                              <span className="rst-pill is-red">
+                                {row.failed} فشل
+                              </span>
+                            )}
+                          </span>
+                          <div className="rst-share-bar" aria-hidden="true">
+                            <span
+                              style={{
+                                width: `${pct}%`,
+                                background: idx === 0 ? '#cf480d' : '#008657',
+                              }}
                             />
                           </div>
-                          <div className="usage-bar-label">
-                            {entry.date.slice(5)}
-                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        <div className="rst-rank-end numeric" dir="ltr">
+                          <strong>{formatNumber(row.totalTokens)}</strong>
+                          <small>{formatUsd(row.estimatedCostUsd)}</small>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </section>
 
-            <div className="field-grid panel-spaced">
-              <section className="editor-panel">
-                <div className="editor-body">
-                  <div className="section-heading">
-                    <div>
-                      <h2>تفصيل الاستهلاك حسب الوكيل (AI Agent)</h2>
-                      <p>
-                        عدد الاستدعاءات والتوكنز ومتوسط زمن الاستجابة لكل وكيل.
-                      </p>
-                    </div>
-                  </div>
-                  {data.geminiUsage.byOperation.length === 0 ? (
-                    <p className="inline-help">لا توجد استدعاءات مسجلة بعد.</p>
-                  ) : (
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>الوكيل</th>
-                            <th>الاستدعاءات</th>
-                            <th>التوكنز</th>
-                            <th>الزمن</th>
-                            <th>التكلفة</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.geminiUsage.byOperation.map((row) => (
-                            <tr key={row.operation}>
-                              <td>
-                                <strong>
-                                  {operationLabels[row.operation] ||
-                                    row.operation}
-                                </strong>
-                                {row.failed > 0 && (
-                                  <div className="muted-meta">
-                                    {row.failed} فشل
-                                  </div>
-                                )}
-                              </td>
-                              <td dir="ltr">{formatNumber(row.requests)}</td>
-                              <td dir="ltr">
-                                {formatNumber(row.totalTokens)}
-                                <div className="muted-meta">
-                                  {formatNumber(row.inputTokens)} /{' '}
-                                  {formatNumber(row.outputTokens)}
-                                </div>
-                              </td>
-                              <td dir="ltr">{row.avgLatencyMs}ms</td>
-                              <td dir="ltr">
-                                {formatUsd(row.estimatedCostUsd)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+            <section className="panel rst-card">
+              <div className="rst-card-head">
+                <div>
+                  <h2>نشاط المتدربين والمنصة</h2>
+                  <p className="rst-card-sub">
+                    توزيع الاستخدام الفعلي عبر البرامج والتمارين والوجبات
+                  </p>
                 </div>
-              </section>
+              </div>
 
-              <section className="editor-panel">
-                <div className="editor-body">
-                  <div className="section-heading">
-                    <div>
-                      <h2>
-                        <ShieldCheck size={18} className="heading-icon" />
-                        حالة التوافر والتكاملات الحية
-                      </h2>
-                      <p>
-                        حالة الاتصال المباشر بقاعدة البيانات وخدمة Gemini
-                        والبريد والتخزين والمصادقة.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="integration-grid">
-                    {[
-                      {
-                        title: 'قاعدة البيانات (PostgreSQL)',
-                        icon: Database,
-                        meta: `زمن الاستجابة: ${uptime.liveStatus.database.latencyMs}ms · توافر 24س: ${uptime.availability24h.databaseUptimePct}%`,
-                        status: uptime.integrations.database,
-                      },
-                      {
-                        title: 'خدمة Gemini AI الجانبية',
-                        meta:
-                          uptime.liveStatus.aiService.status === 'UP'
-                            ? `متصلة (${uptime.liveStatus.aiService.latencyMs}ms)${uptime.availability24h.aiServiceUptimePct != null ? ` · توافر 24س: ${uptime.availability24h.aiServiceUptimePct}%` : ''}`
-                            : uptime.liveStatus.aiService.status ===
-                                'NOT_CONFIGURED'
-                              ? 'بانتظار ضبط GEMINI_API_KEY وإعادة النشر'
-                              : 'تعذر الوصول إلى حاوية الذكاء الاصطناعي',
-                        status: uptime.integrations.geminiAi,
-                      },
-                      {
-                        title: 'البريد الإلكتروني (أكواد OTP)',
-                        meta: uptime.integrations.email,
-                        status: uptime.integrations.email,
-                      },
-                      {
-                        title: 'تخزين الوسائط (AWS S3)',
-                        meta: uptime.integrations.s3Storage,
-                        status: uptime.integrations.s3Storage,
-                      },
-                      {
-                        title: 'تسجيل الدخول عبر Google و Apple',
-                        meta: `Google: ${uptime.integrations.googleOAuth === 'CONFIGURED' ? 'مُفعّل' : 'غير مُعدّ'} · Apple: ${uptime.integrations.appleOAuth === 'CONFIGURED' ? 'مُفعّل' : 'غير مُعدّ'}`,
-                        status:
-                          uptime.integrations.googleOAuth === 'CONFIGURED' ||
-                          uptime.integrations.appleOAuth === 'CONFIGURED'
-                            ? 'CONFIGURED'
-                            : 'NOT_CONFIGURED',
-                      },
-                    ].map((row) => {
-                      const badge = integrationStatusMeta(row.status);
-                      return (
-                        <div className="integration-pill" key={row.title}>
-                          <div>
-                            <strong>{row.title}</strong>
-                            <div className="muted-meta">{row.meta}</div>
-                          </div>
-                          <Status
-                            value={badge.tone}
-                            customLabel={badge.label}
-                          />
+              <ol className="rst-rank-list">
+                {engagementRows.map((row, idx) => {
+                  const pct =
+                    row.value > 0
+                      ? Math.max(
+                          8,
+                          Math.round((row.value / maxEngagement) * 100),
+                        )
+                      : 0;
+                  return (
+                    <li key={row.key} className="rst-rank-row">
+                      <span
+                        className={
+                          'rst-rank-num numeric' + (idx === 0 ? ' is-top' : '')
+                        }
+                      >
+                        {idx + 1}
+                      </span>
+                      <div className="rst-rank-main">
+                        <span className="rst-rank-title">
+                          <Layers3 size={13} aria-hidden="true" /> {row.label}
+                        </span>
+                        <span className="rst-rank-sub">{row.sub}</span>
+                        <div className="rst-share-bar" aria-hidden="true">
+                          <span style={{ width: `${pct}%` }} />
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </section>
+                      </div>
+                      <div className="rst-rank-end numeric" dir="ltr">
+                        <strong>{formatNumber(row.value)}</strong>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          </div>
+
+          <section className="panel rst-card">
+            <div className="rst-card-head">
+              <div>
+                <h2>سجل أحدث استدعاءات Gemini</h2>
+                <p className="rst-card-sub">
+                  آخر 25 استدعاءً للموديل بالتوكنز وزمن الاستجابة (بيانات
+                  تشغيلية فقط دون أي بيانات شخصية للمتدربين)
+                </p>
+              </div>
             </div>
 
-            <section className="editor-panel panel-spaced">
-              <div className="editor-body">
-                <div className="section-heading">
-                  <div>
-                    <h2>سجل أحدث استدعاءات Gemini</h2>
-                    <p>
-                      آخر 25 استدعاءً للموديل بالتوكنز وزمن الاستجابة (بيانات
-                      تشغيلية فقط دون أي بيانات شخصية للمتدربين).
-                    </p>
-                  </div>
-                </div>
-                {data.geminiUsage.recentCalls.length === 0 ? (
-                  <p className="inline-help">لا توجد استدعاءات حديثة بعد.</p>
-                ) : (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>التوقيت</th>
-                          <th>الوكيل</th>
-                          <th>الموديل</th>
-                          <th>الحالة</th>
-                          <th>التوكنز (إدخال / إخراج)</th>
-                          <th>الزمن</th>
-                          <th>التكلفة</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.geminiUsage.recentCalls.map((call) => {
-                          const badge = integrationStatusMeta(call.status);
-                          return (
-                            <tr key={call.id}>
-                              <td dir="ltr">
-                                {new Date(call.createdAt).toLocaleString(
-                                  'ar-EG',
-                                )}
-                              </td>
-                              <td>
-                                {operationLabels[call.operation] ||
-                                  call.operation}
-                              </td>
-                              <td dir="ltr">
-                                <code>{call.model}</code>
-                              </td>
-                              <td>
-                                <Status
-                                  value={badge.tone}
-                                  customLabel={badge.label}
-                                />
-                                {call.failureCode && (
-                                  <div className="muted-meta" dir="ltr">
-                                    {call.failureCode}
-                                  </div>
-                                )}
-                              </td>
-                              <td dir="ltr">
-                                {formatNumber(call.totalTokens)} (
-                                {formatNumber(call.inputTokens)} /{' '}
-                                {formatNumber(call.outputTokens)})
-                              </td>
-                              <td dir="ltr">{call.latencyMs}ms</td>
-                              <td dir="ltr">
-                                {formatUsd(call.estimatedCostUsd)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+            {recentCalls.length === 0 ? (
+              <div className="rst-chart-empty">
+                <p>لا توجد استدعاءات حديثة مسجلة بعد.</p>
               </div>
-            </section>
-          </>
-        )
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>التوقيت</th>
+                      <th>الوكيل</th>
+                      <th>الموديل</th>
+                      <th>الحالة</th>
+                      <th>التوكنز (إدخال / إخراج)</th>
+                      <th>الزمن</th>
+                      <th>التكلفة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentCalls.map((call) => {
+                      const badge = integrationStatusMeta(call.status);
+                      return (
+                        <tr key={call.id}>
+                          <td dir="ltr">
+                            {new Date(call.createdAt).toLocaleString('ar-EG')}
+                          </td>
+                          <td>
+                            <strong>
+                              {AGENT_LABELS[call.operation] || call.operation}
+                            </strong>
+                          </td>
+                          <td dir="ltr">
+                            <code>{call.model}</code>
+                          </td>
+                          <td>
+                            <Status
+                              value={badge.tone}
+                              customLabel={badge.label}
+                            />
+                            {call.failureCode && (
+                              <div className="muted-meta" dir="ltr">
+                                {call.failureCode}
+                              </div>
+                            )}
+                          </td>
+                          <td className="numeric" dir="ltr">
+                            {formatNumber(call.totalTokens)} (
+                            {formatNumber(call.inputTokens)} /{' '}
+                            {formatNumber(call.outputTokens)})
+                          </td>
+                          <td className="numeric" dir="ltr">
+                            {call.latencyMs}ms
+                          </td>
+                          <td className="numeric" dir="ltr">
+                            {formatUsd(call.estimatedCostUsd)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
       )}
-    </>
+    </div>
   );
 }
