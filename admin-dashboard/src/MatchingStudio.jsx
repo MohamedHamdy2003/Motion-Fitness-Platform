@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Play, Plus, Sparkles } from 'lucide-react';
 import { listAll } from './api';
+import { readableCode } from './program';
 import { ConfirmDialog, ErrorNotice, Field, Notice, Status } from './ui';
 
 const DEFAULT_INSTRUCTIONS =
@@ -80,7 +81,9 @@ export function MatchingStudio({ api }) {
         method: 'POST',
         body: rulesetForm,
       });
-      setNotice(`Draft ruleset "${created.instruction_version}" created.`);
+      setNotice(
+        `تم إنشاء مسودة قاعدة المطابقة «${created.instruction_version}».`,
+      );
       setSimRulesetId(created.id);
       setReload((v) => v + 1);
     } catch (reason) {
@@ -104,7 +107,7 @@ export function MatchingStudio({ api }) {
           evaluationReference: evalRef.trim() || 'motion-expert-evaluation-v1',
         },
       });
-      setNotice('Ruleset published and activated for automated user matching.');
+      setNotice('تم نشر وتفعيل قاعدة المطابقة الآلية للمستخدمين الجدد.');
       setReload((v) => v + 1);
     } catch (reason) {
       setError(reason);
@@ -152,7 +155,7 @@ export function MatchingStudio({ api }) {
   if (loading) {
     return (
       <div className="loading-list" role="status">
-        <span className="spinner" /> Loading AI matching configuration…
+        <span className="spinner" /> جارٍ تحميل إعدادات المطابقة الذكية…
       </div>
     );
   }
@@ -161,10 +164,10 @@ export function MatchingStudio({ api }) {
     <>
       <header className="page-heading">
         <div>
-          <h1>AI Matching</h1>
+          <h1>المطابقة الذكية للبرامج (AI Matching)</h1>
           <p>
-            Configure versioned Gemini matching rulesets and test automated
-            program selection against anonymous synthetic profiles.
+            إدارة قواعد اختيار البرامج المعتمدة على Gemini وتجربة المطابقة على
+            ملفات تجريبية دون التأثير على أي متدرب حقيقي.
           </p>
         </div>
       </header>
@@ -176,11 +179,10 @@ export function MatchingStudio({ api }) {
           <div className="editor-body">
             <div className="section-heading">
               <div>
-                <h2>Matching Rulesets</h2>
+                <h2>قواعد المطابقة (Rulesets)</h2>
                 <p>
-                  Only one published ruleset is active at a time. The AI
-                  selector automatically matches onboarded users to eligible
-                  published programs.
+                  تُفعّل قاعدة منشورة واحدة فقط في كل وقت، ويتولى النظام مطابقة
+                  كل متدرب جديد تلقائياً مع أفضل برنامج مناسب له.
                 </p>
               </div>
             </div>
@@ -189,22 +191,22 @@ export function MatchingStudio({ api }) {
                 <table>
                   <thead>
                     <tr>
-                      <th>Version</th>
-                      <th>Model</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th>الإصدار</th>
+                      <th>الموديل</th>
+                      <th>الحالة</th>
+                      <th>إجراء</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rulesets.map((r) => (
                       <tr key={r.id}>
                         <td>
-                          <strong>{r.instruction_version}</strong>
+                          <strong dir="ltr">{r.instruction_version}</strong>
                           {r.active && (
-                            <span className="active-badge">Active</span>
+                            <span className="active-badge">نشط</span>
                           )}
                         </td>
-                        <td>
+                        <td dir="ltr">
                           <code>{r.model}</code>
                         </td>
                         <td>
@@ -217,7 +219,7 @@ export function MatchingStudio({ api }) {
                               className="button primary compact"
                               onClick={() => setPublishingId(r.id)}
                             >
-                              <CheckCircle2 size={15} /> Publish
+                              <CheckCircle2 size={15} /> نشر وتفعيل
                             </button>
                           )}
                         </td>
@@ -227,14 +229,15 @@ export function MatchingStudio({ api }) {
                 </table>
               </div>
             ) : (
-              <p className="inline-help">No rulesets created yet.</p>
+              <p className="inline-help">لم تُنشأ قواعد مطابقة بعد.</p>
             )}
 
             <form className="schedule-section" onSubmit={handleCreateRuleset}>
-              <h3>Create Draft Ruleset</h3>
-              <div className="field-grid" style={{ marginTop: 12 }}>
-                <Field label="Instruction version">
+              <h3>إنشاء مسودة قاعدة مطابقة جديدة</h3>
+              <div className="field-grid panel-spaced-sm">
+                <Field label="إصدار التعليمات">
                   <input
+                    dir="ltr"
                     value={rulesetForm.instructionVersion}
                     onChange={(e) =>
                       setRulesetForm({
@@ -246,10 +249,11 @@ export function MatchingStudio({ api }) {
                   />
                 </Field>
                 <Field
-                  label="Remote Gemini model"
-                  hint="Must match AI_MODEL in ai-service (e.g. google/gemini-2.5-flash)."
+                  label="موديل Gemini"
+                  hint="يجب أن يطابق قيمة AI_MODEL في خدمة الذكاء الاصطناعي."
                 >
                   <input
+                    dir="ltr"
                     value={rulesetForm.model}
                     onChange={(e) =>
                       setRulesetForm({ ...rulesetForm, model: e.target.value })
@@ -257,8 +261,9 @@ export function MatchingStudio({ api }) {
                     required
                   />
                 </Field>
-                <Field label="Editorial comparison instructions" full>
+                <Field label="إرشادات المقارنة للموديل" full>
                   <textarea
+                    dir="ltr"
                     rows="3"
                     value={rulesetForm.instructions}
                     onChange={(e) =>
@@ -271,14 +276,13 @@ export function MatchingStudio({ api }) {
                   />
                 </Field>
               </div>
-              <div className="actions" style={{ marginTop: 12 }}>
+              <div className="actions panel-spaced-sm">
                 <button
                   type="submit"
                   className="button secondary"
                   disabled={creating}
                 >
-                  <Plus size={17} />{' '}
-                  {creating ? 'Creating…' : 'Save draft ruleset'}
+                  <Plus size={17} /> {creating ? 'جارٍ الحفظ…' : 'حفظ كمسودة'}
                 </button>
               </div>
             </form>
@@ -290,32 +294,31 @@ export function MatchingStudio({ api }) {
             <div className="section-heading">
               <div>
                 <h2>
-                  <Sparkles size={18} style={{ verticalAlign: 'middle' }} />{' '}
-                  Matching Simulator
+                  <Sparkles size={17} className="heading-icon" />
+                  محاكي المطابقة التفاعلي
                 </h2>
                 <p>
-                  Test Stage 1 eligibility filtering and Stage 2 AI selection on
-                  a synthetic profile without assigning to any user.
+                  اختبر ترشيح البرامج واختيار Gemini الفعلي لملف متدرب افتراضي.
                 </p>
               </div>
             </div>
             <form onSubmit={handleSimulate}>
               <div className="field-grid">
-                <Field label="Ruleset" full>
+                <Field label="قاعدة المطابقة" full>
                   <select
                     value={simRulesetId}
                     onChange={(e) => setSimRulesetId(e.target.value)}
                   >
-                    <option value="">Choose a ruleset</option>
+                    <option value="">اختر قاعدة مطابقة</option>
                     {rulesets.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.instruction_version} ({r.model}) —{' '}
-                        {r.active ? 'ACTIVE' : r.status}
+                        {r.active ? 'نشط' : r.status}
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Primary goal">
+                <Field label="الهدف الأساسي">
                   <select
                     value={simProfile.primaryGoal}
                     onChange={(e) =>
@@ -327,12 +330,12 @@ export function MatchingStudio({ api }) {
                   >
                     {options.goals.map((g) => (
                       <option key={g.code} value={g.code}>
-                        {g.label} ({g.code})
+                        {readableCode(g.code)} ({g.label})
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Fitness level">
+                <Field label="مستوى اللياقة">
                   <select
                     value={simProfile.fitnessLevel}
                     onChange={(e) =>
@@ -344,12 +347,12 @@ export function MatchingStudio({ api }) {
                   >
                     {options.levels.map((l) => (
                       <option key={l.code} value={l.code}>
-                        {l.label}
+                        {readableCode(l.code)}
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Training days / week">
+                <Field label="أيام التدريب أسبوعياً">
                   <select
                     value={simProfile.trainingDaysPerWeek}
                     onChange={(e) =>
@@ -361,12 +364,12 @@ export function MatchingStudio({ api }) {
                   >
                     {[2, 3, 4, 5, 6].map((d) => (
                       <option key={d} value={d}>
-                        {d} days / week
+                        {d} أيام / أسبوع
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Gender">
+                <Field label="النوع">
                   <select
                     value={simProfile.gender}
                     onChange={(e) =>
@@ -375,12 +378,12 @@ export function MatchingStudio({ api }) {
                   >
                     {options.genders.map((g) => (
                       <option key={g.code} value={g.code}>
-                        {g.label}
+                        {readableCode(g.code)}
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Age">
+                <Field label="العمر">
                   <input
                     type="number"
                     min="18"
@@ -394,7 +397,7 @@ export function MatchingStudio({ api }) {
                     }
                   />
                 </Field>
-                <Field label="Height (cm)">
+                <Field label="الطول (سم)">
                   <input
                     type="number"
                     min="100"
@@ -408,7 +411,7 @@ export function MatchingStudio({ api }) {
                     }
                   />
                 </Field>
-                <Field label="Current weight (kg)">
+                <Field label="الوزن الحالي (كجم)">
                   <input
                     type="number"
                     min="30"
@@ -422,7 +425,7 @@ export function MatchingStudio({ api }) {
                     }
                   />
                 </Field>
-                <Field label="Target weight (kg)">
+                <Field label="الوزن المستهدف (كجم)">
                   <input
                     type="number"
                     min="30"
@@ -437,25 +440,26 @@ export function MatchingStudio({ api }) {
                   />
                 </Field>
               </div>
-              <div className="actions" style={{ marginTop: 16 }}>
+              <div className="actions panel-spaced-sm">
                 <button
                   type="submit"
                   className="button primary"
                   disabled={!simRulesetId || simulating}
                 >
-                  <Play size={17} />{' '}
-                  {simulating ? 'Running simulation…' : 'Run simulation'}
+                  <Play size={16} />{' '}
+                  {simulating ? 'جارٍ تشغيل المحاكاة…' : 'تشغيل المحاكاة'}
                 </button>
               </div>
             </form>
 
             {simResult && (
               <div className="sim-result schedule-section">
-                <h3>Simulation Result</h3>
+                <h3>نتيجة المحاكاة</h3>
                 <p className="inline-help">
-                  Status: <strong>{simResult.status}</strong> · Calculated BMI:{' '}
-                  <strong>{simResult.metrics_snapshot?.bmi}</strong> · Stage 1
-                  Eligible Candidates:{' '}
+                  الحالة: <strong dir="ltr">{simResult.status}</strong> · مؤشر
+                  كتلة الجسم (BMI):{' '}
+                  <strong dir="ltr">{simResult.metrics_snapshot?.bmi}</strong> ·
+                  البرامج المرشحة:{' '}
                   <strong>{simResult.candidates?.length || 0}</strong>
                 </p>
                 {simResult.candidates?.length > 0 && (
@@ -468,12 +472,14 @@ export function MatchingStudio({ api }) {
                           key={c.id}
                           className={`exercise-row ${isSelected ? 'selected-candidate' : ''}`}
                         >
-                          <strong>{c.title}</strong>
-                          {isSelected && (
-                            <span className="status published">
-                              Selected by AI
-                            </span>
-                          )}
+                          <div className="candidate-header">
+                            <strong>{c.title}</strong>
+                            {isSelected && (
+                              <span className="status published">
+                                اختيار Gemini
+                              </span>
+                            )}
+                          </div>
                           <p className="inline-help">{c.description}</p>
                         </div>
                       );
@@ -482,13 +488,15 @@ export function MatchingStudio({ api }) {
                 )}
                 {simResult.decision?.reasonCodes?.length > 0 && (
                   <p className="inline-help">
-                    Reason codes:{' '}
-                    <code>{simResult.decision.reasonCodes.join(', ')}</code>
+                    أسباب الاختيار:{' '}
+                    <code dir="ltr">
+                      {simResult.decision.reasonCodes.join(', ')}
+                    </code>
                   </p>
                 )}
                 {simResult.failure_code && (
                   <p className="inline-help">
-                    Note: <code>{simResult.failure_code}</code>
+                    ملاحظة: <code dir="ltr">{simResult.failure_code}</code>
                   </p>
                 )}
               </div>
@@ -499,18 +507,19 @@ export function MatchingStudio({ api }) {
 
       {publishingId && (
         <ConfirmDialog
-          title="Publish and activate this matching ruleset?"
-          action="Publish ruleset"
+          title="نشر وتفعيل قاعدة المطابقة؟"
+          action="نشر وتفعيل"
           onCancel={() => setPublishingId(null)}
           onConfirm={handlePublish}
         >
           <p>
-            Publishing activates this ruleset for automated user matching and
-            archives the previous active ruleset.
+            سيؤدي النشر إلى تفعيل هذه القاعدة للمطابقة التلقائية وأرشفة القاعدة
+            النشطة السابقة.
           </p>
-          <div style={{ marginTop: 12 }}>
-            <Field label="Evaluation reference">
+          <div className="panel-spaced-sm">
+            <Field label="مرجع التقييم">
               <input
+                dir="ltr"
                 value={evalRef}
                 onChange={(e) => setEvalRef(e.target.value)}
               />

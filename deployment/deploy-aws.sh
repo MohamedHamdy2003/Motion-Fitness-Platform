@@ -9,16 +9,18 @@ revision=$(git rev-parse HEAD)
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo 'Deploy a clean checkout'; exit 1; }
 if [[ -n "${1:-}" && "$revision" != "$1" ]]; then echo 'Checkout does not match expected commit'; exit 1; fi
 export MOTION_IMAGE="motion-api:$revision"
-export MOTION_CADDY_IMAGE="motion-caddy:$revision"
+export MOTION_ADMIN_IMAGE="motion-admin:$revision"
 export MOTION_AI_IMAGE="motion-ai:$revision"
 compose=(docker compose --project-name motion-aws --env-file .env.aws -f deployment/compose.aws.yaml)
 "${compose[@]}" config --quiet
-# Build API and Admin-enabled Caddy images.
-docker build --tag "$MOTION_IMAGE" .
-docker build --tag "$MOTION_CADDY_IMAGE" admin-dashboard
-# Validate the proxy configuration before migrating or replacing the API.
+# Validate the proxy configuration before building or migrating.
 "${compose[@]}" run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-previous=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q api)" 2>/dev/null || true)
+previous_api=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q api)" 2>/dev/null || true)
+previous_admin=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q admin)" 2>/dev/null || true)
+
+# Build API and standalone Admin Portal containers independently.
+docker build --tag "$MOTION_IMAGE" .
+docker build --tag "$MOTION_ADMIN_IMAGE" admin-dashboard
 
 # Build and start the isolated private AI sidecar when AI retention & token are configured.
 ai_approved=$(grep -E '^AI_RETENTION_APPROVED=' .env.aws | tail -n1 | cut -d= -f2- | tr -d '\r' || true)
@@ -35,14 +37,26 @@ fi
 "${compose[@]}" run --rm --no-deps api node dist/infrastructure/database/seeds/seed-programs.js
 if ! "${compose[@]}" up --detach --wait --wait-timeout 150 api; then
   echo 'New API failed readiness; database migrations are NOT reverted.'
-  if [[ -n "$previous" ]]; then
-    export MOTION_IMAGE="$previous"
+  if [[ -n "$previous_api" ]]; then
+    export MOTION_IMAGE="$previous_api"
     "${compose[@]}" up --detach --wait --wait-timeout 150 api || true
   else
     "${compose[@]}" stop api || true
   fi
   exit 1
 fi
+
+if ! "${compose[@]}" up --detach --wait --wait-timeout 60 admin; then
+  echo 'New Admin Portal failed readiness; rolling back admin container.'
+  if [[ -n "$previous_admin" ]]; then
+    export MOTION_ADMIN_IMAGE="$previous_admin"
+    "${compose[@]}" up --detach --wait --wait-timeout 60 admin || true
+  else
+    "${compose[@]}" stop admin || true
+  fi
+  exit 1
+fi
+
 "${compose[@]}" up --detach --wait --wait-timeout 60 caddy
 # A bind-mounted configuration can change without Compose recreating the container.
 "${compose[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile

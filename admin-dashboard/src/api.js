@@ -6,18 +6,21 @@ export class ApiError extends Error {
         )
       : [];
     const text = {
-      CONTENT_ACCESS_DENIED:
-        'This dashboard is available to the Motion administrator.',
+      CONTENT_ACCESS_DENIED: 'هذه البوابة مخصصة لحساب مدير النظام فقط.',
       EMAIL_NOT_VERIFIED:
-        'Verify your email with Motion before signing in here.',
+        'يرجى تأكيد البريد الإلكتروني أولاً قبل تسجيل الدخول.',
       CONTENT_MEDIA_NOT_READY:
-        'Choose a ready file from the shared media library.',
+        'يرجى اختيار ملف جاهز من مكتبة الوسائط المشتركة.',
       CONFLICT:
-        'The change conflicts with an existing record. Check for an existing slug.',
-      NOT_FOUND: 'This item could not be found.',
+        'يوجد تعارض مع سجل حالي. تأكد من عدم تكرار المعرّف النصي (Slug).',
+      NOT_FOUND: 'العنصر المطلوب غير موجود.',
+      UNAUTHENTICATED: 'بيانات الدخول غير صحيحة أو انتهت الجلسة.',
+      RATE_LIMITED: 'تم تجاوز الحد المسموح من المحاولات. حاول مجدداً بعد قليل.',
     };
     super(
-      text[body?.code] || body?.message || `Motion API returned ${status}.`,
+      text[body?.code] ||
+        body?.message ||
+        `تعذر تنفيذ الطلب (رمز الاستجابة ${status}).`,
     );
     this.code = body?.code;
     this.status = status;
@@ -40,13 +43,13 @@ async function request(path, { body, method = 'GET', token } = {}) {
     });
   } catch {
     throw new Error(
-      'Could not reach the Motion API. Check the connection and try again.',
+      'تعذر الاتصال بخادم Motion API. تحقق من الاتصال وحاول مرة أخرى.',
     );
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, data);
   if (data === null && res.status !== 204)
-    throw new Error('The Motion API returned an unexpected response.');
+    throw new Error('استجاب الخادم ببيانات غير متوقعة.');
   return data;
 }
 
@@ -60,7 +63,7 @@ export async function login(email, password, onExpired) {
   let closed = false;
 
   async function refreshTokens(oldAccessToken) {
-    if (closed) throw new Error('This session has ended.');
+    if (closed) throw new Error('انتهت هذه الجلسة.');
     if (tokens.accessToken !== oldAccessToken) return;
     refresh ||= request('/auth/refresh', {
       method: 'POST',
@@ -85,7 +88,7 @@ export async function login(email, password, onExpired) {
 
   async function api(path, options) {
     if (Date.now() >= expiresAt - 5000) await refreshTokens(tokens.accessToken);
-    if (closed) throw new Error('This session has ended.');
+    if (closed) throw new Error('انتهت هذه الجلسة.');
     const token = tokens.accessToken;
     try {
       return await request(path, { ...options, token });

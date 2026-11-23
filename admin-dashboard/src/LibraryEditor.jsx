@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { listAll } from './api';
 import { slugify, splitList } from './program';
 import { VersionSelect } from './ProgramEditor';
@@ -101,10 +101,10 @@ function contentForm(kind, item) {
 
 function payload(kind, form, creating) {
   if (!form.title.trim() || !form.slug)
-    throw new Error('Enter a title and a valid slug.');
+    throw new Error('يرجى إدخال الاسم والمعرّف النصي (Slug).');
   if (creating && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
     throw new Error(
-      'Slug must contain only lowercase letters, numbers, and single hyphens.',
+      'يجب أن يتكون المعرّف النصي (Slug) من أحرف إنجليزية صغيرة وأرقام وشرطات مفردة فقط.',
     );
   }
   const slug = creating ? { slug: form.slug.trim() } : {};
@@ -139,7 +139,7 @@ function payload(kind, form, creating) {
       )
     ) {
       throw new Error(
-        'Select a food version, portion grams per unit, and display portion for each exchange member.',
+        'اختر الطعام وكمية الجرامات لكل وحدة والوصف الظاهر لكل بديل.',
       );
     }
     return {
@@ -164,7 +164,7 @@ function payload(kind, form, creating) {
       !form.sourceLicense.trim()
     ) {
       throw new Error(
-        'Enter the description, instructions, muscle groups and source details.',
+        'يرجى إدخال الوصف والتعليمات والمجموعات العضلية وبيانات المصدر.',
       );
     }
     return {
@@ -191,7 +191,7 @@ function payload(kind, form, creating) {
       form.ingredients.some((i) => !i.ingredientId || i.quantityG <= 0)
     ) {
       throw new Error(
-        'Enter preparation instructions and at least one valid ingredient with quantity.',
+        'يرجى إدخال طريقة التحضير ومكوّن واحد صالح على الأقل مع الكمية.',
       );
     }
     const numOrNull = (val) =>
@@ -229,9 +229,7 @@ function payload(kind, form, creating) {
     !form.items.length ||
     form.items.some((item) => !item.memberId || item.exchangeUnits <= 0)
   ) {
-    throw new Error(
-      'Choose a meal section and enter a food and portion for each item.',
-    );
+    throw new Error('اختر قسم الوجبة وأضف طعاماً وكمية لكل عنصر.');
   }
   return {
     ...slug,
@@ -252,7 +250,7 @@ async function getOptions(api, kind) {
         .filter((f) => !f.archived)
         .map((f) => ({
           value: f.version_id,
-          label: `${f.content?.title || f.slug} (v${f.version} · ${f.status})`,
+          label: `${f.content?.title || f.slug} (v${f.version})`,
           status: f.status,
         })),
     };
@@ -264,7 +262,7 @@ async function getOptions(api, kind) {
         .filter((file) => !file.library_archived && file.status === 'READY')
         .map((file) => ({
           value: file.id,
-          label: `${file.mime === 'video/mp4' ? 'Video' : 'Image'} · ${file.id.slice(0, 8)}`,
+          label: `${file.mime === 'video/mp4' ? 'فيديو' : 'صورة'} · ${file.id.slice(0, 8)}`,
         })),
     };
   }
@@ -275,7 +273,7 @@ async function getOptions(api, kind) {
         .filter((i) => !i.archived)
         .map((i) => ({
           value: i.id,
-          label: `${i.title} (${i.verification_status})`,
+          label: `${i.title} (${i.verification_status === 'VERIFIED' ? 'موثّق' : 'غير موثّق'})`,
         })),
     };
   }
@@ -375,7 +373,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
       if (action === 'archive') {
         await api(`${base}/${item.id}`, { method: 'DELETE' });
         onDirty(false);
-        onBack(`${singular} archived.`);
+        onBack(`تمت أرشفة ${singular}.`);
         return;
       }
       let itemId = item?.id;
@@ -401,10 +399,10 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
       setInitial(JSON.stringify(next));
       setSuccess(
         action === 'publish'
-          ? `${singular} published.`
+          ? `تم نشر ${singular} بنجاح.`
           : isUnversioned
-            ? `${singular} saved.`
-            : 'Draft saved.',
+            ? `تم حفظ ${singular}.`
+            : 'تم حفظ المسودة.',
       );
     } catch (reason) {
       setError(reason);
@@ -416,7 +414,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
   if (loading)
     return (
       <div className="loading-list" role="status">
-        <span className="spinner" /> Loading editor…
+        <span className="spinner" /> جارٍ فتح المحرر…
       </div>
     );
   if (loadError)
@@ -434,13 +432,13 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
   return (
     <>
       <button type="button" className="back-link" onClick={() => onBack()}>
-        <ArrowLeft size={17} /> {label}
+        <ArrowRight size={17} /> العودة إلى {label}
       </button>
       <header className="page-heading editor-heading">
         <div>
-          <h1>{item ? form.title : `New ${singular.toLowerCase()}`}</h1>
+          <h1>{item ? form.title : `إضافة ${singular} جديد`}</h1>
           {item && (
-            <p>
+            <p className="editor-meta-line">
               <Status
                 value={
                   item.archived
@@ -449,9 +447,9 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
                       ? 'PUBLISHED'
                       : version?.status
                 }
-              />{' '}
+              />
               {!isUnversioned && version && (
-                <span className="version">Version {version.version}</span>
+                <span className="version">الإصدار {version.version}</span>
               )}
             </p>
           )}
@@ -464,7 +462,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
               disabled={saving}
               onClick={() => setVerify('archive')}
             >
-              Archive
+              أرشفة
             </button>
           )}
           {!item?.archived && (
@@ -474,7 +472,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
               disabled={saving || Boolean(item && !dirty)}
               onClick={() => perform('save')}
             >
-              {saving ? 'Working…' : isUnversioned ? 'Save' : 'Save draft'}
+              {saving ? 'جارٍ الحفظ…' : isUnversioned ? 'حفظ' : 'حفظ المسودة'}
             </button>
           )}
           {!isUnversioned && version?.status === 'DRAFT' && !item.archived && (
@@ -484,7 +482,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
               disabled={saving || dirty}
               onClick={() => setVerify('publish')}
             >
-              Publish
+              نشر
             </button>
           )}
         </div>
@@ -493,23 +491,25 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
       <Notice text={success} />
       {!isUnversioned && version?.status === 'PUBLISHED' && !item.archived && (
         <p className="inline-help">
-          Saving changes creates a new draft version.
+          حفظ أي تعديل ينشئ مسودة إصدار جديد مع الإبقاء على الإصدار المنشور
+          الحالي.
         </p>
       )}
       {!isUnversioned && dirty && version?.status === 'DRAFT' && (
-        <p className="inline-help">Save changes before publishing.</p>
+        <p className="inline-help">احفظ التعديلات أولاً قبل النشر.</p>
       )}
       <section className="editor-panel">
         <fieldset className="unframed" disabled={saving || item?.archived}>
           <div className="editor-body field-grid">
-            <Field label="Title">
+            <Field label="الاسم / العنوان">
               <input name="title" value={form.title} onChange={change} />
             </Field>
             <Field
-              label="Slug"
-              hint="Use lowercase letters, numbers and hyphens."
+              label="المعرّف النصي (Slug)"
+              hint="أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
             >
               <input
+                dir="ltr"
                 name="slug"
                 maxLength="120"
                 value={form.slug}
@@ -554,21 +554,17 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
         <ConfirmDialog
           title={
             verify === 'archive'
-              ? `Archive this ${singular.toLowerCase()}?`
-              : `Publish this ${singular.toLowerCase()}?`
+              ? `أرشفة هذا الـ ${singular}؟`
+              : `نشر هذا الـ ${singular}؟`
           }
-          action={
-            verify === 'archive'
-              ? `Archive ${singular.toLowerCase()}`
-              : `Publish ${singular.toLowerCase()}`
-          }
+          action={verify === 'archive' ? 'تأكيد الأرشفة' : 'تأكيد النشر'}
           destructive={verify === 'archive'}
           onCancel={() => setVerify(null)}
           onConfirm={() => perform(verify)}
         >
           {verify === 'archive'
-            ? 'This item will be removed from available shared content. Its versions are kept.'
-            : 'Programs and meals will be able to use this published version when the API validates its content.'}
+            ? 'سيُزال هذا العنصر من المحتوى المتاح للاستخدام الجديد مع الاحتفاظ بنسخه السابقة.'
+            : 'سيصبح هذا الإصدار متاحاً للاستخدام داخل البرامج والوجبات بعد التحقق من بياناته.'}
         </ConfirmDialog>
       )}
     </>
@@ -578,7 +574,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
 function IngredientFields({ form, change }) {
   return (
     <>
-      <Field label="Description" full>
+      <Field label="الوصف" full>
         <textarea
           name="description"
           rows="2"
@@ -586,32 +582,38 @@ function IngredientFields({ form, change }) {
           onChange={change}
         />
       </Field>
-      <Field label="Verification status">
+      <Field label="حالة التوثيق">
         <select
           name="verificationStatus"
           value={form.verificationStatus}
           onChange={change}
         >
-          <option value="VERIFIED">Verified</option>
-          <option value="UNKNOWN">Unknown</option>
+          <option value="VERIFIED">موثّق (VERIFIED)</option>
+          <option value="UNKNOWN">غير موثّق (UNKNOWN)</option>
         </select>
       </Field>
       <Field
-        label="Allergen codes"
-        hint="Comma-separated codes (e.g. MILK, EGG, WHEAT, PEANUT, FISH)."
+        label="رموز مسببات الحساسية"
+        hint="افصل بينها بفاصلة (مثل: MILK, EGG, WHEAT, PEANUT, FISH)."
       >
         <input
+          dir="ltr"
           name="allergenCodes"
           value={form.allergenCodes}
           onChange={change}
         />
       </Field>
       <Field
-        label="Dietary tags"
-        hint="Optional comma-separated tags (e.g. high_protein, dairy)."
+        label="الوسوم الغذائية"
+        hint="وسوم اختيارية مفصولة بفاصلة (مثل: high_protein, dairy)."
         full
       >
-        <input name="dietaryTags" value={form.dietaryTags} onChange={change} />
+        <input
+          dir="ltr"
+          name="dietaryTags"
+          value={form.dietaryTags}
+          onChange={change}
+        />
       </Field>
     </>
   );
@@ -629,23 +631,23 @@ function FoodSectionFields({ form, update, options }) {
     <div className="full schedule-section">
       <div className="section-heading">
         <div>
-          <h2>Exchange members</h2>
+          <h2>بدائل التبادل الغذائي</h2>
           <p>
-            Add at least two published foods so users can swap items within the
-            same section while preserving portion scaling.
+            أضف طعامين منشورين على الأقل ليتمكن المتدرب من التبديل بينهما مع
+            الحفاظ على السعرات والماكروز.
           </p>
         </div>
       </div>
       {form.members.map((member, i) => (
-        <div className="inline-fields meal-item-row" key={i}>
-          <Field label="Food version">
+        <div className="inline-fields meal-row" key={i}>
+          <Field label="إصدار الطعام">
             <VersionSelect
               value={member.foodVersionId}
               items={options.foods}
               onChange={(foodVersionId) => setMember(i, { foodVersionId })}
             />
           </Field>
-          <Field label="Grams per unit (g)">
+          <Field label="جرام لكل وحدة">
             <input
               type="number"
               min="1"
@@ -656,7 +658,7 @@ function FoodSectionFields({ form, update, options }) {
               }
             />
           </Field>
-          <Field label="Display portion">
+          <Field label="وصف الحصة الظاهر">
             <input
               value={member.displayPortion}
               onChange={(e) => setMember(i, { displayPortion: e.target.value })}
@@ -665,8 +667,8 @@ function FoodSectionFields({ form, update, options }) {
           <button
             className="icon-button"
             type="button"
-            aria-label="Remove exchange member"
-            title="Remove exchange member"
+            aria-label="إزالة البديل"
+            title="إزالة البديل"
             onClick={() =>
               update({
                 members: form.members.filter((_, idx) => idx !== i),
@@ -684,7 +686,7 @@ function FoodSectionFields({ form, update, options }) {
           update({ members: [...form.members, emptySectionMember()] })
         }
       >
-        <Plus size={16} /> Exchange member
+        <Plus size={16} /> إضافة بديل
       </button>
     </div>
   );
@@ -693,7 +695,7 @@ function FoodSectionFields({ form, update, options }) {
 function ExerciseFields({ form, change, update, options }) {
   return (
     <>
-      <Field label="Description" full>
+      <Field label="الوصف" full>
         <textarea
           name="description"
           rows="3"
@@ -701,7 +703,7 @@ function ExerciseFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Instructions" hint="Enter one instruction per line." full>
+      <Field label="خطوات الأداء" hint="اكتب كل خطوة في سطر مستقل." full>
         <textarea
           name="instructions"
           rows="4"
@@ -709,27 +711,28 @@ function ExerciseFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Muscle groups" hint="Separate groups with commas.">
+      <Field label="المجموعات العضلية" hint="افصل بينها بفاصلة.">
         <input
           name="muscleGroups"
           value={form.muscleGroups}
           onChange={change}
         />
       </Field>
-      <Field label="Equipment">
+      <Field label="الأدوات المطلوبة">
         <input name="equipment" value={form.equipment} onChange={change} />
       </Field>
-      <Field label="Source title">
+      <Field label="اسم المصدر">
         <input name="sourceTitle" value={form.sourceTitle} onChange={change} />
       </Field>
-      <Field label="Source reference">
+      <Field label="رابط / مرجع المصدر">
         <input
+          dir="ltr"
           name="sourceReference"
           value={form.sourceReference}
           onChange={change}
         />
       </Field>
-      <Field label="License notes">
+      <Field label="ملاحظات الترخيص">
         <input
           name="sourceLicense"
           value={form.sourceLicense}
@@ -737,8 +740,8 @@ function ExerciseFields({ form, change, update, options }) {
         />
       </Field>
       <Field
-        label="Exercise media"
-        hint="Optional. Select a ready file from the shared media library."
+        label="وسائط التمرين (فيديو / صورة)"
+        hint="اختياري — اختر ملفاً جاهزاً من مكتبة الوسائط."
       >
         <VersionSelect
           value={form.mediaId}
@@ -760,7 +763,7 @@ function FoodFields({ form, change, update, options }) {
   }
   return (
     <>
-      <Field label="Preparation details" full>
+      <Field label="طريقة التحضير" full>
         <textarea
           name="preparation"
           rows="2"
@@ -768,18 +771,18 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Preparation state">
+      <Field label="حالة التحضير">
         <select
           name="preparationState"
           value={form.preparationState}
           onChange={change}
         >
-          <option value="RAW">Raw</option>
-          <option value="COOKED">Cooked</option>
-          <option value="READY_TO_EAT">Ready to eat</option>
+          <option value="RAW">نيء (RAW)</option>
+          <option value="COOKED">مطبوخ (COOKED)</option>
+          <option value="READY_TO_EAT">جاهز للأكل (READY_TO_EAT)</option>
         </select>
       </Field>
-      <Field label="Prep time (minutes)">
+      <Field label="زمن التحضير (بالدقائق)">
         <input
           type="number"
           min="0"
@@ -789,7 +792,7 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Energy (kcal / 100g)">
+      <Field label="السعرات الحرارية (لكل 100 جم)">
         <input
           type="number"
           min="0"
@@ -799,7 +802,7 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Protein (g / 100g)">
+      <Field label="البروتين (جم / 100 جم)">
         <input
           type="number"
           min="0"
@@ -809,7 +812,7 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Carbohydrates (g / 100g)">
+      <Field label="الكربوهيدرات (جم / 100 جم)">
         <input
           type="number"
           min="0"
@@ -819,7 +822,7 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Fat (g / 100g)">
+      <Field label="الدهون (جم / 100 جم)">
         <input
           type="number"
           min="0"
@@ -829,7 +832,7 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Fiber (g / 100g)">
+      <Field label="الألياف (جم / 100 جم)">
         <input
           type="number"
           min="0"
@@ -839,17 +842,18 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="Source title">
+      <Field label="مصدر البيانات الغذائية">
         <input name="sourceTitle" value={form.sourceTitle} onChange={change} />
       </Field>
-      <Field label="Source reference">
+      <Field label="رابط المصدر">
         <input
+          dir="ltr"
           name="sourceReference"
           value={form.sourceReference}
           onChange={change}
         />
       </Field>
-      <Field label="License notes">
+      <Field label="الترخيص">
         <input
           name="sourceLicense"
           value={form.sourceLicense}
@@ -859,23 +863,23 @@ function FoodFields({ form, change, update, options }) {
       <div className="full schedule-section">
         <div className="section-heading">
           <div>
-            <h2>Ingredients</h2>
+            <h2>المكونات المرتبطة</h2>
             <p>
-              Link verified ingredients for deterministic allergen and dislike
-              checks.
+              اربط الطعام بالمكونات الموثقة لتفعيل فحص الحساسية والأطعمة غير
+              المفضلة تلقائياً.
             </p>
           </div>
         </div>
         {form.ingredients.map((item, i) => (
           <div className="inline-fields meal-item-row" key={i}>
-            <Field label="Ingredient">
+            <Field label="المكوّن">
               <VersionSelect
                 value={item.ingredientId}
                 items={options.ingredients}
                 onChange={(ingredientId) => setIngredient(i, { ingredientId })}
               />
             </Field>
-            <Field label="Quantity (g)">
+            <Field label="الكمية (جم)">
               <input
                 type="number"
                 min="0.1"
@@ -889,8 +893,8 @@ function FoodFields({ form, change, update, options }) {
             <button
               className="icon-button"
               type="button"
-              aria-label="Remove ingredient"
-              title="Remove ingredient"
+              aria-label="إزالة المكوّن"
+              title="إزالة المكوّن"
               onClick={() =>
                 update({
                   ingredients: form.ingredients.filter((_, idx) => idx !== i),
@@ -910,7 +914,7 @@ function FoodFields({ form, change, update, options }) {
             })
           }
         >
-          <Plus size={16} /> Ingredient
+          <Plus size={16} /> إضافة مكوّن
         </button>
       </div>
     </>
@@ -928,12 +932,12 @@ function MealFields({ form, change, update, options }) {
 
   return (
     <>
-      <Field label="Meal section" full>
+      <Field label="قسم الوجبة" full>
         <select name="sectionId" value={form.sectionId} onChange={change}>
-          <option value="">Choose a meal section</option>
+          <option value="">اختر قسم الوجبة</option>
           {form.sectionId &&
             !options.sections.some(({ id }) => id === form.sectionId) && (
-              <option value={form.sectionId}>Unavailable section</option>
+              <option value={form.sectionId}>قسم غير متاح</option>
             )}
           {options.sections.map((section) => (
             <option key={section.id} value={section.id}>
@@ -945,23 +949,20 @@ function MealFields({ form, change, update, options }) {
       <div className="full schedule-section">
         <div className="section-heading">
           <div>
-            <h2>Food items</h2>
-            <p>
-              Choose a food from a shared exchange group and set its portion in
-              exchange units.
-            </p>
+            <h2>عناصر الوجبة</h2>
+            <p>اختر الأطعمة من أقسام التبادل الغذائي وحدد عدد وحدات الحصة.</p>
           </div>
         </div>
         {form.items.map((item, i) => (
           <div className="inline-fields meal-item-row" key={i}>
-            <Field label="Food">
+            <Field label="الطعام">
               <VersionSelect
                 value={item.memberId}
                 items={options.members}
                 onChange={(memberId) => setItem(i, { memberId })}
               />
             </Field>
-            <Field label="Exchange units">
+            <Field label="وحدات التبادل">
               <input
                 type="number"
                 min="0.01"
@@ -976,8 +977,8 @@ function MealFields({ form, change, update, options }) {
             <button
               className="icon-button"
               type="button"
-              aria-label="Remove item"
-              title="Remove item"
+              aria-label="إزالة العنصر"
+              title="إزالة العنصر"
               onClick={() =>
                 update({ items: form.items.filter((_, index) => index !== i) })
               }
@@ -992,7 +993,7 @@ function MealFields({ form, change, update, options }) {
           disabled={form.items.length >= 100}
           onClick={() => update({ items: [...form.items, emptyMealItem()] })}
         >
-          <Plus size={16} /> Food item
+          <Plus size={16} /> إضافة عنصر غذائي
         </button>
       </div>
     </>

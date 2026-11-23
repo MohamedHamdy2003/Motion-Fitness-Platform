@@ -16,9 +16,7 @@
 	}
 
 	handle {
-		root * /srv/admin
-		try_files {path} /index.html
-		file_server
+		reverse_proxy admin:8080
 	}
 
 	header {

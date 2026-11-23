@@ -1,10 +1,33 @@
-export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const DAY_LABELS = [
+  'الإثنين',
+  'الثلاثاء',
+  'الأربعاء',
+  'الخميس',
+  'الجمعة',
+  'السبت',
+  'الأحد',
+];
 
-export const readableCode = (code) =>
-  (code || '')
-    .toLowerCase()
-    .replaceAll('_', ' ')
-    .replace(/^./, (character) => character.toUpperCase());
+export const readableCode = (code) => {
+  const map = {
+    FAT_LOSS: 'خسارة الدهون',
+    STRENGTH_HYPERTROPHY: 'القوة وبناء العضلات',
+    GET_FIT_TONED: 'اللياقة وشد الجسم',
+    IMPROVE_ENDURANCE: 'تحسين التحمل',
+    BEGINNER: 'مبتدئ',
+    INTERMEDIATE: 'متوسط',
+    ADVANCED: 'متقدم',
+    MALE: 'ذكر',
+    FEMALE: 'أنثى',
+  };
+  return (
+    map[code] ||
+    (code || '')
+      .toLowerCase()
+      .replaceAll('_', ' ')
+      .replace(/^./, (character) => character.toUpperCase())
+  );
+};
 
 export const slugify = (title) =>
   title
@@ -13,9 +36,10 @@ export const slugify = (title) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 120);
+
 export const splitList = (text) =>
   text
-    .split(/[\n,]/)
+    .split(/[\n,،]/)
     .map((part) => part.trim())
     .filter(Boolean);
 
@@ -42,7 +66,7 @@ export function emptyMealSlot() {
 
 export function emptyMonth(index) {
   return {
-    title: `Month ${index + 1}`,
+    title: `الشهر ${index + 1}`,
     weeks: Array.from({ length: 4 }, () => ({
       days: Array.from({ length: 7 }, () => ({ kind: 'REST', meals: [] })),
     })),
@@ -124,21 +148,21 @@ export function validateProgram(form) {
   ) {
     return {
       message:
-        'Enter the program name, slug, description, primary goal and ideal fitness level.',
+        'يرجى إدخال اسم البرنامج، المعرّف النصي (Slug)، الوصف، الهدف الأساسي، والمستوى المثالي.',
       tab: 'details',
     };
   }
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
     return {
       message:
-        'Slug must contain only lowercase letters, numbers, and single hyphens.',
+        'يجب أن يتكون المعرّف النصي (Slug) من أحرف إنجليزية صغيرة وأرقام وشرطات مفردة فقط.',
       tab: 'details',
     };
   }
   for (const [monthIndex, month] of form.months.entries()) {
     if (!month.title.trim())
       return {
-        message: 'Enter a name for each month.',
+        message: 'يرجى إدخال عنوان لكل شهر في البرنامج.',
         tab: 'schedule',
         month: monthIndex,
       };
@@ -150,7 +174,7 @@ export function validateProgram(form) {
       ) {
         return {
           ...where,
-          message: `Month ${monthIndex + 1}, week ${weekIndex + 1} needs ${form.trainingDaysPerWeek} training days.`,
+          message: `الشهر ${monthIndex + 1}، الأسبوع ${weekIndex + 1} يجب أن يحتوي على ${form.trainingDaysPerWeek} أيام تدريب بالضبط.`,
         };
       }
       for (const [dayIndex, day] of week.days.entries()) {
@@ -164,7 +188,7 @@ export function validateProgram(form) {
           return {
             ...where,
             day: dayIndex,
-            message: `Add a workout title, instructions and an exercise to day ${dayIndex + 1}.`,
+            message: `أضف عنوان التمرين والتعليمات وتمريناً واحداً على الأقل في اليوم ${dayIndex + 1}.`,
           };
         }
         if (
@@ -176,7 +200,7 @@ export function validateProgram(form) {
           return {
             ...where,
             day: dayIndex,
-            message: `Finish entering the meal details for day ${dayIndex + 1}.`,
+            message: `أكمل بيانات الوجبات في اليوم ${dayIndex + 1}.`,
           };
         }
       }

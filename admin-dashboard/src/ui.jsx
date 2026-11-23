@@ -1,6 +1,6 @@
 import {
   AlertCircle,
-  ArrowRight,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
@@ -17,9 +17,9 @@ export function Brand() {
         <i />
         <i />
       </span>
-      <span>
+      <span className="brand-copy">
         <strong>MOTION</strong>
-        <small>Studio</small>
+        <small>بوابة الإدارة</small>
       </span>
     </div>
   );
@@ -33,32 +33,57 @@ export function SideNav({
   onSignOut,
   signingOut,
 }) {
+  const groups = [
+    {
+      title: 'المتابعة والعمليات',
+      keys: ['analytics', 'matching', 'support'],
+    },
+    {
+      title: 'مكتبة التدريب والتغذية',
+      keys: [
+        'programs',
+        'exercises',
+        'meals',
+        'meal-sections',
+        'food-sections',
+        'foods',
+        'ingredients',
+      ],
+    },
+  ];
+
   return (
     <aside className="sidebar">
-      <Brand />
-      <nav
-        aria-label="Content"
-        style={{
-          '--active-nav': sections.findIndex((item) => item.key === section),
-        }}
-      >
-        <span className="nav-slider" aria-hidden="true" />
-        {sections.map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            type="button"
-            aria-current={key === section ? 'page' : undefined}
-            onClick={() => onNavigate({ section: key })}
-          >
-            <Icon size={21} />
-            <span>{label}</span>
-          </button>
-        ))}
+      <div className="sidebar-top">
+        <Brand />
+      </div>
+      <nav aria-label="أقسام بوابة الإدارة" className="sidebar-nav">
+        {groups.map((group) => {
+          const items = group.keys
+            .map((key) => sections.find((entry) => entry.key === key))
+            .filter(Boolean);
+          return (
+            <div className="nav-group" key={group.title}>
+              <div className="nav-group-title">{group.title}</div>
+              {items.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-current={key === section ? 'page' : undefined}
+                  onClick={() => onNavigate({ section: key })}
+                >
+                  <Icon size={18} strokeWidth={1.9} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
       </nav>
       <div className="sidebar-footer">
         <span className="account" title={session.email}>
-          <CircleUserRound size={19} />
-          <span>{session.email}</span>
+          <CircleUserRound size={18} />
+          <span dir="ltr">{session.email}</span>
         </span>
         <button
           className="sign-out"
@@ -66,8 +91,8 @@ export function SideNav({
           onClick={onSignOut}
           disabled={signingOut}
         >
-          <LogOut size={19} />
-          <span>{signingOut ? 'Signing out…' : 'Sign out'}</span>
+          <LogOut size={17} />
+          <span>{signingOut ? 'جارٍ تسجيل الخروج…' : 'تسجيل الخروج'}</span>
         </button>
       </div>
     </aside>
@@ -88,10 +113,12 @@ export function ErrorNotice({ error, onRetry }) {
             ))}
           </ul>
         )}
-        {error.requestId && <small>Request ID {error.requestId}</small>}
+        {error.requestId && (
+          <small dir="ltr">رقم الطلب: {error.requestId}</small>
+        )}
         {onRetry && (
           <button className="button compact" type="button" onClick={onRetry}>
-            Try again
+            إعادة المحاولة
           </button>
         )}
       </div>
@@ -107,14 +134,21 @@ export function Notice({ text }) {
   ) : null;
 }
 
-export function Status({ value }) {
-  const label =
+export function Status({ value, customLabel }) {
+  const tone =
     value === 'PUBLISHED'
-      ? 'Published'
+      ? 'published'
       : value === 'ARCHIVED'
-        ? 'Archived'
-        : 'Draft';
-  return <span className={`status ${label.toLowerCase()}`}>{label}</span>;
+        ? 'archived'
+        : 'draft';
+  const label =
+    customLabel ||
+    (value === 'PUBLISHED'
+      ? 'منشور'
+      : value === 'ARCHIVED'
+        ? 'مؤرشف'
+        : 'مسودة');
+  return <span className={`status ${tone}`}>{label}</span>;
 }
 
 export function Field({ label, hint, children, full = false }) {
@@ -159,7 +193,7 @@ export function ConfirmDialog({
           onClick={onCancel}
           autoFocus
         >
-          Cancel
+          إلغاء
         </button>
         <button
           type="button"
@@ -205,16 +239,16 @@ export function ContentList({
   return (
     <section className="listing" aria-label={label}>
       <div className="list-controls">
-        <div className="filter-tabs" role="group" aria-label="Filter by status">
+        <div className="filter-tabs" role="group" aria-label="تصفية حسب الحالة">
           {[
-            ['', `All ${label.toLowerCase()}`],
+            ['', 'الكل'],
             ...statusFilters.map((status) => [
               status,
               status === 'DRAFT'
-                ? 'Drafts'
+                ? 'مسودات'
                 : status === 'PUBLISHED'
-                  ? 'Published'
-                  : 'Archived',
+                  ? 'منشور'
+                  : 'مؤرشف',
             ]),
           ].map(([value, name]) => (
             <button
@@ -231,11 +265,11 @@ export function ContentList({
           ))}
         </div>
         <label className="search">
-          <Search size={21} aria-hidden="true" />
+          <Search size={18} aria-hidden="true" />
           <input
             type="search"
-            aria-label={`Search ${label.toLowerCase()}`}
-            placeholder={`Search ${label.toLowerCase()}`}
+            aria-label={`بحث في ${label}`}
+            placeholder={`ابحث بالاسم أو المعرّف…`}
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -247,7 +281,7 @@ export function ContentList({
       <ErrorNotice error={error} onRetry={onRetry} />
       {isLoading ? (
         <div className="loading-list" role="status">
-          <span className="spinner" /> Loading {label.toLowerCase()}…
+          <span className="spinner" /> جارٍ تحميل {label}…
         </div>
       ) : (
         !error &&
@@ -257,12 +291,12 @@ export function ContentList({
               <thead>
                 <tr>
                   <th>{singular}</th>
-                  <th>Status</th>
-                  {columns.map(({ label }) => (
-                    <th key={label}>{label}</th>
+                  <th>الحالة</th>
+                  {columns.map(({ label: colLabel }) => (
+                    <th key={colLabel}>{colLabel}</th>
                   ))}
                   <th>
-                    <span className="sr-only">Open</span>
+                    <span className="sr-only">فتح</span>
                   </th>
                 </tr>
               </thead>
@@ -281,18 +315,18 @@ export function ContentList({
                     <td>
                       <Status value={item.status} />
                     </td>
-                    {columns.map(({ label, value }) => (
-                      <td key={label}>{value(item)}</td>
+                    {columns.map(({ label: colLabel, value }) => (
+                      <td key={colLabel}>{value(item)}</td>
                     ))}
-                    <td>
+                    <td className="row-action-cell">
                       <button
                         className="icon-button"
                         type="button"
-                        title={`Open ${item.title}`}
-                        aria-label={`Open ${item.title}`}
+                        title={`فتح ${item.title}`}
+                        aria-label={`فتح ${item.title}`}
                         onClick={() => onOpen(item.id)}
                       >
-                        <ArrowRight size={20} />
+                        <ArrowLeft size={18} />
                       </button>
                     </td>
                   </tr>
@@ -302,24 +336,24 @@ export function ContentList({
           </div>
         ) : (
           <div className="empty-state">
-            <Search size={25} aria-hidden="true" />
+            <Search size={24} aria-hidden="true" />
             <h2>
               {search || filter
-                ? 'No matches'
-                : `No ${label.toLowerCase()} yet`}
+                ? 'لا توجد نتائج مطابقة'
+                : `لا يوجد ${label} بعد`}
             </h2>
             <p>
               {search || filter
-                ? 'Try another search or status filter.'
-                : `Create the first ${singular.toLowerCase()} in the library.`}
+                ? 'جرّب البحث بكلمة مختلفة أو تغيير تصفية الحالة.'
+                : `ابدأ بإضافة أول ${singular} إلى المكتبة.`}
             </p>
             {!search && !filter && (
               <button
-                className="button secondary"
+                className="button primary"
                 type="button"
                 onClick={onCreate}
               >
-                New {singular.toLowerCase()}
+                إضافة {singular}
               </button>
             )}
           </div>
@@ -328,25 +362,25 @@ export function ContentList({
       {filtered.length > pageSize && (
         <div className="pagination">
           <small>
-            {start + 1}–{start + visible.length} of {filtered.length}
+            عرض {start + 1}–{start + visible.length} من أصل {filtered.length}
           </small>
           <button
             type="button"
             className="icon-button"
-            aria-label="Previous page"
+            aria-label="الصفحة السابقة"
             disabled={currentPage === 0}
             onClick={() => setPage(currentPage - 1)}
           >
-            <ChevronLeft size={18} />
+            <ChevronRight size={18} />
           </button>
           <button
             type="button"
             className="icon-button"
-            aria-label="Next page"
+            aria-label="الصفحة التالية"
             disabled={currentPage >= lastPage}
             onClick={() => setPage(currentPage + 1)}
           >
-            <ChevronRight size={18} />
+            <ChevronLeft size={18} />
           </button>
         </div>
       )}

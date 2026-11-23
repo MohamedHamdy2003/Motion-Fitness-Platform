@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Copy,
   Plus,
@@ -16,6 +16,7 @@ import {
   emptyProgram,
   emptyWorkout,
   fromProgram,
+  readableCode,
   slugify,
   splitList,
   validateProgram,
@@ -120,7 +121,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
       if (action === 'archive') {
         await api(`/admin/programs/${loaded.id}`, { method: 'DELETE' });
         onDirty(false);
-        onBack('Program archived.');
+        onBack('تمت أرشفة البرنامج.');
         return;
       }
       const { slug, ...body } = form;
@@ -143,7 +144,9 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
       setLoaded(data);
       setForm(next);
       setInitial(JSON.stringify(next));
-      setSuccess(action === 'publish' ? 'Program published.' : 'Draft saved.');
+      setSuccess(
+        action === 'publish' ? 'تم نشر البرنامج بنجاح.' : 'تم حفظ المسودة.',
+      );
     } catch (reason) {
       setError(reason);
     } finally {
@@ -161,7 +164,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
   if (loading)
     return (
       <div className="loading-list" role="status">
-        <span className="spinner" /> Loading program editor…
+        <span className="spinner" /> جارٍ تحميل محرر البرنامج…
       </div>
     );
   if (loadError)
@@ -179,19 +182,19 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
   return (
     <>
       <button type="button" className="back-link" onClick={() => onBack()}>
-        <ArrowLeft size={17} /> Programs
+        <ArrowRight size={17} /> العودة إلى البرامج التدريبية
       </button>
       <header className="page-heading editor-heading">
         <div>
-          <h1>{loaded ? form.title || loaded.title : 'New program'}</h1>
-          <p>
+          <h1>{loaded ? form.title || loaded.title : 'إنشاء برنامج جديد'}</h1>
+          <p className="editor-meta-line">
             {loaded ? (
               <>
-                <Status value={loaded.archived ? 'ARCHIVED' : loaded.status} />{' '}
-                <span className="version">Version {loaded.version}</span>
+                <Status value={loaded.archived ? 'ARCHIVED' : loaded.status} />
+                <span className="version">الإصدار {loaded.version}</span>
               </>
             ) : (
-              'Set the details and schedule for a new training and nutrition template.'
+              'أدخل تفاصيل البرنامج والجدول الأسبوعي للتدريب والتغذية.'
             )}
           </p>
         </div>
@@ -203,7 +206,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               disabled={saving}
               onClick={() => setVerify('archive')}
             >
-              Archive
+              أرشفة
             </button>
           )}
           {!loaded?.archived && (
@@ -213,7 +216,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               disabled={saving || Boolean(loaded && !dirty)}
               onClick={() => perform('save')}
             >
-              {saving ? 'Working…' : 'Save draft'}
+              {saving ? 'جارٍ الحفظ…' : 'حفظ المسودة'}
             </button>
           )}
           {loaded?.status === 'DRAFT' && !loaded.archived && (
@@ -223,7 +226,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               disabled={saving || dirty}
               onClick={() => setVerify('publish')}
             >
-              Publish
+              نشر البرنامج
             </button>
           )}
         </div>
@@ -232,32 +235,32 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
       <Notice text={success} />
       {loaded?.status === 'PUBLISHED' && !loaded.archived && (
         <p className="inline-help">
-          Saving changes creates a new draft version. The published version
-          stays available.
+          حفظ التعديلات ينشئ مسودة إصدار جديد مع الإبقاء على الإصدار المنشور
+          الحالي للمتدربين.
         </p>
       )}
       {dirty && loaded?.status === 'DRAFT' && (
-        <p className="inline-help">Save changes before publishing.</p>
+        <p className="inline-help">احفظ التعديلات أولاً قبل النشر.</p>
       )}
       <section className="editor-panel">
         <div
           className="filter-tabs editor-tabs"
           role="group"
-          aria-label="Program editor sections"
+          aria-label="أقسام محرر البرنامج"
         >
           <button
             type="button"
             aria-pressed={tab === 'details'}
             onClick={() => setTab('details')}
           >
-            Details
+            التفاصيل الأساسية
           </button>
           <button
             type="button"
             aria-pressed={tab === 'schedule'}
             onClick={() => setTab('schedule')}
           >
-            Schedule
+            الجدول والتدريبات والوجبات
           </button>
           {loaded && (
             <button
@@ -265,7 +268,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               aria-pressed={tab === 'hints'}
               onClick={() => setTab('hints')}
             >
-              AI Matching Hints
+              تلميحات المطابقة الذكية
             </button>
           )}
         </div>
@@ -302,18 +305,16 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
       {verify && (
         <ConfirmDialog
           title={
-            verify === 'archive'
-              ? 'Archive this program?'
-              : 'Publish this program?'
+            verify === 'archive' ? 'أرشفة هذا البرنامج؟' : 'نشر هذا البرنامج؟'
           }
           destructive={verify === 'archive'}
-          action={verify === 'archive' ? 'Archive program' : 'Publish program'}
+          action={verify === 'archive' ? 'تأكيد الأرشفة' : 'تأكيد النشر'}
           onCancel={() => setVerify(null)}
           onConfirm={() => perform(verify)}
         >
           {verify === 'archive'
-            ? 'The program will be removed from the active library. Existing versions remain in the database.'
-            : 'This version will be available for future matching once the API validates its exercises and nutrition schedule.'}
+            ? 'سيُزال البرنامج من البرامج المتاحة للمطابقة المستقبلية مع الاحتفاظ بنسخه في قاعدة البيانات.'
+            : 'سيصبح هذا الإصدار متاحاً للمطابقة التلقائية عبر Gemini بمجرد التحقق من اكتمال التمارين والوجبات.'}
         </ConfirmDialog>
       )}
     </>
@@ -370,7 +371,7 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
       setSummaryText('');
       setNotesText('');
       await onUpdated(
-        'Program hint draft saved. Approve the latest hint before publishing.',
+        'تم حفظ مسودة التلميحات. اعتمد التلميح الأحدث قبل نشر البرنامج.',
       );
     } catch (reason) {
       onError(reason);
@@ -387,7 +388,7 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
         method: 'POST',
         body: {},
       });
-      await onUpdated('Program hint approved for AI matching.');
+      await onUpdated('تم اعتماد تلميحات البرنامج للمطابقة الذكية.');
     } catch (reason) {
       onError(reason);
     } finally {
@@ -402,10 +403,10 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
     <div className="editor-body">
       <div className="section-heading">
         <div>
-          <h2>AI Matching Hints</h2>
+          <h2>تلميحات المطابقة الذكية (AI Matching Hints)</h2>
           <p>
-            Approved structured hints help the Gemini matcher compare eligible
-            programs for a user profile.
+            تساعد التلميحات المعتمدة وكيل Gemini في المفاضلة الدقيقة بين البرامج
+            المؤهلة لملف كل متدرب.
           </p>
         </div>
       </div>
@@ -414,10 +415,11 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
           {hints.map((h) => (
             <div key={h.id} className="exercise-row">
               <div className="section-heading">
-                <strong>Hint v{h.version}</strong>
+                <strong>إصدار التلميح v{h.version}</strong>
                 <div className="actions">
                   <Status
                     value={h.status === 'APPROVED' ? 'PUBLISHED' : 'DRAFT'}
+                    customLabel={h.status === 'APPROVED' ? 'معتمد' : 'مسودة'}
                   />
                   {isDraft &&
                     h.status === 'DRAFT' &&
@@ -428,47 +430,45 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
                         disabled={busy}
                         onClick={() => approveHint(h.id)}
                       >
-                        <CheckCircle2 size={15} /> Approve hint
+                        <CheckCircle2 size={15} /> اعتماد التلميح
                       </button>
                     )}
                 </div>
               </div>
               <p className="inline-help">{h.original_text}</p>
-              <pre className="code-preview">
+              <pre className="code-preview" dir="ltr">
                 {JSON.stringify(h.structured_hints, null, 2)}
               </pre>
             </div>
           ))}
         </div>
       ) : (
-        <p className="inline-help">
-          No hints added to this program version yet.
-        </p>
+        <p className="inline-help">لم تُضف تلميحات لهذا البرنامج بعد.</p>
       )}
 
       {isDraft && (
         <div className="schedule-section field-grid">
-          <Field label="Editorial guidance text" full>
+          <Field label="النص الإرشادي للبرنامج" full>
             <textarea
               rows="3"
               value={originalText}
               onChange={(e) => setOriginalText(e.target.value)}
-              placeholder="Describe who this program fits best (e.g., low-impact fat loss for beginners with dumbbells)…"
+              placeholder="اشرح لمن يناسب هذا البرنامج (مثال: مناسب للمبتدئين لخسارة الدهون بـ 3 أيام أسبوعياً بتمارين خفيفة على المفاصل)…"
             />
           </Field>
-          <Field label="Structured summary">
+          <Field label="الملخص الهيكلي">
             <input
               value={summaryText}
               onChange={(e) => setSummaryText(e.target.value)}
-              placeholder="Concise suitability summary"
+              placeholder="ملخص مختصر لملاءمة البرنامج"
             />
           </Field>
-          <Field label="Suitability notes (one per line)">
+          <Field label="نقاط الملاءمة (نقطة في كل سطر)">
             <textarea
               rows="3"
               value={notesText}
               onChange={(e) => setNotesText(e.target.value)}
-              placeholder="Low-impact lower body&#10;Balanced recovery"
+              placeholder="تمارين منخفضة الضغط على الركبة&#10;توازن ممتاز بين الجهد والاستشفاء"
             />
           </Field>
           <div className="full actions">
@@ -478,7 +478,7 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
               disabled={busy || !originalText.trim()}
               onClick={rewriteWithAi}
             >
-              <Sparkles size={16} /> Extract with AI
+              <Sparkles size={16} /> صياغة تلقائية بـ Gemini
             </button>
             <button
               type="button"
@@ -486,7 +486,7 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
               disabled={busy || !originalText.trim()}
               onClick={saveHintDraft}
             >
-              <Plus size={16} /> Save hint draft
+              <Plus size={16} /> حفظ مسودة التلميح
             </button>
           </div>
         </div>
@@ -538,7 +538,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
 
   return (
     <div className="editor-body field-grid">
-      <Field label="Program name">
+      <Field label="اسم البرنامج">
         <input
           name="title"
           maxLength="160"
@@ -546,8 +546,12 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           onChange={change}
         />
       </Field>
-      <Field label="Slug" hint="Use lowercase letters, numbers and hyphens.">
+      <Field
+        label="المعرّف النصي (Slug)"
+        hint="أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
+      >
         <input
+          dir="ltr"
           name="slug"
           maxLength="120"
           value={form.slug}
@@ -555,7 +559,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           readOnly={slugLocked}
         />
       </Field>
-      <Field label="Description" full>
+      <Field label="وصف البرنامج" full>
         <textarea
           name="description"
           maxLength="4000"
@@ -565,7 +569,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
         />
       </Field>
       <div>
-        <Field label="Primary goal">
+        <Field label="الهدف الأساسي">
           <LookupSelect
             name="primaryGoal"
             value={form.primaryGoal}
@@ -574,7 +578,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           />
         </Field>
         <ChoiceGroup
-          label="Supported goals"
+          label="الأهداف المدعومة"
           items={options.goals}
           checked={form.supportedGoals}
           required={form.primaryGoal}
@@ -582,7 +586,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
         />
       </div>
       <div>
-        <Field label="Ideal fitness level">
+        <Field label="المستوى المثالي">
           <LookupSelect
             name="idealLevel"
             value={form.idealLevel}
@@ -591,25 +595,27 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           />
         </Field>
         <ChoiceGroup
-          label="Supported fitness levels"
+          label="المستويات المدعومة"
           items={options.levels}
           checked={form.supportedLevels}
           required={form.idealLevel}
           onChange={(code, checked) => toggle('supportedLevels', code, checked)}
         />
       </div>
-      <Field label="Training days per week">
+      <Field label="أيام التدريب أسبوعياً">
         <select
           name="trainingDaysPerWeek"
           value={form.trainingDaysPerWeek}
           onChange={change}
         >
           {[2, 3, 4, 5, 6].map((number) => (
-            <option key={number}>{number}</option>
+            <option key={number} value={number}>
+              {number} أيام / أسبوع
+            </option>
           ))}
         </select>
       </Field>
-      <Field label="Editorial priority">
+      <Field label="الأولوية التحريرية">
         <input
           name="editorialPriority"
           type="number"
@@ -619,10 +625,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           onChange={change}
         />
       </Field>
-      <Field
-        label="Required equipment"
-        hint="Separate equipment names with commas."
-      >
+      <Field label="الأدوات المطلوبة" hint="افصل بين الأدوات بفاصلة.">
         <input
           key={form.slug + '-equipment'}
           defaultValue={form.requiredEquipment.join(', ')}
@@ -630,7 +633,7 @@ function ProgramDetails({ form, update, options, slugLocked }) {
           onChange={change}
         />
       </Field>
-      <Field label="Intended audience">
+      <Field label="الفئة المستهدفة">
         <input
           name="intendedAudience"
           maxLength="500"
@@ -645,13 +648,13 @@ function ProgramDetails({ form, update, options, slugLocked }) {
 function LookupSelect({ name, value, items, onChange }) {
   return (
     <select name={name} value={value} onChange={onChange}>
-      <option value="">Choose an option</option>
+      <option value="">اختر قيمة</option>
       {value && !items.some((item) => item.code === value) && (
-        <option value={value}>{value} (unavailable)</option>
+        <option value={value}>{value} (غير متاح)</option>
       )}
       {items.map((item) => (
         <option value={item.code} key={item.code}>
-          {item.label}
+          {readableCode(item.code)} ({item.label})
         </option>
       ))}
     </select>
@@ -667,8 +670,8 @@ function ChoiceGroup({ label, items, checked, required, onChange }) {
       <legend>{label}</legend>
       {[
         ...items,
-        ...inactive.map((code) => ({ code, label: `${code} (unavailable)` })),
-      ].map(({ code, label: name }) => (
+        ...inactive.map((code) => ({ code, label: `${code} (غير متاح)` })),
+      ].map(({ code }) => (
         <label key={code}>
           <input
             type="checkbox"
@@ -676,7 +679,7 @@ function ChoiceGroup({ label, items, checked, required, onChange }) {
             disabled={required === code}
             onChange={(event) => onChange(code, event.target.checked)}
           />{' '}
-          {name}
+          {readableCode(code)}
         </label>
       ))}
     </fieldset>
@@ -732,8 +735,8 @@ function Schedule({ form, update, options, location, setLocation }) {
             ];
         if (!isTraining) return { kind: 'REST', meals };
         const workout = existingDay.workout || {
-          title: `Session ${idx + 1}`,
-          description: 'Complete all prescribed sets with controlled form.',
+          title: `الحصة التدريبية ${idx + 1}`,
+          description: 'أكمل المجموعات المحددة بأداء مضبوط وراحة منتظمة.',
           exercises: [
             {
               exerciseRevisionId: defaultExId,
@@ -755,7 +758,7 @@ function Schedule({ form, update, options, location, setLocation }) {
   return (
     <div className="editor-body schedule">
       <div className="schedule-top">
-        <Field label="Month">
+        <Field label="الشهر">
           <select
             value={month}
             onChange={(event) =>
@@ -768,12 +771,12 @@ function Schedule({ form, update, options, location, setLocation }) {
           >
             {form.months.map((item, i) => (
               <option value={i} key={i}>
-                {item.title || `Month ${i + 1}`}
+                {item.title || `الشهر ${i + 1}`}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Month name">
+        <Field label="عنوان الشهر">
           <input
             maxLength="160"
             value={monthData.title}
@@ -793,12 +796,12 @@ function Schedule({ form, update, options, location, setLocation }) {
             setLocation({ month: form.months.length, week: 0, day: 0 });
           }}
         >
-          <Plus size={17} /> Month
+          <Plus size={17} /> إضافة شهر
         </button>
         <button
           className="icon-button"
-          title="Remove month"
-          aria-label="Remove month"
+          title="حذف الشهر"
+          aria-label="حذف الشهر"
           type="button"
           disabled={form.months.length <= 1}
           onClick={removeMonth}
@@ -807,7 +810,7 @@ function Schedule({ form, update, options, location, setLocation }) {
         </button>
       </div>
       <div className="schedule-weeks">
-        <div className="filter-tabs" role="group" aria-label="Week">
+        <div className="filter-tabs" role="group" aria-label="الأسبوع">
           {monthData.weeks.map((_, i) => (
             <button
               type="button"
@@ -815,7 +818,7 @@ function Schedule({ form, update, options, location, setLocation }) {
               aria-pressed={i === week}
               onClick={() => setLocation({ month, week: i, day: 0 })}
             >
-              Week {i + 1}
+              الأسبوع {i + 1}
             </button>
           ))}
         </div>
@@ -825,18 +828,18 @@ function Schedule({ form, update, options, location, setLocation }) {
             type="button"
             onClick={autoFillWeek}
           >
-            <Wand2 size={16} /> Auto-fill week
+            <Wand2 size={16} /> تعبئة سريعة للأسبوع
           </button>
           <button
             className="button secondary compact"
             type="button"
             onClick={() => setCopyDialog(true)}
           >
-            <Copy size={16} /> Copy to all weeks
+            <Copy size={16} /> نسخ لباقي أسابيع الشهر
           </button>
         </div>
       </div>
-      <div className="days" role="group" aria-label="Day">
+      <div className="days" role="group" aria-label="اليوم">
         {weekData.days.map((item, i) => (
           <button
             type="button"
@@ -844,23 +847,27 @@ function Schedule({ form, update, options, location, setLocation }) {
             aria-pressed={day === i}
             onClick={() => setLocation({ month, week, day: i })}
           >
-            <strong>Day {i + 1}</strong>
-            <small>{item.kind === 'TRAINING' ? 'Training' : 'Rest'}</small>
+            <strong>اليوم {i + 1}</strong>
+            <small>{item.kind === 'TRAINING' ? 'تدريب' : 'راحة'}</small>
           </button>
         ))}
       </div>
       <p className="inline-help">
-        {weekData.days.filter((item) => item.kind === 'TRAINING').length} of{' '}
-        {form.trainingDaysPerWeek} training days scheduled in this week.
+        تم جدولة{' '}
+        <strong>
+          {weekData.days.filter((item) => item.kind === 'TRAINING').length}
+        </strong>{' '}
+        من أصل <strong>{form.trainingDaysPerWeek}</strong> أيام تدريب في هذا
+        الأسبوع.
       </p>
       <div className="day-editor" key={`${month}-${week}-${day}`}>
         <div className="schedule-section">
           <div className="section-heading">
             <div>
-              <h2>Day {day + 1} workout</h2>
-              <p>Choose a training or rest day.</p>
+              <h2>تدريب اليوم {day + 1}</h2>
+              <p>حدد نوع اليوم سواء كان يوم تدريب أو يوم راحة.</p>
             </div>
-            <Field label="Day type">
+            <Field label="نوع اليوم">
               <select
                 value={dayData.kind}
                 onChange={(event) =>
@@ -871,15 +878,15 @@ function Schedule({ form, update, options, location, setLocation }) {
                   })
                 }
               >
-                <option value="REST">Rest</option>
-                <option value="TRAINING">Training</option>
+                <option value="REST">راحة</option>
+                <option value="TRAINING">تدريب</option>
               </select>
             </Field>
           </div>
           {dayData.workout && (
             <>
               <div className="field-grid">
-                <Field label="Workout title">
+                <Field label="عنوان الحصة التدريبية">
                   <input
                     value={dayData.workout.title}
                     maxLength="160"
@@ -890,7 +897,7 @@ function Schedule({ form, update, options, location, setLocation }) {
                     }
                   />
                 </Field>
-                <Field label="Workout instructions">
+                <Field label="تعليمات التمرين">
                   <textarea
                     rows="2"
                     maxLength="4000"
@@ -926,7 +933,7 @@ function Schedule({ form, update, options, location, setLocation }) {
                   )
                 }
               >
-                <Plus size={16} /> Exercise
+                <Plus size={16} /> إضافة تمرين
               </button>
             </>
           )}
@@ -934,13 +941,13 @@ function Schedule({ form, update, options, location, setLocation }) {
         <div className="schedule-section">
           <div className="section-heading">
             <div>
-              <h2>Meals</h2>
-              <p>For publishing, every day needs at least one meal.</p>
+              <h2>الوجبات اليومية</h2>
+              <p>يشترط لنشر البرنامج وجود وجبة واحدة على الأقل لكل يوم.</p>
             </div>
           </div>
           {dayData.meals.map((item, i) => (
             <div key={i} className="inline-fields meal-row">
-              <Field label="Meal">
+              <Field label="الوجبة">
                 <VersionSelect
                   value={item.mealVersionId}
                   items={mealOptions}
@@ -951,8 +958,9 @@ function Schedule({ form, update, options, location, setLocation }) {
                   }
                 />
               </Field>
-              <Field label="Meal type">
+              <Field label="نوع الوجبة">
                 <input
+                  dir="ltr"
                   maxLength="40"
                   value={item.mealType}
                   onChange={(event) =>
@@ -962,7 +970,7 @@ function Schedule({ form, update, options, location, setLocation }) {
                   }
                 />
               </Field>
-              <Field label="Time">
+              <Field label="الموعد">
                 <input
                   type="time"
                   value={item.localTime}
@@ -975,8 +983,8 @@ function Schedule({ form, update, options, location, setLocation }) {
               </Field>
               <button
                 className="icon-button"
-                title="Remove meal"
-                aria-label="Remove meal"
+                title="إزالة الوجبة"
+                aria-label="إزالة الوجبة"
                 type="button"
                 onClick={() => changeDay((copy) => copy.meals.splice(i, 1))}
               >
@@ -992,19 +1000,19 @@ function Schedule({ form, update, options, location, setLocation }) {
               changeDay((copy) => copy.meals.push(emptyMealSlot()))
             }
           >
-            <Plus size={16} /> Meal
+            <Plus size={16} /> إضافة وجبة
           </button>
         </div>
       </div>
       {copyDialog && (
         <ConfirmDialog
-          title="Copy this week to the month?"
-          action="Copy week"
+          title="نسخ هذا الأسبوع لباقي الشهر؟"
+          action="تأكيد النسخ"
           onConfirm={copyWeek}
           onCancel={() => setCopyDialog(false)}
         >
-          The selected week’s workouts and meals will replace the other three
-          weeks in this month.
+          سيتم استبدال تدريبات ووجبات الأسابيع الثلاثة الأخرى في هذا الشهر بنفس
+          محتوى الأسبوع الحالي.
         </ConfirmDialog>
       )}
     </div>
@@ -1014,16 +1022,14 @@ function Schedule({ form, update, options, location, setLocation }) {
 export function VersionSelect({ value, items, onChange }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">Choose an item</option>
+      <option value="">اختر عنصراً</option>
       {value && !items.some((item) => item.value === value) && (
-        <option value={value}>
-          Previously selected version ({value.slice(0, 8)})
-        </option>
+        <option value={value}>إصدار محدد مسبقاً ({value.slice(0, 8)})</option>
       )}
       {items.map((item) => (
         <option key={item.value} value={item.value}>
           {item.label}
-          {item.status === 'DRAFT' ? ' (draft)' : ''}
+          {item.status === 'DRAFT' ? ' (مسودة)' : ''}
         </option>
       ))}
     </select>
@@ -1033,19 +1039,19 @@ export function VersionSelect({ value, items, onChange }) {
 function ExercisePrescription({ item, options, onChange, onRemove }) {
   const p = item.prescription;
   const fields = [
-    ['setCount', 'Sets', 1, 100],
+    ['setCount', 'المجموعات', 1, 100],
     ...(p.mode === 'REPS'
       ? [
-          ['repsMin', 'Reps min', 1, 1000],
-          ['repsMax', 'Reps max', 1, 1000],
+          ['repsMin', 'أدنى تكرار', 1, 1000],
+          ['repsMax', 'أقصى تكرار', 1, 1000],
         ]
-      : [['durationSeconds', 'Seconds', 1, 86400]]),
-    ['restSeconds', 'Rest (sec)', 0, 3600],
+      : [['durationSeconds', 'المدة (ثانية)', 1, 86400]]),
+    ['restSeconds', 'الراحة (ثانية)', 0, 3600],
   ];
   return (
     <div className="exercise-row">
       <div className="inline-fields">
-        <Field label="Exercise">
+        <Field label="التمرين">
           <VersionSelect
             value={item.exerciseRevisionId}
             items={options}
@@ -1056,7 +1062,7 @@ function ExercisePrescription({ item, options, onChange, onRemove }) {
             }
           />
         </Field>
-        <Field label="Prescription">
+        <Field label="نظام القياس">
           <select
             value={p.mode}
             onChange={(event) =>
@@ -1080,14 +1086,14 @@ function ExercisePrescription({ item, options, onChange, onRemove }) {
               })
             }
           >
-            <option value="REPS">Repetitions</option>
-            <option value="DURATION">Duration</option>
+            <option value="REPS">تكرارات</option>
+            <option value="DURATION">زمن بالثواني</option>
           </select>
         </Field>
         <button
           className="icon-button"
-          title="Remove exercise"
-          aria-label="Remove exercise"
+          title="إزالة التمرين"
+          aria-label="إزالة التمرين"
           type="button"
           onClick={onRemove}
         >
