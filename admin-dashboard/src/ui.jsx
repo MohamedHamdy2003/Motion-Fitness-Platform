@@ -6,12 +6,61 @@ import {
   CircleUserRound,
   LoaderCircle,
   LogOut,
+  Moon,
   PanelRightClose,
   PanelRightOpen,
   Search,
+  Sun,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+
+export function ThemeToggle({
+  theme,
+  onToggle,
+  collapsed = false,
+  floating = false,
+}) {
+  const isDark = theme === 'dark';
+  const label = isDark ? 'الوضع النهاري' : 'الوضع الليلي';
+
+  return (
+    <button
+      type="button"
+      className={'theme-toggle' + (floating ? ' is-floating' : '')}
+      data-dark={isDark ? 'true' : 'false'}
+      aria-pressed={isDark}
+      aria-label={
+        isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'
+      }
+      title={
+        collapsed || floating
+          ? isDark
+            ? 'التبديل إلى الوضع النهاري'
+            : 'التبديل إلى الوضع الليلي'
+          : undefined
+      }
+      onClick={onToggle}
+    >
+      {!floating && (
+        <span className="theme-toggle-text nav-label">
+          <span>{label}</span>
+        </span>
+      )}
+      <span className="theme-track" aria-hidden="true">
+        <span className="theme-stars" />
+        <span className="theme-thumb">
+          <span className="theme-icon-sun">
+            <Sun size={13} strokeWidth={2.4} />
+          </span>
+          <span className="theme-icon-moon">
+            <Moon size={13} strokeWidth={2.3} />
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
 
 export function Brand({ compact = false }) {
   return (
@@ -63,6 +112,8 @@ export function SideNav({
   mobileOpen,
   compactNavigation,
   onCloseMobile,
+  theme,
+  onToggleTheme,
 }) {
   const groups = [
     {
@@ -164,6 +215,11 @@ export function SideNav({
           <CircleUserRound size={18} aria-hidden="true" />
           <span dir="ltr">{session.email}</span>
         </span>
+        <ThemeToggle
+          theme={theme}
+          onToggle={onToggleTheme}
+          collapsed={collapsed && !compactNavigation}
+        />
         <button
           ref={logoutTriggerRef}
           className="logout"

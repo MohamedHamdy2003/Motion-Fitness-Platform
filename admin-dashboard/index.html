@@ -10,6 +10,18 @@
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Motion - الإدارة</title>
+    <script>
+      (function () {
+        try {
+          var saved = window.localStorage.getItem('motion.admin.theme.v1');
+          if (saved === 'dark') {
+            document.documentElement.dataset.theme = 'dark';
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#07110e');
+          }
+        } catch (_err) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

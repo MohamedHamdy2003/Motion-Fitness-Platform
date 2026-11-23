@@ -41,6 +41,7 @@ import {
   Field,
   Notice,
   SideNav,
+  ThemeToggle,
 } from './ui';
 
 const sections = [
@@ -231,7 +232,37 @@ function clearRouteHash() {
   );
 }
 
+const THEME_STORAGE_KEY = 'motion.admin.theme.v1';
+
+function readInitialTheme() {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
+      ? 'dark'
+      : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.documentElement.dataset.theme = 'dark';
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', theme === 'dark' ? '#07110e' : '#008657');
+  }
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Ignore storage failures in restricted browser modes.
+  }
+}
+
 function App() {
+  const [theme, setTheme] = useState(() => readInitialTheme());
   const [session, setSession] = useState(null);
   const [restoring, setRestoring] = useState(() => hasStoredSession());
   const [route, setRoute] = useState(() => readRouteFromHash());
@@ -264,6 +295,23 @@ function App() {
     clearRouteHash();
     setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
   }, [setDirty]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    function syncTheme(event) {
+      if (event.key !== THEME_STORAGE_KEY) return;
+      setTheme(event.newValue === 'dark' ? 'dark' : 'light');
+    }
+    window.addEventListener('storage', syncTheme);
+    return () => window.removeEventListener('storage', syncTheme);
+  }, []);
 
   useEffect(() => {
     if (!hasStoredSession()) {
@@ -410,6 +458,8 @@ function App() {
     return (
       <SignIn
         notice={signedOut}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onSignIn={(active) => {
           setSignedOut('');
           setSession(active);
@@ -471,6 +521,8 @@ function App() {
         compactNavigation={compactNavigation}
         onCloseMobile={() => setMobileOpen(false)}
         logoutTriggerRef={logoutTriggerRef}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onRequestSignOut={() => {
           if (!canLeave()) return;
           setMobileOpen(false);
@@ -585,7 +637,7 @@ function App() {
   );
 }
 
-function SignIn({ onSignIn, onExpired, notice }) {
+function SignIn({ onSignIn, onExpired, notice, theme, onToggleTheme }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -613,6 +665,7 @@ function SignIn({ onSignIn, onExpired, notice }) {
   return (
     <main className="auth-layout">
       <section className="auth-main">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} floating />
         <div className="auth-form">
           <div className="auth-mobile-brand">
             <Brand />
