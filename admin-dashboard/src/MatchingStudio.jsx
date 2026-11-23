@@ -1,14 +1,32 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Play, Plus, Sparkles } from 'lucide-react';
+import { CheckCircle2, Play, Sparkles } from 'lucide-react';
 import { listAll } from './api';
 import { readableCode } from './program';
-import { ConfirmDialog, ErrorNotice, Field, Notice, Status } from './ui';
+import { ButtonContent, ErrorNotice, Field, Notice, Status } from './ui';
 
 const DEFAULT_INSTRUCTIONS =
   'Compare all eligible candidate programs against the user profile and BMI context. When multiple candidates share the same primaryGoal, trainingDaysPerWeek, and supportedLevels, prefer candidates whose idealLevel, description, intendedAudience, and approvedHints best align with the user fitnessLevel, current weight vs target weight delta, and training focus.';
 
+const DEFAULT_MODEL = 'google/gemini-3.5-flash-lite';
+
+function generateInstructionVersion() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `gemini-matching-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
+}
+
+function simulationStatusMeta(status) {
+  if (status === 'MATCH')
+    return { tone: 'PUBLISHED', label: 'تم اختيار البرنامج' };
+  if (status === 'NO_MATCH')
+    return { tone: 'DRAFT', label: 'لا يوجد برنامج مطابق' };
+  if (status === 'FAILED') return { tone: 'ARCHIVED', label: 'فشلت المحاكاة' };
+  return { tone: 'INFO', label: 'قيد المعالجة…' };
+}
+
 export function MatchingStudio({ api }) {
-  const [rulesets, setRulesets] = useState([]);
+  const [activeRuleset, setActiveRuleset] = useState(null);
+  const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
   const [options, setOptions] = useState({
     goals: [],
     levels: [],
@@ -17,15 +35,7 @@ export function MatchingStudio({ api }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [publishingId, setPublishingId] = useState(null);
-  const [evalRef, setEvalRef] = useState('motion-expert-evaluation-v1');
-  const [rulesetForm, setRulesetForm] = useState({
-    instructionVersion: 'gemini-matching-v2',
-    model: 'google/gemini-2.5-flash',
-    instructions: DEFAULT_INSTRUCTIONS,
-  });
-  const [simRulesetId, setSimRulesetId] = useState('');
+  const [saving, setSaving] = useState(false);
   const [simProfile, setSimProfile] = useState({
     primaryGoal: 'FAT_LOSS',
     fitnessLevel: 'BEGINNER',
@@ -50,10 +60,12 @@ export function MatchingStudio({ api }) {
     ])
       .then(([loadedRulesets, goals, levels, genders]) => {
         if (!alive) return;
-        setRulesets(loadedRulesets);
-        const active =
-          loadedRulesets.find((r) => r.active) || loadedRulesets[0];
-        if (active) setSimRulesetId((prev) => prev || active.id);
+        const current =
+          loadedRulesets.find((r) => r.active) || loadedRulesets[0] || null;
+        setActiveRuleset(current);
+        if (current?.instructions) {
+          setInstructions(current.instructions);
+        }
         setOptions({
           goals: goals.items || [],
           levels: levels.items || [],
@@ -71,59 +83,56 @@ export function MatchingStudio({ api }) {
     };
   }, [api, reload]);
 
-  async function handleCreateRuleset(event) {
+  async function handleSaveAndActivate(event) {
     event.preventDefault();
+    const trimmed = instructions.trim();
+    if (trimmed.length < 20) {
+      setError(new Error('يرجى كتابة تعليمات مطابقة لا تقل عن 20 حرفاً.'));
+      return;
+    }
     setError(null);
     setNotice('');
-    setCreating(true);
+    setSaving(true);
     try {
       const created = await api('/admin/matching/rulesets', {
         method: 'POST',
-        body: rulesetForm,
+        body: {
+          instructionVersion: generateInstructionVersion(),
+          model: activeRuleset?.model || DEFAULT_MODEL,
+          instructions: trimmed,
+        },
       });
-      setNotice(
-        `تم إنشاء مسودة قاعدة المطابقة «${created.instruction_version}».`,
-      );
-      setSimRulesetId(created.id);
+      await api(`/admin/matching/rulesets/${created.id}/publish`, {
+        method: 'POST',
+        body: {
+          qualityApproved: true,
+          evaluationReference: 'admin-portal-active-instructions',
+        },
+      });
+      setNotice('تم حفظ وتفعيل تعليمات المطابقة النشطة بنجاح.');
       setReload((v) => v + 1);
     } catch (reason) {
       setError(reason);
     } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handlePublish() {
-    if (!publishingId) return;
-    const id = publishingId;
-    setPublishingId(null);
-    setError(null);
-    setNotice('');
-    try {
-      await api(`/admin/matching/rulesets/${id}/publish`, {
-        method: 'POST',
-        body: {
-          qualityApproved: true,
-          evaluationReference: evalRef.trim() || 'motion-expert-evaluation-v1',
-        },
-      });
-      setNotice('تم نشر وتفعيل قاعدة المطابقة الآلية للمستخدمين الجدد.');
-      setReload((v) => v + 1);
-    } catch (reason) {
-      setError(reason);
+      setSaving(false);
     }
   }
 
   async function handleSimulate(event) {
     event.preventDefault();
-    if (!simRulesetId) return;
+    if (!activeRuleset?.id) {
+      setError(
+        new Error('يرجى حفظ وتفعيل تعليمات المطابقة أولاً قبل تشغيل المحاكاة.'),
+      );
+      return;
+    }
     setError(null);
     setNotice('');
     setSimulating(true);
     setSimResult(null);
     try {
       const run = await api(
-        `/admin/matching/rulesets/${simRulesetId}/simulate`,
+        `/admin/matching/rulesets/${activeRuleset.id}/simulate`,
         {
           method: 'POST',
           body: {
@@ -160,14 +169,17 @@ export function MatchingStudio({ api }) {
     );
   }
 
+  const isDirty =
+    instructions.trim() !== (activeRuleset?.instructions || '').trim();
+
   return (
     <>
       <header className="page-heading">
         <div>
           <h1>المطابقة الذكية للبرامج (AI Matching)</h1>
           <p>
-            إدارة قواعد اختيار البرامج المعتمدة على Gemini وتجربة المطابقة على
-            ملفات تجريبية دون التأثير على أي متدرب حقيقي.
+            تعديل تعليمات اختيار البرامج النشطة وتجربة المطابقة على ملفات
+            افتراضية دون التأثير على أي متدرب حقيقي.
           </p>
         </div>
       </header>
@@ -179,110 +191,48 @@ export function MatchingStudio({ api }) {
           <div className="editor-body">
             <div className="section-heading">
               <div>
-                <h2>قواعد المطابقة (Rulesets)</h2>
+                <h2>تعليمات المطابقة النشطة</h2>
                 <p>
-                  تُفعّل قاعدة منشورة واحدة فقط في كل وقت، ويتولى النظام مطابقة
-                  كل متدرب جديد تلقائياً مع أفضل برنامج مناسب له.
+                  التوجيهات التي يعتمد عليها الذكاء الاصطناعي للمفاضلة بين
+                  البرامج المؤهلة لكل متدرب جديد.
                 </p>
               </div>
+              {activeRuleset ? (
+                <Status
+                  value={activeRuleset.active ? 'PUBLISHED' : 'DRAFT'}
+                  customLabel={activeRuleset.active ? 'مفعّلة الآن' : 'مسودة'}
+                />
+              ) : (
+                <Status value="DRAFT" customLabel="غير مفعّلة بعد" />
+              )}
             </div>
-            {rulesets.length > 0 ? (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>الإصدار</th>
-                      <th>الموديل</th>
-                      <th>الحالة</th>
-                      <th>إجراء</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rulesets.map((r) => (
-                      <tr key={r.id}>
-                        <td>
-                          <strong dir="ltr">{r.instruction_version}</strong>
-                          {r.active && (
-                            <span className="active-badge">نشط</span>
-                          )}
-                        </td>
-                        <td dir="ltr">
-                          <code>{r.model}</code>
-                        </td>
-                        <td>
-                          <Status value={r.status} />
-                        </td>
-                        <td>
-                          {r.status === 'DRAFT' && (
-                            <button
-                              type="button"
-                              className="button primary compact"
-                              onClick={() => setPublishingId(r.id)}
-                            >
-                              <CheckCircle2 size={15} /> نشر وتفعيل
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="inline-help">لم تُنشأ قواعد مطابقة بعد.</p>
-            )}
 
-            <form className="schedule-section" onSubmit={handleCreateRuleset}>
-              <h3>إنشاء مسودة قاعدة مطابقة جديدة</h3>
-              <div className="field-grid panel-spaced-sm">
-                <Field label="إصدار التعليمات">
-                  <input
-                    dir="ltr"
-                    value={rulesetForm.instructionVersion}
-                    onChange={(e) =>
-                      setRulesetForm({
-                        ...rulesetForm,
-                        instructionVersion: e.target.value,
-                      })
-                    }
-                    required
-                  />
-                </Field>
-                <Field
-                  label="موديل Gemini"
-                  hint="يجب أن يطابق قيمة AI_MODEL في خدمة الذكاء الاصطناعي."
-                >
-                  <input
-                    dir="ltr"
-                    value={rulesetForm.model}
-                    onChange={(e) =>
-                      setRulesetForm({ ...rulesetForm, model: e.target.value })
-                    }
-                    required
-                  />
-                </Field>
-                <Field label="إرشادات المقارنة للموديل" full>
-                  <textarea
-                    dir="ltr"
-                    rows="3"
-                    value={rulesetForm.instructions}
-                    onChange={(e) =>
-                      setRulesetForm({
-                        ...rulesetForm,
-                        instructions: e.target.value,
-                      })
-                    }
-                    required
-                  />
-                </Field>
-              </div>
+            <form onSubmit={handleSaveAndActivate}>
+              <Field
+                label="إرشادات المقارنة للموديل"
+                hint="عند الحفظ يتم تفعيل هذه التعليمات تلقائياً لجميع عمليات المطابقة الجديدة."
+                full
+              >
+                <textarea
+                  dir="ltr"
+                  rows="8"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  required
+                />
+              </Field>
               <div className="actions panel-spaced-sm">
                 <button
                   type="submit"
-                  className="button secondary"
-                  disabled={creating}
+                  className="button primary"
+                  disabled={
+                    saving || (!isDirty && Boolean(activeRuleset?.active))
+                  }
                 >
-                  <Plus size={17} /> {creating ? 'جارٍ الحفظ…' : 'حفظ كمسودة'}
+                  <ButtonContent busy={saving}>
+                    <CheckCircle2 size={17} aria-hidden="true" />
+                    <span>حفظ وتفعيل التعليمات</span>
+                  </ButtonContent>
                 </button>
               </div>
             </form>
@@ -298,26 +248,13 @@ export function MatchingStudio({ api }) {
                   محاكي المطابقة التفاعلي
                 </h2>
                 <p>
-                  اختبر ترشيح البرامج واختيار Gemini الفعلي لملف متدرب افتراضي.
+                  اختبر ترشيح البرامج واختيار Gemini الفعلي باستخدام التعليمات
+                  النشطة الحالية.
                 </p>
               </div>
             </div>
             <form onSubmit={handleSimulate}>
               <div className="field-grid">
-                <Field label="قاعدة المطابقة" full>
-                  <select
-                    value={simRulesetId}
-                    onChange={(e) => setSimRulesetId(e.target.value)}
-                  >
-                    <option value="">اختر قاعدة مطابقة</option>
-                    {rulesets.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.instruction_version} ({r.model}) —{' '}
-                        {r.active ? 'نشط' : r.status}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
                 <Field label="الهدف الأساسي">
                   <select
                     value={simProfile.primaryGoal}
@@ -444,89 +381,78 @@ export function MatchingStudio({ api }) {
                 <button
                   type="submit"
                   className="button primary"
-                  disabled={!simRulesetId || simulating}
+                  disabled={!activeRuleset?.id || simulating}
                 >
-                  <Play size={16} />{' '}
-                  {simulating ? 'جارٍ تشغيل المحاكاة…' : 'تشغيل المحاكاة'}
+                  <ButtonContent busy={simulating}>
+                    <Play size={16} aria-hidden="true" />
+                    <span>تشغيل المحاكاة</span>
+                  </ButtonContent>
                 </button>
               </div>
             </form>
 
-            {simResult && (
-              <div className="sim-result schedule-section">
-                <h3>نتيجة المحاكاة</h3>
-                <p className="inline-help">
-                  الحالة: <strong dir="ltr">{simResult.status}</strong> · مؤشر
-                  كتلة الجسم (BMI):{' '}
-                  <strong dir="ltr">{simResult.metrics_snapshot?.bmi}</strong> ·
-                  البرامج المرشحة:{' '}
-                  <strong>{simResult.candidates?.length || 0}</strong>
-                </p>
-                {simResult.candidates?.length > 0 && (
-                  <div className="candidate-cards">
-                    {simResult.candidates.map((c) => {
-                      const isSelected =
-                        simResult.decision?.selectedProgramVersionId === c.id;
-                      return (
-                        <div
-                          key={c.id}
-                          className={`exercise-row ${isSelected ? 'selected-candidate' : ''}`}
-                        >
-                          <div className="candidate-header">
-                            <strong>{c.title}</strong>
-                            {isSelected && (
-                              <span className="status published">
-                                اختيار Gemini
-                              </span>
-                            )}
-                          </div>
-                          <p className="inline-help">{c.description}</p>
-                        </div>
-                      );
-                    })}
+            {simResult &&
+              (() => {
+                const badge = simulationStatusMeta(simResult.status);
+                return (
+                  <div className="sim-result schedule-section">
+                    <div className="candidate-header">
+                      <h3>نتيجة المحاكاة</h3>
+                      <Status value={badge.tone} customLabel={badge.label} />
+                    </div>
+                    <p className="inline-help">
+                      مؤشر كتلة الجسم (BMI):{' '}
+                      <strong dir="ltr">
+                        {simResult.metrics_snapshot?.bmi}
+                      </strong>{' '}
+                      · البرامج المرشحة:{' '}
+                      <strong>{simResult.candidates?.length || 0}</strong>
+                    </p>
+                    {simResult.candidates?.length > 0 && (
+                      <div className="candidate-cards">
+                        {simResult.candidates.map((c) => {
+                          const isSelected =
+                            simResult.decision?.selectedProgramVersionId ===
+                            c.id;
+                          return (
+                            <div
+                              key={c.id}
+                              className={`exercise-row ${isSelected ? 'selected-candidate' : ''}`}
+                            >
+                              <div className="candidate-header">
+                                <strong>{c.title}</strong>
+                                {isSelected && (
+                                  <span className="status published">
+                                    اختيار Gemini
+                                  </span>
+                                )}
+                              </div>
+                              <p className="inline-help">{c.description}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {simResult.decision?.reasonCodes?.length > 0 && (
+                      <p className="inline-help">
+                        أسباب الاختيار:{' '}
+                        <code dir="ltr">
+                          {simResult.decision.reasonCodes.join(', ')}
+                        </code>
+                      </p>
+                    )}
+                    {simResult.failure_code && (
+                      <p className="inline-help">
+                        سبب التعذر:{' '}
+                        <code dir="ltr">{simResult.failure_code}</code>
+                      </p>
+                    )}
                   </div>
-                )}
-                {simResult.decision?.reasonCodes?.length > 0 && (
-                  <p className="inline-help">
-                    أسباب الاختيار:{' '}
-                    <code dir="ltr">
-                      {simResult.decision.reasonCodes.join(', ')}
-                    </code>
-                  </p>
-                )}
-                {simResult.failure_code && (
-                  <p className="inline-help">
-                    ملاحظة: <code dir="ltr">{simResult.failure_code}</code>
-                  </p>
-                )}
-              </div>
-            )}
+                );
+              })()}
           </div>
         </section>
       </div>
-
-      {publishingId && (
-        <ConfirmDialog
-          title="نشر وتفعيل قاعدة المطابقة؟"
-          action="نشر وتفعيل"
-          onCancel={() => setPublishingId(null)}
-          onConfirm={handlePublish}
-        >
-          <p>
-            سيؤدي النشر إلى تفعيل هذه القاعدة للمطابقة التلقائية وأرشفة القاعدة
-            النشطة السابقة.
-          </p>
-          <div className="panel-spaced-sm">
-            <Field label="مرجع التقييم">
-              <input
-                dir="ltr"
-                value={evalRef}
-                onChange={(e) => setEvalRef(e.target.value)}
-              />
-            </Field>
-          </div>
-        </ConfirmDialog>
-      )}
     </>
   );
 }

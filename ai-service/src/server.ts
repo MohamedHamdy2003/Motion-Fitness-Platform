@@ -21,6 +21,15 @@ const configuredModel = rawModel
     : `google/${rawModel}`
   : '';
 
+const FALLBACK_MODELS = [
+  'google/gemini-3.5-flash-lite',
+  'google/gemini-3.8-flash',
+  'google/gemini-3.6-flash',
+  'google/gemini-flash-latest',
+  'google/gemini-2.5-flash-lite',
+];
+let activeModel = configuredModel;
+
 const secret = process.env.AI_SERVICE_TOKEN || '';
 if (
   secret.length < 32 ||
@@ -29,6 +38,40 @@ if (
   process.env.DATABASE_URL
 )
   throw new Error('Private AI configuration incomplete or unsafe');
+
+async function runWithModelFallback<T>(
+  runner: (model: string) => Promise<T>,
+): Promise<{ result: T; modelUsed: string }> {
+  const candidates = [
+    activeModel,
+    ...FALLBACK_MODELS.filter((m) => m !== activeModel),
+  ];
+  let lastError: unknown;
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i]!;
+    try {
+      const result = await runner(candidate);
+      if (candidate !== activeModel) {
+        console.warn(
+          `[ai-service] switched active model from ${activeModel} to ${candidate}`,
+        );
+        activeModel = candidate;
+      }
+      return { result, modelUsed: candidate };
+    } catch (error) {
+      lastError = error;
+      const code = classifyAiErrorCode(error);
+      if (code === 'MODEL_NOT_FOUND' && i < candidates.length - 1) {
+        console.warn(
+          `[ai-service] model ${candidate} returned MODEL_NOT_FOUND; trying fallback`,
+        );
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
 
 function classifyAiErrorCode(error: unknown, url?: string): string {
   const err = error as { name?: string; message?: string; statusCode?: number };
@@ -105,7 +148,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200).end(
       JSON.stringify({
         status: 'ok',
-        model: configuredModel,
+        model: activeModel,
         uptimeSeconds: Math.floor(process.uptime()),
         startedAt: stats.startedAt,
         metrics: {
@@ -181,10 +224,12 @@ const server = createServer(async (req, res) => {
         res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
         return;
       }
-      const result = await matchProgram(configuredModel, parsed.data, (u) => {
-        usage = u;
-      });
-      recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
+      const { result, modelUsed } = await runWithModelFallback((model) =>
+        matchProgram(model, { ...parsed.data, model }, (u) => {
+          usage = u;
+        }),
+      );
+      recordUsageHeaders(res, modelUsed, usage, Date.now() - started);
       res.end(JSON.stringify(result));
       return;
     }
@@ -195,10 +240,12 @@ const server = createServer(async (req, res) => {
         res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
         return;
       }
-      const result = await fitProgram(configuredModel, parsed.data, (u) => {
-        usage = u;
-      });
-      recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
+      const { result, modelUsed } = await runWithModelFallback((model) =>
+        fitProgram(model, parsed.data, (u) => {
+          usage = u;
+        }),
+      );
+      recordUsageHeaders(res, modelUsed, usage, Date.now() - started);
       res.end(JSON.stringify(result));
       return;
     }
@@ -210,10 +257,12 @@ const server = createServer(async (req, res) => {
       res.writeHead(400).end(JSON.stringify({ code: 'INVALID_INPUT' }));
       return;
     }
-    const output = await rewrite(configuredModel, input, (u) => {
-      usage = u;
-    });
-    recordUsageHeaders(res, configuredModel, usage, Date.now() - started);
+    const { result: output, modelUsed } = await runWithModelFallback((model) =>
+      rewrite(model, input, (u) => {
+        usage = u;
+      }),
+    );
+    recordUsageHeaders(res, modelUsed, usage, Date.now() - started);
     res.end(JSON.stringify(output));
   } catch (error) {
     stats.requestsFailed += 1;
