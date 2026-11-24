@@ -6,7 +6,14 @@ import './tokens.css';
 import './styles.css';
 
 import { createRoot } from 'react-dom/client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Apple,
   ArrowLeft,
@@ -25,16 +32,10 @@ import {
   Utensils,
   Wheat,
 } from 'lucide-react';
-import { hasStoredSession, listAll, login, restoreSession } from './api';
-import { AnalyticsStudio } from './AnalyticsStudio';
-import { LibraryEditor } from './LibraryEditor';
+import { fetchPage, hasStoredSession, login, restoreSession } from './api';
 import { LogoutConfirmation } from './LogoutConfirmation';
-import { MatchingStudio } from './MatchingStudio';
 import { Presence } from './presence';
-import { ProgramEditor } from './ProgramEditor';
 import { readableCode } from './program';
-import { SupportStudio } from './SupportStudio';
-import { UsersStudio } from './UsersStudio';
 import {
   Brand,
   ButtonContent,
@@ -45,6 +46,25 @@ import {
   SideNav,
   ThemeToggle,
 } from './ui';
+
+const AnalyticsStudio = lazy(() =>
+  import('./AnalyticsStudio').then((m) => ({ default: m.AnalyticsStudio })),
+);
+const LibraryEditor = lazy(() =>
+  import('./LibraryEditor').then((m) => ({ default: m.LibraryEditor })),
+);
+const MatchingStudio = lazy(() =>
+  import('./MatchingStudio').then((m) => ({ default: m.MatchingStudio })),
+);
+const ProgramEditor = lazy(() =>
+  import('./ProgramEditor').then((m) => ({ default: m.ProgramEditor })),
+);
+const SupportStudio = lazy(() =>
+  import('./SupportStudio').then((m) => ({ default: m.SupportStudio })),
+);
+const UsersStudio = lazy(() =>
+  import('./UsersStudio').then((m) => ({ default: m.UsersStudio })),
+);
 
 const sections = [
   {
@@ -617,39 +637,47 @@ function App() {
           data-route={section.key}
         >
           <Notice text={notice} />
-          {section.key === 'analytics' ? (
-            <AnalyticsStudio api={session.api} onNavigate={navigate} />
-          ) : section.key === 'users' ? (
-            <UsersStudio api={session.api} />
-          ) : section.key === 'matching' ? (
-            <MatchingStudio api={session.api} />
-          ) : section.key === 'support' ? (
-            <SupportStudio api={session.api} />
-          ) : navigatingEditor ? (
-            section.key === 'programs' ? (
-              <ProgramEditor
-                id={route.id}
-                api={session.api}
-                onBack={onBack}
-                onDirty={setDirty}
-              />
+          <Suspense
+            fallback={
+              <div className="loading-list" role="status">
+                <span className="spinner" /> جارٍ تحميل الصفحة…
+              </div>
+            }
+          >
+            {section.key === 'analytics' ? (
+              <AnalyticsStudio api={session.api} onNavigate={navigate} />
+            ) : section.key === 'users' ? (
+              <UsersStudio api={session.api} />
+            ) : section.key === 'matching' ? (
+              <MatchingStudio api={session.api} />
+            ) : section.key === 'support' ? (
+              <SupportStudio api={session.api} />
+            ) : navigatingEditor ? (
+              section.key === 'programs' ? (
+                <ProgramEditor
+                  id={route.id}
+                  api={session.api}
+                  onBack={onBack}
+                  onDirty={setDirty}
+                />
+              ) : (
+                <LibraryEditor
+                  section={section}
+                  id={route.id}
+                  api={session.api}
+                  onBack={onBack}
+                  onDirty={setDirty}
+                />
+              )
             ) : (
-              <LibraryEditor
+              <LibraryPage
                 section={section}
-                id={route.id}
                 api={session.api}
-                onBack={onBack}
-                onDirty={setDirty}
+                onOpen={(id) => navigate({ section: section.key, id })}
+                onCreate={() => navigate({ section: section.key, new: true })}
               />
-            )
-          ) : (
-            <LibraryPage
-              section={section}
-              api={session.api}
-              onOpen={(id) => navigate({ section: section.key, id })}
-              onCreate={() => navigate({ section: section.key, new: true })}
-            />
-          )}
+            )}
+          </Suspense>
         </div>
 
         <footer className="main-footer">
@@ -816,35 +844,69 @@ function SignIn({ onSignIn, onExpired, notice, theme, onSelectTheme }) {
   );
 }
 
+const LIBRARY_PAGE_SIZE = 10;
+
 function LibraryPage({ section, api, onCreate, onOpen }) {
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    let alive = true;
-    listAll(api, `/admin/${section.key}`)
-      .then((results) => {
-        if (alive)
-          setItems(
-            results.map((item) => ({
-              ...item,
-              title: item.title || item.content?.title || item.slug,
-              status: item.archived ? 'ARCHIVED' : item.status || 'PUBLISHED',
-            })),
-          );
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(0);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const isInitial = items.length === 0 && !error;
+    if (isInitial) setLoading(true);
+    else setFetching(true);
+    setError(null);
+
+    fetchPage(api, `/admin/${section.key}`, {
+      limit: LIBRARY_PAGE_SIZE,
+      offset: page * LIBRARY_PAGE_SIZE,
+      search,
+      status: filter,
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        const nextItems = (res.items || []).map((item) => ({
+          ...item,
+          title: item.title || item.content?.title || item.slug,
+          status: item.archived ? 'ARCHIVED' : item.status || 'PUBLISHED',
+        }));
+        setItems(nextItems);
+        setTotal(typeof res.total === 'number' ? res.total : nextItems.length);
       })
       .catch((reason) => {
-        if (alive) setError(reason);
+        if (controller.signal.aborted || reason?.name === 'AbortError') return;
+        setError(reason);
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (controller.signal.aborted) return;
+        setLoading(false);
+        setFetching(false);
       });
-    return () => {
-      alive = false;
-    };
-  }, [section.key, api, reload]);
+
+    return () => controller.abort();
+  }, [section.key, api, page, search, filter, reload]);
+
+  const statusFilters =
+    section.key === 'meal-sections' || section.key === 'ingredients'
+      ? ['PUBLISHED', 'ARCHIVED']
+      : ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
 
   return (
     <>
@@ -870,21 +932,29 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
         label={section.label}
         singular={section.singular}
         items={items}
+        total={total}
+        page={page}
+        pageSize={LIBRARY_PAGE_SIZE}
+        onPageChange={setPage}
+        search={searchInput}
+        onSearchChange={setSearchInput}
+        filter={filter}
+        onFilterChange={(nextFilter) => {
+          setFilter(nextFilter);
+          setPage(0);
+        }}
         columns={columns[section.key]}
         isLoading={loading}
+        isFetching={fetching}
         onCreate={onCreate}
         onOpen={onOpen}
         error={error}
         onRetry={() => {
           setError(null);
           setLoading(true);
-          setReload(reload + 1);
+          setReload((value) => value + 1);
         }}
-        statusFilters={
-          section.key === 'programs'
-            ? ['DRAFT', 'PUBLISHED']
-            : ['DRAFT', 'PUBLISHED', 'ARCHIVED']
-        }
+        statusFilters={statusFilters}
       />
     </>
   );

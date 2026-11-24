@@ -7,4 +7,14 @@ export default defineConfig({
   plugins: [react()],
   server: { proxy: { '/api/v1': apiOrigin } },
   preview: { proxy: { '/api/v1': apiOrigin } },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react')) return 'vendor-react';
+          if (id.includes('node_modules/lucide-react')) return 'vendor-icons';
+        },
+      },
+    },
+  },
 });

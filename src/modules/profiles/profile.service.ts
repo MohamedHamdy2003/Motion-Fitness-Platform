@@ -284,19 +284,27 @@ export class ProfileService {
       [id],
     );
     if (!p) throw new ApiError('NOT_FOUND', 404);
-    for (const code of new Set(input.allergen_codes)) {
-      const [a] = await query(
+    const allergenCodes = [...new Set(input.allergen_codes)];
+    if (allergenCodes.length) {
+      const validAllergens = await query(
         m,
-        `SELECT code FROM allergens WHERE code=$1 AND active`,
-        [code],
+        `SELECT code FROM allergens WHERE code = ANY($1::text[]) AND active`,
+        [allergenCodes],
       );
-      if (!a)
+      const knownAllergens = new Set(
+        validAllergens.map((row: { code: string }) => row.code),
+      );
+      const invalidCode = allergenCodes.find(
+        (code) => !knownAllergens.has(code),
+      );
+      if (invalidCode) {
         throw new ApiError(
           'ALLERGEN_CODE_NOT_FOUND',
           422,
-          `Allergen value "${code}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
-          { allergen_code: code },
+          `Allergen value "${invalidCode}" is unavailable or inactive. Fetch GET /references/allergens for currently available values.`,
+          { allergen_code: invalidCode },
         );
+      }
     }
     const all = [...new Set(input.disliked_food_ids)];
     if (all.length) {
@@ -317,18 +325,22 @@ export class ProfileService {
     }
     await query(m, `DELETE FROM user_allergies WHERE user_id=$1`, [id]);
     await query(m, `DELETE FROM user_disliked_foods WHERE user_id=$1`, [id]);
-    for (const code of new Set(input.allergen_codes))
+    if (allergenCodes.length) {
       await query(
         m,
-        `INSERT INTO user_allergies(user_id,allergen_code) VALUES($1,$2)`,
-        [id, code],
+        `INSERT INTO user_allergies(user_id,allergen_code)
+         SELECT $1, code FROM unnest($2::text[]) AS code`,
+        [id, allergenCodes],
       );
-    for (const food of new Set(input.disliked_food_ids))
+    }
+    if (all.length) {
       await query(
         m,
-        `INSERT INTO user_disliked_foods(user_id,food_id) VALUES($1,$2)`,
-        [id, food],
+        `INSERT INTO user_disliked_foods(user_id,food_id)
+         SELECT $1, food_id FROM unnest($2::uuid[]) AS food_id`,
+        [id, all],
       );
+    }
     await this.event(m, id, 'FOOD_PREFERENCES_UPDATED', p.revision);
     return this.getPreferences(id, m);
   }

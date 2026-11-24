@@ -12,6 +12,7 @@ import { NotificationsCheckInsSupportAndIndexes1793448027000 } from './migration
 import { AiUsageAndSystemMetrics1793448028000 } from './migrations/1793448028000-AiUsageAndSystemMetrics';
 import { BilingualFaqWithoutSlug1793448029000 } from './migrations/1793448029000-BilingualFaqWithoutSlug';
 import { UserSuspendedStatus1793448030000 } from './migrations/1793448030000-UserSuspendedStatus';
+import { PerformanceIndexes1793448031000 } from './migrations/1793448031000-PerformanceIndexes';
 import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
@@ -97,6 +98,7 @@ export function databaseOptions(): DataSourceOptions {
       AiUsageAndSystemMetrics1793448028000,
       BilingualFaqWithoutSlug1793448029000,
       UserSuspendedStatus1793448030000,
+      PerformanceIndexes1793448031000,
     ],
     synchronize: false,
     migrationsRun: false,

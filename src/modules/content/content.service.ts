@@ -14,13 +14,64 @@ const tables = {
 @Injectable()
 export class ContentService {
   constructor(@Inject(DataSource) private db: DataSource) {}
-  async list(kind: Kind, limit: number, offset: number) {
-    const [items, versions, fk] = tables[kind];
-    return query(
-      this.db,
-      `SELECT i.*,v.id AS version_id,v.version,v.revision,v.status,v.content FROM ${items} i JOIN LATERAL (SELECT * FROM ${versions} WHERE ${fk}=i.id ORDER BY version DESC LIMIT 1) v ON true ORDER BY i.slug LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+  async list(
+    kind: Kind,
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      includeArchived?: boolean;
+      ids?: string[];
+    } = {},
+  ) {
+    const [itemsTable, versions, fk] = tables[kind];
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(
+        `(v.id = ANY($${params.length}::uuid[]) OR i.id = ANY($${params.length}::uuid[]))`,
+      );
+    }
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('i.archived');
+    } else if (filters.status === 'DRAFT' || filters.status === 'PUBLISHED') {
+      params.push(filters.status);
+      conditions.push(`NOT i.archived AND v.status = $${params.length}`);
+    } else if (filters.includeArchived === false) {
+      conditions.push('NOT i.archived');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(coalesce(v.content->>'title', '') ILIKE $${params.length} OR i.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+    const baseFrom = `FROM ${itemsTable} i JOIN LATERAL (SELECT * FROM ${versions} WHERE ${fk}=i.id ORDER BY version DESC LIMIT 1) v ON true ${whereClause}`;
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT i.*,v.id AS version_id,v.version,v.revision,v.status,v.content ${baseFrom} ORDER BY i.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(this.db, `SELECT count(*)::integer AS total ${baseFrom}`, params),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
   async get(kind: Kind, id: string) {
     const [items, versions, fk] = tables[kind];
@@ -92,16 +143,25 @@ export class ContentService {
       );
       if (!media) throw new ApiError('CONTENT_MEDIA_NOT_READY', 422);
     }
-    if (kind === 'foods')
-      for (const ingredient of (content as z.infer<typeof dto.food>)
-        .ingredients) {
-        const [row] = await query(
+    if (kind === 'foods') {
+      const ingredientIds = [
+        ...new Set(
+          (content as z.infer<typeof dto.food>).ingredients.map(
+            (ingredient) => ingredient.ingredientId,
+          ),
+        ),
+      ];
+      if (ingredientIds.length) {
+        const rows = await query(
           m,
-          `SELECT id FROM ingredients WHERE id=$1 AND NOT archived FOR SHARE`,
-          [ingredient.ingredientId],
+          `SELECT id FROM ingredients WHERE id = ANY($1::uuid[]) AND NOT archived FOR SHARE`,
+          [ingredientIds],
         );
-        if (!row) throw new ApiError('INGREDIENT_UNAVAILABLE', 422);
+        if (rows.length !== ingredientIds.length) {
+          throw new ApiError('INGREDIENT_UNAVAILABLE', 422);
+        }
       }
+    }
   }
   async ingredients(
     m: EntityManager,
@@ -113,12 +173,16 @@ export class ContentService {
     await query(m, `DELETE FROM food_ingredients WHERE food_version_id=$1`, [
       id,
     ]);
-    for (const i of (content as z.infer<typeof dto.food>).ingredients)
-      await query(m, `INSERT INTO food_ingredients VALUES($1,$2,$3)`, [
-        id,
-        i.ingredientId,
-        i.quantityG,
-      ]);
+    const list = (content as z.infer<typeof dto.food>).ingredients;
+    if (list.length) {
+      await query(
+        m,
+        `INSERT INTO food_ingredients(food_version_id, ingredient_id, quantity_g)
+         SELECT $1, ing_id, qty
+         FROM unnest($2::uuid[], $3::numeric[]) AS t(ing_id, qty)`,
+        [id, list.map((i) => i.ingredientId), list.map((i) => i.quantityG)],
+      );
+    }
   }
   async revise(
     kind: Kind,
@@ -200,12 +264,63 @@ export class ContentService {
       return { id, archived: true };
     });
   }
-  async ingredientList(limit: number, offset: number) {
-    return query(
-      this.db,
-      `SELECT i.*,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i ORDER BY slug LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+  async ingredientList(
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      includeArchived?: boolean;
+      ids?: string[];
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(`i.id = ANY($${params.length}::uuid[])`);
+    }
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('i.archived');
+    } else if (
+      filters.status === 'PUBLISHED' ||
+      filters.includeArchived === false
+    ) {
+      conditions.push('NOT i.archived');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(i.title ILIKE $${params.length} OR i.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT i.*,(SELECT description FROM food_reference_items WHERE id=i.id) AS description,ARRAY(SELECT allergen_code FROM ingredient_allergens WHERE ingredient_id=i.id ORDER BY allergen_code) AS allergen_codes FROM ingredients i ${whereClause} ORDER BY i.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(
+        this.db,
+        `SELECT count(*)::integer AS total FROM ingredients i ${whereClause}`,
+        params,
+      ),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
   async saveIngredient(
     data: z.infer<typeof dto.ingredient>,
@@ -271,11 +386,14 @@ export class ContentService {
         `DELETE FROM ingredient_allergens WHERE ingredient_id=$1`,
         [id],
       );
-      for (const code of codes)
-        await query(m, `INSERT INTO ingredient_allergens VALUES($1,$2)`, [
-          id,
-          code,
-        ]);
+      if (codes.length) {
+        await query(
+          m,
+          `INSERT INTO ingredient_allergens(ingredient_id, allergen_code)
+           SELECT $1, code FROM unnest($2::text[]) AS code`,
+          [id, codes],
+        );
+      }
       return (
         await query(
           m,

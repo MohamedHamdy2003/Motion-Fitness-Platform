@@ -98,6 +98,8 @@ export function CustomSelect({
   value,
   onChange,
   options = [],
+  loadOptions,
+  selectedLabel,
   placeholder = 'اختر قيمة…',
   disabled = false,
   ariaLabel,
@@ -107,11 +109,16 @@ export function CustomSelect({
   const [openUp, setOpenUp] = useState(false);
   const [query, setQuery] = useState('');
   const [highlighted, setHighlighted] = useState(-1);
+  const [asyncItems, setAsyncItems] = useState([]);
+  const [loadingAsync, setLoadingAsync] = useState(false);
+  const [pickedLabel, setPickedLabel] = useState('');
   const rootRef = useRef(null);
   const searchRef = useRef(null);
+  const reqSeq = useRef(0);
   const listId = useId();
+  const isAsync = typeof loadOptions === 'function';
 
-  const normalized = useMemo(
+  const normalizedStatic = useMemo(
     () =>
       options.map((opt) => ({
         value: String(opt.value ?? ''),
@@ -121,15 +128,57 @@ export function CustomSelect({
     [options],
   );
 
+  const normalizedAsync = useMemo(
+    () =>
+      asyncItems.map((opt) => ({
+        value: String(opt.value ?? ''),
+        label: String(opt.label ?? opt.value ?? ''),
+        disabled: Boolean(opt.disabled),
+      })),
+    [asyncItems],
+  );
+
   const selectedValue = String(value ?? '');
-  const selectedOption = normalized.find((opt) => opt.value === selectedValue);
-  const showSearch = searchable ?? normalized.length > 8;
+  const selectedOption =
+    normalizedStatic.find((opt) => opt.value === selectedValue) ||
+    normalizedAsync.find((opt) => opt.value === selectedValue);
+  const resolvedLabel =
+    selectedOption?.label ||
+    selectedLabel ||
+    (selectedValue && pickedLabel ? pickedLabel : '');
+  const showSearch = searchable ?? (isAsync || normalizedStatic.length > 8);
 
   const filtered = useMemo(() => {
+    if (isAsync) return normalizedAsync;
     const q = query.trim().toLowerCase();
-    if (!q) return normalized;
-    return normalized.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [normalized, query]);
+    if (!q) return normalizedStatic;
+    return normalizedStatic.filter((opt) =>
+      opt.label.toLowerCase().includes(q),
+    );
+  }, [isAsync, normalizedAsync, normalizedStatic, query]);
+
+  useEffect(() => {
+    if (!open || !isAsync) return;
+    const currentSeq = ++reqSeq.current;
+    setLoadingAsync(true);
+    const delay = query.trim() ? 220 : 0;
+    const timer = setTimeout(() => {
+      Promise.resolve(loadOptions(query.trim()))
+        .then((result) => {
+          if (reqSeq.current !== currentSeq) return;
+          setAsyncItems(Array.isArray(result) ? result : []);
+          setHighlighted(0);
+        })
+        .catch(() => {
+          if (reqSeq.current !== currentSeq) return;
+          setAsyncItems([]);
+        })
+        .finally(() => {
+          if (reqSeq.current === currentSeq) setLoadingAsync(false);
+        });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [open, isAsync, query, loadOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -165,7 +214,7 @@ export function CustomSelect({
       const spaceBelow = window.innerHeight - rect.bottom;
       setOpenUp(spaceBelow < 280 && rect.top > spaceBelow);
       setQuery('');
-      const idx = normalized.findIndex((o) => o.value === selectedValue);
+      const idx = normalizedStatic.findIndex((o) => o.value === selectedValue);
       setHighlighted(idx >= 0 ? idx : 0);
     }
     setOpen((prev) => !prev);
@@ -175,8 +224,9 @@ export function CustomSelect({
     if (option.disabled) return;
     setOpen(false);
     setQuery('');
+    setPickedLabel(option.label);
     if (option.value !== selectedValue) {
-      onChange?.(option.value);
+      onChange?.(option.value, option);
     }
   }
 
@@ -225,10 +275,10 @@ export function CustomSelect({
       >
         <span
           className={
-            'cselect-value' + (!selectedOption ? ' is-placeholder' : '')
+            'cselect-value' + (!resolvedLabel ? ' is-placeholder' : '')
           }
         >
-          {selectedOption ? selectedOption.label : placeholder}
+          {resolvedLabel || placeholder}
         </span>
         <ChevronDown
           size={17}
@@ -246,7 +296,9 @@ export function CustomSelect({
               <input
                 ref={searchRef}
                 type="search"
-                placeholder="بحث سريع في الخيارات…"
+                placeholder={
+                  isAsync ? 'اكتب للبحث من السيرفر…' : 'بحث سريع في الخيارات…'
+                }
                 value={query}
                 onChange={(e) => {
                   setQuery(e.target.value);
@@ -275,44 +327,149 @@ export function CustomSelect({
             </div>
           )}
 
-          <ul id={listId} role="listbox" className="cselect-list">
-            {filtered.length === 0 ? (
-              <li className="cselect-empty">لا توجد خيارات مطابقة</li>
-            ) : (
-              filtered.map((opt, idx) => {
-                const isSelected = opt.value === selectedValue;
-                const isActive = idx === highlighted;
-                return (
-                  <li key={`${opt.value}-${idx}`} role="presentation">
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      disabled={opt.disabled}
-                      className={
-                        'cselect-option' + (isActive ? ' is-highlighted' : '')
-                      }
-                      onMouseEnter={() => setHighlighted(idx)}
-                      onClick={() => pick(opt)}
-                    >
-                      <span className="cselect-option-label">{opt.label}</span>
-                      {isSelected && (
-                        <Check
-                          size={15}
-                          strokeWidth={2.6}
-                          className="cselect-option-check"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>
+          {loadingAsync ? (
+            <div className="cselect-loading" role="status">
+              <LoaderCircle size={15} className="spin" aria-hidden="true" />
+              <span>جارٍ البحث…</span>
+            </div>
+          ) : (
+            <ul id={listId} role="listbox" className="cselect-list">
+              {filtered.length === 0 ? (
+                <li className="cselect-empty">لا توجد خيارات مطابقة</li>
+              ) : (
+                filtered.map((opt, idx) => {
+                  const isSelected = opt.value === selectedValue;
+                  const isActive = idx === highlighted;
+                  return (
+                    <li key={`${opt.value}-${idx}`} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        disabled={opt.disabled}
+                        className={
+                          'cselect-option' + (isActive ? ' is-highlighted' : '')
+                        }
+                        onMouseEnter={() => setHighlighted(idx)}
+                        onClick={() => pick(opt)}
+                      >
+                        <span className="cselect-option-label">
+                          {opt.label}
+                        </span>
+                        {isSelected && (
+                          <Check
+                            size={15}
+                            strokeWidth={2.6}
+                            className="cselect-option-check"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+function buildPageRange(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i);
+  }
+  const pages = new Set([
+    0,
+    totalPages - 1,
+    currentPage,
+    currentPage - 1,
+    currentPage + 1,
+  ]);
+  const sorted = [...pages]
+    .filter((p) => p >= 0 && p < totalPages)
+    .sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push('…');
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
+export function PaginationBar({
+  page,
+  pageSize = 10,
+  total,
+  visibleCount,
+  disabled = false,
+  onPageChange,
+}) {
+  if (!total) return null;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+  const start = safePage * pageSize + 1;
+  const end = Math.min(total, safePage * pageSize + (visibleCount ?? pageSize));
+  const range = buildPageRange(safePage, totalPages);
+
+  return (
+    <nav className="pagination" aria-label="التنقل بين الصفحات">
+      <small className="numeric">
+        عرض {start}–{end} من أصل {total} (صفحة {safePage + 1} من {totalPages})
+      </small>
+      <div className="pagination-controls">
+        <button
+          type="button"
+          className="pagination-btn"
+          aria-label="الصفحة السابقة"
+          disabled={disabled || safePage <= 0}
+          onClick={() => onPageChange(safePage - 1)}
+        >
+          <ChevronRight size={16} aria-hidden="true" />
+          <span>السابق</span>
+        </button>
+
+        {range.map((entry, idx) =>
+          entry === '…' ? (
+            <span
+              key={`ellipsis-${idx}`}
+              className="pagination-ellipsis"
+              aria-hidden="true"
+            >
+              …
+            </span>
+          ) : (
+            <button
+              key={entry}
+              type="button"
+              className={
+                'pagination-btn numeric' +
+                (entry === safePage ? ' is-active' : '')
+              }
+              aria-label={`صفحة ${entry + 1}`}
+              aria-current={entry === safePage ? 'page' : undefined}
+              disabled={disabled}
+              onClick={() => onPageChange(entry)}
+            >
+              {entry + 1}
+            </button>
+          ),
+        )}
+
+        <button
+          type="button"
+          className="pagination-btn"
+          aria-label="الصفحة التالية"
+          disabled={disabled || safePage >= totalPages - 1}
+          onClick={() => onPageChange(safePage + 1)}
+        >
+          <span>التالي</span>
+          <ChevronLeft size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
   );
 }
 
@@ -605,35 +762,27 @@ export function ConfirmDialog({
   );
 }
 
-const pageSize = 12;
-
 export function ContentList({
   label,
   singular,
   items,
+  total,
+  page = 0,
+  pageSize = 10,
+  onPageChange,
+  search = '',
+  onSearchChange,
+  filter = '',
+  onFilterChange,
   columns,
   isLoading,
+  isFetching = false,
   onOpen,
   onCreate,
   error,
   onRetry,
   statusFilters = ['DRAFT', 'PUBLISHED'],
 }) {
-  const [filter, setFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
-  const filtered = items.filter(
-    (item) =>
-      (!filter || item.status === filter) &&
-      [item.title, item.slug].some((value) =>
-        value?.toLowerCase().includes(search.trim().toLowerCase()),
-      ),
-  );
-  const lastPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
-  const currentPage = Math.min(page, lastPage);
-  const start = currentPage * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
-
   return (
     <section className="listing" aria-label={label}>
       <div className="list-controls">
@@ -653,10 +802,7 @@ export function ContentList({
               type="button"
               key={value}
               aria-pressed={filter === value}
-              onClick={() => {
-                setFilter(value);
-                setPage(0);
-              }}
+              onClick={() => onFilterChange?.(value)}
             >
               {name}
             </button>
@@ -669,10 +815,7 @@ export function ContentList({
             aria-label={`بحث في ${label}`}
             placeholder="ابحث بالاسم…"
             value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(0);
-            }}
+            onChange={(event) => onSearchChange?.(event.target.value)}
           />
         </label>
       </div>
@@ -683,55 +826,65 @@ export function ContentList({
         </div>
       ) : (
         !error &&
-        (visible.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{singular}</th>
-                  <th>الحالة</th>
-                  {columns.map(({ label: colLabel }) => (
-                    <th key={colLabel}>{colLabel}</th>
-                  ))}
-                  <th>
-                    <span className="sr-only">فتح</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <button
-                        className="row-title"
-                        type="button"
-                        onClick={() => onOpen(item.id)}
-                      >
-                        {item.title}
-                      </button>
-                    </td>
-                    <td>
-                      <Status value={item.status} />
-                    </td>
-                    {columns.map(({ label: colLabel, value }) => (
-                      <td key={colLabel}>{value(item)}</td>
+        (items.length ? (
+          <>
+            <div className="table-wrap" data-fetching={isFetching || undefined}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{singular}</th>
+                    <th>الحالة</th>
+                    {columns.map(({ label: colLabel }) => (
+                      <th key={colLabel}>{colLabel}</th>
                     ))}
-                    <td className="row-action-cell">
-                      <button
-                        className="icon-button"
-                        type="button"
-                        title={`فتح ${item.title}`}
-                        aria-label={`فتح ${item.title}`}
-                        onClick={() => onOpen(item.id)}
-                      >
-                        <ArrowLeft size={18} />
-                      </button>
-                    </td>
+                    <th>
+                      <span className="sr-only">فتح</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <button
+                          className="row-title"
+                          type="button"
+                          onClick={() => onOpen(item.id)}
+                        >
+                          {item.title}
+                        </button>
+                      </td>
+                      <td>
+                        <Status value={item.status} />
+                      </td>
+                      {columns.map(({ label: colLabel, value }) => (
+                        <td key={colLabel}>{value(item)}</td>
+                      ))}
+                      <td className="row-action-cell">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title={`فتح ${item.title}`}
+                          aria-label={`فتح ${item.title}`}
+                          onClick={() => onOpen(item.id)}
+                        >
+                          <ArrowLeft size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              visibleCount={items.length}
+              disabled={isFetching}
+              onPageChange={onPageChange}
+            />
+          </>
         ) : (
           <div className="empty-state">
             <Search size={24} aria-hidden="true" />
@@ -756,31 +909,6 @@ export function ContentList({
             )}
           </div>
         ))
-      )}
-      {filtered.length > pageSize && (
-        <div className="pagination">
-          <small>
-            عرض {start + 1}–{start + visible.length} من أصل {filtered.length}
-          </small>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="الصفحة السابقة"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            <ChevronRight size={18} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="الصفحة التالية"
-            disabled={currentPage >= lastPage}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            <ChevronLeft size={18} />
-          </button>
-        </div>
       )}
     </section>
   );

@@ -19,12 +19,127 @@ type MealItemInput = {
 export class NutritionLibraryService {
   constructor(@Inject(DataSource) private db: DataSource) {}
 
-  listFoodSections(limit: number, offset: number) {
-    return query(
-      this.db,
-      `SELECT g.*,v.id AS version_id,v.version,v.revision,v.title,v.status,(SELECT count(*)::integer FROM food_exchange_members m WHERE m.group_version_id=v.id) AS member_count FROM food_exchange_groups g JOIN LATERAL(SELECT * FROM food_exchange_group_versions WHERE group_id=g.id ORDER BY version DESC LIMIT 1) v ON true ORDER BY g.slug LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+  async listFoodSections(
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      includeArchived?: boolean;
+      ids?: string[];
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(`g.id = ANY($${params.length}::uuid[])`);
+    }
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('g.archived');
+    } else if (filters.status === 'DRAFT' || filters.status === 'PUBLISHED') {
+      params.push(filters.status);
+      conditions.push(`NOT g.archived AND v.status = $${params.length}`);
+    } else if (filters.includeArchived === false) {
+      conditions.push('NOT g.archived');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(v.title ILIKE $${params.length} OR g.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+    const baseFrom = `FROM food_exchange_groups g JOIN LATERAL(SELECT * FROM food_exchange_group_versions WHERE group_id=g.id ORDER BY version DESC LIMIT 1) v ON true ${whereClause}`;
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT g.*,v.id AS version_id,v.version,v.revision,v.title,v.status,(SELECT count(*)::integer FROM food_exchange_members m WHERE m.group_version_id=v.id) AS member_count ${baseFrom} ORDER BY g.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(this.db, `SELECT count(*)::integer AS total ${baseFrom}`, params),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
+  }
+
+  async listFoodExchangeMembers(
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      ids?: string[];
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = ['NOT g.archived'];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(`m.id = ANY($${params.length}::uuid[])`);
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(coalesce(f.content->>'title', '') ILIKE $${params.length} OR v.title ILIKE $${params.length} OR g.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const baseFrom = `FROM food_exchange_groups g
+      JOIN LATERAL (
+        SELECT * FROM food_exchange_group_versions
+        WHERE group_id = g.id
+        ORDER BY (status = 'PUBLISHED') DESC, version DESC
+        LIMIT 1
+      ) v ON true
+      JOIN food_exchange_members m ON m.group_version_id = v.id
+      JOIN food_versions f ON f.id = m.food_version_id
+      ${whereClause}`;
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT
+           m.id,
+           g.id AS group_id,
+           v.id AS group_version_id,
+           v.title AS group_title,
+           v.status AS group_status,
+           m.food_version_id,
+           m.portion_g_per_unit,
+           m.display_portion,
+           f.content->>'title' AS food_title,
+           f.status AS food_status,
+           CASE WHEN f.status = 'PUBLISHED' THEN v.status ELSE f.status END AS status
+         ${baseFrom}
+         ORDER BY f.content->>'title' ASC, v.title ASC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(this.db, `SELECT count(*)::integer AS total ${baseFrom}`, params),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
 
   async getFoodSection(id: string) {
@@ -39,12 +154,27 @@ export class NutritionLibraryService {
       `SELECT * FROM food_exchange_group_versions WHERE group_id=$1 ORDER BY version DESC`,
       [id],
     );
-    for (const version of versions)
-      version.members = await query(
-        this.db,
-        `SELECT m.*,f.food_id,f.version AS food_version,f.status AS food_status,f.content->>'title' AS food_title FROM food_exchange_members m JOIN food_versions f ON f.id=m.food_version_id WHERE m.group_version_id=$1 ORDER BY f.content->>'title'`,
-        [version.id],
-      );
+    const versionIds = versions.map((v: { id: string }) => v.id);
+    const allMembers = versionIds.length
+      ? await query(
+          this.db,
+          `SELECT m.*,f.food_id,f.version AS food_version,f.status AS food_status,f.content->>'title' AS food_title
+           FROM food_exchange_members m
+           JOIN food_versions f ON f.id=m.food_version_id
+           WHERE m.group_version_id = ANY($1::uuid[])
+           ORDER BY f.content->>'title'`,
+          [versionIds],
+        )
+      : [];
+    const byVersion = new Map<string, Record<string, unknown>[]>();
+    for (const member of allMembers) {
+      const list = byVersion.get(member.group_version_id) ?? [];
+      list.push(member);
+      byVersion.set(member.group_version_id, list);
+    }
+    for (const version of versions) {
+      version.members = byVersion.get(version.id) ?? [];
+    }
     return { ...group, versions };
   }
 
@@ -177,12 +307,63 @@ export class NutritionLibraryService {
     });
   }
 
-  async listMealSections(limit: number, offset: number) {
-    return query(
-      this.db,
-      `SELECT s.*,(SELECT count(*)::integer FROM meal_versions v WHERE v.section_id=s.id AND v.status='PUBLISHED') AS published_meal_count FROM meal_sections s ORDER BY s.slug LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+  async listMealSections(
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      includeArchived?: boolean;
+      ids?: string[];
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(`s.id = ANY($${params.length}::uuid[])`);
+    }
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('s.archived');
+    } else if (
+      filters.status === 'PUBLISHED' ||
+      filters.includeArchived === false
+    ) {
+      conditions.push('NOT s.archived');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(s.title ILIKE $${params.length} OR s.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT s.*,(SELECT count(*)::integer FROM meal_versions v WHERE v.section_id=s.id AND v.status='PUBLISHED') AS published_meal_count FROM meal_sections s ${whereClause} ORDER BY s.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(
+        this.db,
+        `SELECT count(*)::integer AS total FROM meal_sections s ${whereClause}`,
+        params,
+      ),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
 
   async getMealSection(id: string) {
@@ -230,12 +411,62 @@ export class NutritionLibraryService {
     ).then((rows) => rows[0]);
   }
 
-  listMeals(limit: number, offset: number) {
-    return query(
-      this.db,
-      `SELECT m.*,v.id AS version_id,v.version,v.revision,v.section_id,v.title,v.status,v.availability_status FROM meals m JOIN LATERAL(SELECT * FROM meal_versions WHERE meal_id=m.id ORDER BY version DESC LIMIT 1) v ON true ORDER BY m.slug LIMIT $1 OFFSET $2`,
-      [limit, offset],
-    );
+  async listMeals(
+    limit: number,
+    offset: number,
+    filters: {
+      search?: string;
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      includeArchived?: boolean;
+      ids?: string[];
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.ids?.length) {
+      params.push(filters.ids);
+      conditions.push(
+        `(v.id = ANY($${params.length}::uuid[]) OR m.id = ANY($${params.length}::uuid[]))`,
+      );
+    }
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('m.archived');
+    } else if (filters.status === 'DRAFT' || filters.status === 'PUBLISHED') {
+      params.push(filters.status);
+      conditions.push(`NOT m.archived AND v.status = $${params.length}`);
+    } else if (filters.includeArchived === false) {
+      conditions.push('NOT m.archived');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(v.title ILIKE $${params.length} OR m.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+    const baseFrom = `FROM meals m JOIN LATERAL(SELECT * FROM meal_versions WHERE meal_id=m.id ORDER BY version DESC LIMIT 1) v ON true ${whereClause}`;
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT m.*,v.id AS version_id,v.version,v.revision,v.section_id,v.title,v.status,v.availability_status ${baseFrom} ORDER BY m.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(this.db, `SELECT count(*)::integer AS total ${baseFrom}`, params),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
 
   async getMeal(id: string) {
@@ -248,12 +479,28 @@ export class NutritionLibraryService {
       `SELECT * FROM meal_versions WHERE meal_id=$1 ORDER BY version DESC`,
       [id],
     );
-    for (const version of versions)
-      version.items = await query(
-        this.db,
-        `SELECT i.*,m.group_version_id,m.food_version_id,m.portion_g_per_unit,m.display_portion,f.content->>'title' AS food_title,f.status AS food_status FROM meal_items i JOIN food_exchange_members m ON m.id=i.default_exchange_member_id JOIN food_versions f ON f.id=m.food_version_id WHERE i.meal_version_id=$1 ORDER BY i.position`,
-        [version.id],
-      );
+    const versionIds = versions.map((v: { id: string }) => v.id);
+    const allItems = versionIds.length
+      ? await query(
+          this.db,
+          `SELECT i.*,m.group_version_id,m.food_version_id,m.portion_g_per_unit,m.display_portion,f.content->>'title' AS food_title,f.status AS food_status
+           FROM meal_items i
+           JOIN food_exchange_members m ON m.id=i.default_exchange_member_id
+           JOIN food_versions f ON f.id=m.food_version_id
+           WHERE i.meal_version_id = ANY($1::uuid[])
+           ORDER BY i.position`,
+          [versionIds],
+        )
+      : [];
+    const byVersion = new Map<string, Record<string, unknown>[]>();
+    for (const item of allItems) {
+      const list = byVersion.get(item.meal_version_id) ?? [];
+      list.push(item);
+      byVersion.set(item.meal_version_id, list);
+    }
+    for (const version of versions) {
+      version.items = byVersion.get(version.id) ?? [];
+    }
     return { ...meal, versions };
   }
 
@@ -643,31 +890,37 @@ export class NutritionLibraryService {
     versionId: string,
     members: MemberInput[],
   ) {
-    for (const member of members) {
-      const [food] = await query(
-        m,
-        `SELECT id FROM food_versions WHERE id=$1`,
-        [member.foodVersionId],
-      );
-      if (!food)
-        throw new ApiError(
-          'FOOD_VERSION_NOT_FOUND',
-          422,
-          `Food version "${member.foodVersionId}" is unavailable. Fetch GET /admin/foods to see available foods.`,
-          { food_version_id: member.foodVersionId },
-        );
-      await query(
-        m,
-        `INSERT INTO food_exchange_members(id,group_version_id,food_version_id,portion_g_per_unit,display_portion) VALUES($1,$2,$3,$4,$5)`,
-        [
-          randomUUID(),
-          versionId,
-          member.foodVersionId,
-          member.portionGPerUnit,
-          member.displayPortion,
-        ],
+    if (!members.length) return;
+    const foodIds = [...new Set(members.map((member) => member.foodVersionId))];
+    const existing = await query(
+      m,
+      `SELECT id FROM food_versions WHERE id = ANY($1::uuid[])`,
+      [foodIds],
+    );
+    const known = new Set(existing.map((row: { id: string }) => row.id));
+    const missing = foodIds.find((foodId) => !known.has(foodId));
+    if (missing) {
+      throw new ApiError(
+        'FOOD_VERSION_NOT_FOUND',
+        422,
+        `Food version "${missing}" is unavailable. Fetch GET /admin/foods to see available foods.`,
+        { food_version_id: missing },
       );
     }
+    await query(
+      m,
+      `INSERT INTO food_exchange_members(id,group_version_id,food_version_id,portion_g_per_unit,display_portion)
+       SELECT id, $1, food_version_id, portion_g, display_portion
+       FROM unnest($2::uuid[], $3::uuid[], $4::numeric[], $5::text[])
+         AS t(id, food_version_id, portion_g, display_portion)`,
+      [
+        versionId,
+        members.map(() => randomUUID()),
+        members.map((member) => member.foodVersionId),
+        members.map((member) => member.portionGPerUnit),
+        members.map((member) => member.displayPortion),
+      ],
+    );
   }
 
   private async insertMealItems(
@@ -675,24 +928,35 @@ export class NutritionLibraryService {
     versionId: string,
     items: MealItemInput[],
   ) {
-    for (const item of items) {
-      const [member] = await query(
-        m,
-        `SELECT id FROM food_exchange_members WHERE id=$1`,
-        [item.memberId],
-      );
-      if (!member)
-        throw new ApiError(
-          'FOOD_SECTION_MEMBER_NOT_FOUND',
-          422,
-          `Food exchange member "${item.memberId}" is unavailable. Fetch GET /admin/food-sections to see available food members.`,
-          { member_id: item.memberId },
-        );
-      await query(
-        m,
-        `INSERT INTO meal_items(meal_version_id,default_exchange_member_id,exchange_units,position) VALUES($1,$2,$3,$4)`,
-        [versionId, item.memberId, item.exchangeUnits, item.position],
+    if (!items.length) return;
+    const memberIds = [...new Set(items.map((item) => item.memberId))];
+    const existing = await query(
+      m,
+      `SELECT id FROM food_exchange_members WHERE id = ANY($1::uuid[])`,
+      [memberIds],
+    );
+    const known = new Set(existing.map((row: { id: string }) => row.id));
+    const missing = memberIds.find((memberId) => !known.has(memberId));
+    if (missing) {
+      throw new ApiError(
+        'FOOD_SECTION_MEMBER_NOT_FOUND',
+        422,
+        `Food exchange member "${missing}" is unavailable. Fetch GET /admin/food-sections to see available food members.`,
+        { member_id: missing },
       );
     }
+    await query(
+      m,
+      `INSERT INTO meal_items(meal_version_id,default_exchange_member_id,exchange_units,position)
+       SELECT $1, member_id, exchange_units, pos
+       FROM unnest($2::uuid[], $3::numeric[], $4::integer[])
+         AS t(member_id, exchange_units, pos)`,
+      [
+        versionId,
+        items.map((item) => item.memberId),
+        items.map((item) => item.exchangeUnits),
+        items.map((item) => item.position),
+      ],
+    );
   }
 }

@@ -28,7 +28,15 @@ export class ContentController {
   ) {}
   @Get('ingredients') ingredients(@Query() q: unknown) {
     const p = parse(dto.page, q);
-    return this.content.ingredientList(p.limit, p.offset);
+    return this.content.ingredientList(p.limit, p.offset, {
+      search: p.search,
+      status: p.status,
+      includeArchived:
+        p.includeArchived === undefined
+          ? undefined
+          : p.includeArchived === 'true',
+      ids: p.ids,
+    });
   }
   @Post('ingredients') ingredient(@Body() body: unknown) {
     const b = parse(
@@ -56,7 +64,22 @@ export class ContentController {
   }
   @Get('food-sections') foodSections(@Query() q: unknown) {
     const p = parse(dto.page, q);
-    return this.nutrition.listFoodSections(p.limit, p.offset);
+    return this.nutrition.listFoodSections(p.limit, p.offset, {
+      search: p.search,
+      status: p.status,
+      includeArchived:
+        p.includeArchived === undefined
+          ? undefined
+          : p.includeArchived === 'true',
+      ids: p.ids,
+    });
+  }
+  @Get('food-exchange-members') foodExchangeMembers(@Query() q: unknown) {
+    const p = parse(dto.page, q);
+    return this.nutrition.listFoodExchangeMembers(p.limit, p.offset, {
+      search: p.search,
+      ids: p.ids,
+    });
   }
   @Post('food-sections') foodSection(@Body() body: unknown) {
     const b = parse(dto.foodSection, body);
@@ -92,7 +115,15 @@ export class ContentController {
   }
   @Get('meal-sections') mealSections(@Query() q: unknown) {
     const p = parse(dto.page, q);
-    return this.nutrition.listMealSections(p.limit, p.offset);
+    return this.nutrition.listMealSections(p.limit, p.offset, {
+      search: p.search,
+      status: p.status,
+      includeArchived:
+        p.includeArchived === undefined
+          ? undefined
+          : p.includeArchived === 'true',
+      ids: p.ids,
+    });
   }
   @Post('meal-sections') mealSection(@Body() body: unknown) {
     const b = parse(dto.mealSection, body);
@@ -113,7 +144,15 @@ export class ContentController {
   }
   @Get('meals') meals(@Query() q: unknown) {
     const p = parse(dto.page, q);
-    return this.nutrition.listMeals(p.limit, p.offset);
+    return this.nutrition.listMeals(p.limit, p.offset, {
+      search: p.search,
+      status: p.status,
+      includeArchived:
+        p.includeArchived === undefined
+          ? undefined
+          : p.includeArchived === 'true',
+      ids: p.ids,
+    });
   }
   @Post('meals') meal(@Body() body: unknown) {
     const b = parse(dto.meal, body);
@@ -206,7 +245,15 @@ export class ContentController {
   }
   @Get(':kind') list(@Param('kind') kind: string, @Query() q: unknown) {
     const p = parse(dto.page, q);
-    return this.content.list(parse(kindSchema, kind), p.limit, p.offset);
+    return this.content.list(parse(kindSchema, kind), p.limit, p.offset, {
+      search: p.search,
+      status: p.status,
+      includeArchived:
+        p.includeArchived === undefined
+          ? undefined
+          : p.includeArchived === 'true',
+      ids: p.ids,
+    });
   }
   @Get(':kind/:id') get(@Param('kind') kind: string, @Param('id') id: string) {
     return this.content.get(parse(kindSchema, kind), parse(uuid, id));

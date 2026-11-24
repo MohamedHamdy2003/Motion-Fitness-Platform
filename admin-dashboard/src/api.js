@@ -29,7 +29,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { body, method = 'GET', token } = {}) {
+async function request(path, { body, method = 'GET', token, signal } = {}) {
   let res;
   try {
     res = await fetch(`/api/v1${path}`, {
@@ -40,8 +40,10 @@ async function request(path, { body, method = 'GET', token } = {}) {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       cache: 'no-store',
+      signal,
     });
-  } catch {
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
     throw new Error(
       'تعذر الاتصال بخادم Motion API. تحقق من الاتصال وحاول مرة أخرى.',
     );
@@ -149,6 +151,7 @@ function createSession({
     if (closed) return;
     closed = true;
     tokens = {};
+    clearReferenceCache();
     window.removeEventListener('storage', handleStorage);
   }
 
@@ -277,6 +280,53 @@ export async function restoreSession(onExpired) {
     ready = true;
     return { api: session.api, email: session.email, signOut: session.signOut };
   }
+}
+
+const referenceCache = new Map();
+
+export function clearReferenceCache() {
+  referenceCache.clear();
+}
+
+export function getCachedReference(api, path) {
+  if (!referenceCache.has(path)) {
+    const pending = api(path).catch((error) => {
+      referenceCache.delete(path);
+      throw error;
+    });
+    referenceCache.set(path, pending);
+  }
+  return referenceCache.get(path);
+}
+
+export async function fetchPage(
+  api,
+  path,
+  { limit = 10, offset = 0, search, status, extra, signal } = {},
+) {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(limit));
+  qs.set('offset', String(offset));
+  if (search && search.trim()) qs.set('search', search.trim());
+  if (status) qs.set('status', status);
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    }
+  }
+  const separator = path.includes('?') ? '&' : '?';
+  const data = await api(`${path}${separator}${qs.toString()}`, { signal });
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, limit, offset };
+  }
+  return {
+    items: data.items || [],
+    total:
+      typeof data.total === 'number' ? data.total : (data.items || []).length,
+    limit: data.limit ?? limit,
+    offset: data.offset ?? offset,
+    summary: data.summary,
+  };
 }
 
 export async function listAll(api, path) {

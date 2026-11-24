@@ -6,8 +6,10 @@ import { ApiError } from '../../common/http';
 import { query } from '../../infrastructure/database/query';
 import {
   adminFaqCreateInput,
+  adminFaqListQuery,
   adminFaqPatchInput,
   adminLegalCreateInput,
+  adminLegalListQuery,
   faqPublicQuery,
 } from './support.dto';
 
@@ -147,18 +149,59 @@ export class SupportService {
     });
   }
 
-  async listAdminFaq() {
-    const items = await query(
-      this.db,
-      `SELECT id, category,
-              question_ar AS "questionAr", answer_ar AS "answerAr",
-              question_en AS "questionEn", answer_en AS "answerEn",
-              display_order AS "displayOrder", active,
-              created_at AS "createdAt"
-       FROM faq_entries
-       ORDER BY display_order ASC, created_at ASC`,
-    );
-    return { items };
+  async listAdminFaq(
+    filters: z.infer<typeof adminFaqListQuery> = { limit: 10, offset: 0 },
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.category) {
+      params.push(filters.category);
+      conditions.push(`lower(category) = lower($${params.length})`);
+    }
+    if (filters.status === 'ACTIVE') {
+      conditions.push('active');
+    } else if (filters.status === 'INACTIVE') {
+      conditions.push('NOT active');
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(question_ar ILIKE $${params.length} OR answer_ar ILIKE $${params.length} OR question_en ILIKE $${params.length} OR answer_en ILIKE $${params.length})`,
+      );
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [items, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT id, category,
+                question_ar AS "questionAr", answer_ar AS "answerAr",
+                question_en AS "questionEn", answer_en AS "answerEn",
+                display_order AS "displayOrder", active,
+                created_at AS "createdAt"
+         FROM faq_entries
+         ${where}
+         ORDER BY display_order ASC, created_at ASC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, filters.limit, filters.offset],
+      ),
+      query(
+        this.db,
+        `SELECT count(*)::integer AS total FROM faq_entries ${where}`,
+        params,
+      ),
+    ]);
+
+    return {
+      items,
+      total: countRows[0]?.total ?? 0,
+      limit: filters.limit,
+      offset: filters.offset,
+    };
   }
 
   async createAdminFaq(input: z.infer<typeof adminFaqCreateInput>) {
@@ -229,15 +272,55 @@ export class SupportService {
     return { id: deleted.id, deleted: true };
   }
 
-  async listAdminLegal() {
-    const items = await query(
-      this.db,
-      `SELECT id, type, version, locale, title, content, active,
-              published_at AS "publishedAt"
-       FROM legal_documents
-       ORDER BY locale ASC, type ASC, active DESC, published_at DESC`,
-    );
-    return { items };
+  async listAdminLegal(
+    filters: z.infer<typeof adminLegalListQuery> = { limit: 10, offset: 0 },
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.type) {
+      params.push(filters.type);
+      conditions.push(`type = $${params.length}`);
+    }
+    if (filters.locale) {
+      params.push(filters.locale);
+      conditions.push(`locale = $${params.length}`);
+    }
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(title ILIKE $${params.length} OR version ILIKE $${params.length})`,
+      );
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [items, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT id, type, version, locale, title, content, active,
+                published_at AS "publishedAt"
+         FROM legal_documents
+         ${where}
+         ORDER BY locale ASC, type ASC, active DESC, published_at DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, filters.limit, filters.offset],
+      ),
+      query(
+        this.db,
+        `SELECT count(*)::integer AS total FROM legal_documents ${where}`,
+        params,
+      ),
+    ]);
+
+    return {
+      items,
+      total: countRows[0]?.total ?? 0,
+      limit: filters.limit,
+      offset: filters.offset,
+    };
   }
 
   async createAdminLegal(input: z.infer<typeof adminLegalCreateInput>) {

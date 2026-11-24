@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Plus, Trash2 } from 'lucide-react';
-import { listAll } from './api';
+import { fetchPage, listAll } from './api';
 import { makeAutoSlug, splitList } from './program';
 import { VersionSelect } from './ProgramEditor';
 import {
@@ -240,20 +240,62 @@ function payload(kind, form, creating) {
   };
 }
 
-async function getOptions(api, kind) {
+function dedupeOptions(list) {
+  const map = new Map();
+  for (const opt of list) {
+    if (opt?.value && !map.has(opt.value)) map.set(opt.value, opt);
+  }
+  return [...map.values()];
+}
+
+const mapFoodOption = (f) => ({
+  value: f.version_id,
+  label: `${f.content?.title || f.slug} (v${f.version})`,
+  status: f.status,
+});
+
+const mapIngredientOption = (i) => ({
+  value: i.id,
+  label: `${i.title} (${i.verification_status === 'VERIFIED' ? 'موثّق' : 'غير موثّق'})`,
+});
+
+const mapExchangeMemberOption = (m) => ({
+  value: m.id,
+  label: `${m.food_title} · ${m.group_title}`,
+  status: m.status,
+});
+
+async function getOptions(api, kind, loadedItem) {
   if (kind === 'meal-sections' || kind === 'ingredients') {
     return {};
   }
   if (kind === 'food-sections') {
-    const foods = await listAll(api, '/admin/foods');
+    const usedFoodIds = [
+      ...new Set(
+        (loadedItem?.versions?.[0]?.members || [])
+          .map((m) => m.food_version_id)
+          .filter(Boolean),
+      ),
+    ];
+    const [recent, selected] = await Promise.all([
+      fetchPage(api, '/admin/foods', {
+        limit: 20,
+        offset: 0,
+        extra: { includeArchived: 'false' },
+      }),
+      usedFoodIds.length
+        ? fetchPage(api, '/admin/foods', {
+            limit: 100,
+            offset: 0,
+            extra: { ids: usedFoodIds.join(',') },
+          })
+        : Promise.resolve({ items: [] }),
+    ]);
     return {
-      foods: foods
-        .filter((f) => !f.archived)
-        .map((f) => ({
-          value: f.version_id,
-          label: `${f.content?.title || f.slug} (v${f.version})`,
-          status: f.status,
-        })),
+      foods: dedupeOptions([
+        ...selected.items.map(mapFoodOption),
+        ...recent.items.filter((f) => !f.archived).map(mapFoodOption),
+      ]),
     };
   }
   if (kind === 'exercises') {
@@ -268,40 +310,81 @@ async function getOptions(api, kind) {
     };
   }
   if (kind === 'foods') {
-    const ingredients = await listAll(api, '/admin/ingredients');
+    const usedIngIds = [
+      ...new Set(
+        (loadedItem?.versions?.[0]?.content?.ingredients || [])
+          .map((i) => i.ingredientId)
+          .filter(Boolean),
+      ),
+    ];
+    const [recent, selected] = await Promise.all([
+      fetchPage(api, '/admin/ingredients', {
+        limit: 20,
+        offset: 0,
+        extra: { includeArchived: 'false' },
+      }),
+      usedIngIds.length
+        ? fetchPage(api, '/admin/ingredients', {
+            limit: 100,
+            offset: 0,
+            extra: { ids: usedIngIds.join(',') },
+          })
+        : Promise.resolve({ items: [] }),
+    ]);
     return {
-      ingredients: ingredients
-        .filter((i) => !i.archived)
-        .map((i) => ({
-          value: i.id,
-          label: `${i.title} (${i.verification_status === 'VERIFIED' ? 'موثّق' : 'غير موثّق'})`,
-        })),
+      ingredients: dedupeOptions([
+        ...selected.items.map(mapIngredientOption),
+        ...recent.items.filter((i) => !i.archived).map(mapIngredientOption),
+      ]),
     };
   }
-  const [sections, groups] = await Promise.all([
-    listAll(api, '/admin/meal-sections'),
-    listAll(api, '/admin/food-sections'),
-  ]);
-  const details = await Promise.all(
-    groups
-      .filter((group) => !group.archived)
-      .map(async (group) => api(`/admin/food-sections/${group.id}`)),
-  );
+  const usedSectionId = loadedItem?.versions?.[0]?.section_id;
+  const usedMemberIds = [
+    ...new Set(
+      (loadedItem?.versions?.[0]?.items || [])
+        .map((item) => item.default_exchange_member_id)
+        .filter(Boolean),
+    ),
+  ];
+  const [recentSections, selectedSections, recentMembers, selectedMembers] =
+    await Promise.all([
+      fetchPage(api, '/admin/meal-sections', {
+        limit: 20,
+        offset: 0,
+        extra: { includeArchived: 'false' },
+      }),
+      usedSectionId
+        ? fetchPage(api, '/admin/meal-sections', {
+            limit: 5,
+            offset: 0,
+            extra: { ids: usedSectionId },
+          })
+        : Promise.resolve({ items: [] }),
+      fetchPage(api, '/admin/food-exchange-members', {
+        limit: 20,
+        offset: 0,
+      }),
+      usedMemberIds.length
+        ? fetchPage(api, '/admin/food-exchange-members', {
+            limit: 100,
+            offset: 0,
+            extra: { ids: usedMemberIds.join(',') },
+          })
+        : Promise.resolve({ items: [] }),
+    ]);
+  const sectionMap = new Map();
+  for (const s of [
+    ...selectedSections.items,
+    ...recentSections.items.filter((s) => !s.archived),
+  ]) {
+    if (!sectionMap.has(s.id)) sectionMap.set(s.id, s);
+  }
   return {
-    sections: sections.filter((section) => !section.archived),
-    members: details.flatMap((group) => {
-      const version =
-        group.versions.find((entry) => entry.status === 'PUBLISHED') ||
-        group.versions[0];
-      return version.members.map((member) => ({
-        value: member.id,
-        label: `${member.food_title} · ${version.title}`,
-        status:
-          member.food_status === 'PUBLISHED'
-            ? version.status
-            : member.food_status,
-      }));
-    }),
+    sections: [...sectionMap.values()],
+    members: dedupeOptions([
+      ...selectedMembers.items.map(mapExchangeMemberOption),
+      ...recentMembers.items.map(mapExchangeMemberOption),
+    ]),
   };
 }
 
@@ -323,12 +406,102 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
   const dirty = Boolean(options && JSON.stringify(form) !== initial);
   const version = item?.versions?.[0];
 
+  const searchFoods = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/foods', {
+        limit: 20,
+        offset: 0,
+        search,
+        extra: { includeArchived: 'false' },
+      });
+      const mapped = res.items.map(mapFoodOption);
+      setOptions((prev) =>
+        prev
+          ? {
+              ...prev,
+              foods: dedupeOptions([...(prev.foods || []), ...mapped]),
+            }
+          : prev,
+      );
+      return mapped;
+    },
+    [api],
+  );
+
+  const searchIngredients = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/ingredients', {
+        limit: 20,
+        offset: 0,
+        search,
+        extra: { includeArchived: 'false' },
+      });
+      const mapped = res.items.map(mapIngredientOption);
+      setOptions((prev) =>
+        prev
+          ? {
+              ...prev,
+              ingredients: dedupeOptions([
+                ...(prev.ingredients || []),
+                ...mapped,
+              ]),
+            }
+          : prev,
+      );
+      return mapped;
+    },
+    [api],
+  );
+
+  const searchMealSections = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/meal-sections', {
+        limit: 20,
+        offset: 0,
+        search,
+        extra: { includeArchived: 'false' },
+      });
+      setOptions((prev) => {
+        if (!prev) return prev;
+        const map = new Map((prev.sections || []).map((s) => [s.id, s]));
+        for (const s of res.items) {
+          if (!map.has(s.id)) map.set(s.id, s);
+        }
+        return { ...prev, sections: [...map.values()] };
+      });
+      return res.items.map((s) => ({ value: s.id, label: s.title }));
+    },
+    [api],
+  );
+
+  const searchExchangeMembers = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/food-exchange-members', {
+        limit: 20,
+        offset: 0,
+        search,
+      });
+      const mapped = res.items.map(mapExchangeMemberOption);
+      setOptions((prev) =>
+        prev
+          ? {
+              ...prev,
+              members: dedupeOptions([...(prev.members || []), ...mapped]),
+            }
+          : prev,
+      );
+      return mapped;
+    },
+    [api],
+  );
+
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
   useEffect(() => () => onDirty(false), [onDirty]);
   useEffect(() => {
     let active = true;
-    Promise.all([id ? api(`${base}/${id}`) : null, getOptions(api, kind)])
-      .then(([data, available]) => {
+    (id ? api(`${base}/${id}`) : Promise.resolve(null))
+      .then(async (data) => {
+        const available = await getOptions(api, kind, data);
         if (!active) return;
         const next = contentForm(kind, data);
         setItem(data);
@@ -511,17 +684,25 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
                 change={change}
                 update={update}
                 options={options}
+                searchIngredients={searchIngredients}
               />
             ) : kind === 'food-sections' ? (
               <FoodSectionFields
                 form={form}
                 update={update}
                 options={options}
+                searchFoods={searchFoods}
               />
             ) : kind === 'ingredients' ? (
               <IngredientFields form={form} change={change} update={update} />
             ) : kind === 'meal-sections' ? null : (
-              <MealFields form={form} update={update} options={options} />
+              <MealFields
+                form={form}
+                update={update}
+                options={options}
+                searchMealSections={searchMealSections}
+                searchExchangeMembers={searchExchangeMembers}
+              />
             )}
           </div>
         </fieldset>
@@ -595,7 +776,7 @@ function IngredientFields({ form, change, update }) {
   );
 }
 
-function FoodSectionFields({ form, update, options }) {
+function FoodSectionFields({ form, update, options, searchFoods }) {
   function setMember(i, patch) {
     update({
       members: form.members.map((member, idx) =>
@@ -620,6 +801,7 @@ function FoodSectionFields({ form, update, options }) {
             <VersionSelect
               value={member.foodVersionId}
               items={options.foods}
+              loadOptions={searchFoods}
               onChange={(foodVersionId) => setMember(i, { foodVersionId })}
             />
           </Field>
@@ -738,7 +920,7 @@ function ExerciseFields({ form, change, update, options }) {
   );
 }
 
-function FoodFields({ form, change, update, options }) {
+function FoodFields({ form, change, update, options, searchIngredients }) {
   function setIngredient(i, patch) {
     update({
       ingredients: form.ingredients.map((item, idx) =>
@@ -870,6 +1052,7 @@ function FoodFields({ form, change, update, options }) {
               <VersionSelect
                 value={item.ingredientId}
                 items={options.ingredients}
+                loadOptions={searchIngredients}
                 onChange={(ingredientId) => setIngredient(i, { ingredientId })}
               />
             </Field>
@@ -915,7 +1098,13 @@ function FoodFields({ form, change, update, options }) {
   );
 }
 
-function MealFields({ form, update, options }) {
+function MealFields({
+  form,
+  update,
+  options,
+  searchMealSections,
+  searchExchangeMembers,
+}) {
   function setItem(i, patch) {
     update({
       items: form.items.map((item, index) =>
@@ -943,6 +1132,7 @@ function MealFields({ form, update, options }) {
           onChange={(sectionId) => update({ sectionId })}
           placeholder="اختر قسم الوجبة…"
           options={sectionOptions}
+          loadOptions={searchMealSections}
         />
       </Field>
       <div className="full schedule-section">
@@ -958,6 +1148,7 @@ function MealFields({ form, update, options }) {
               <VersionSelect
                 value={item.memberId}
                 items={options.members}
+                loadOptions={searchExchangeMembers}
                 onChange={(memberId) => setItem(i, { memberId })}
               />
             </Field>

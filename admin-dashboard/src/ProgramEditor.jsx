@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -8,7 +8,7 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { listAll } from './api';
+import { fetchPage, getCachedReference } from './api';
 import {
   emptyExercise,
   emptyMealSlot,
@@ -30,13 +30,44 @@ import {
   Status,
 } from './ui';
 
-async function choices(api, path, getTitle) {
-  const items = (await listAll(api, path)).filter((item) => !item.archived);
-  return items.map((item) => ({
+function mapVersionOption(item, getTitle) {
+  return {
     value: item.version_id,
     label: getTitle(item),
     status: item.status,
-  }));
+  };
+}
+
+function mergeOptions(primary, extra) {
+  const map = new Map();
+  for (const item of [...primary, ...extra]) {
+    if (item?.value && !map.has(item.value)) map.set(item.value, item);
+  }
+  return [...map.values()];
+}
+
+async function initialChoices(api, path, getTitle, selectedIds = []) {
+  const uniqueIds = [...new Set(selectedIds.filter(Boolean))].slice(0, 100);
+  const [recent, selected] = await Promise.all([
+    fetchPage(api, path, {
+      limit: 20,
+      offset: 0,
+      extra: { includeArchived: 'false' },
+    }),
+    uniqueIds.length
+      ? fetchPage(api, path, {
+          limit: 100,
+          offset: 0,
+          extra: { ids: uniqueIds.join(',') },
+        })
+      : Promise.resolve({ items: [] }),
+  ]);
+  return mergeOptions(
+    selected.items.map((item) => mapVersionOption(item, getTitle)),
+    recent.items
+      .filter((item) => !item.archived)
+      .map((item) => mapVersionOption(item, getTitle)),
+  );
 }
 
 export function ProgramEditor({ id, api, onBack, onDirty }) {
@@ -55,24 +86,89 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
   const [reload, setReload] = useState(0);
   const dirty = Boolean(options && JSON.stringify(form) !== initial);
 
+  const searchExercises = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/exercises', {
+        limit: 20,
+        offset: 0,
+        search,
+        extra: { includeArchived: 'false' },
+      });
+      const mapped = res.items.map((item) =>
+        mapVersionOption(item, (entry) => entry.content?.title || entry.slug),
+      );
+      setOptions((prev) =>
+        prev
+          ? { ...prev, exercises: mergeOptions(prev.exercises, mapped) }
+          : prev,
+      );
+      return mapped;
+    },
+    [api],
+  );
+
+  const searchMeals = useCallback(
+    async (search) => {
+      const res = await fetchPage(api, '/admin/meals', {
+        limit: 20,
+        offset: 0,
+        search,
+        extra: { includeArchived: 'false' },
+      });
+      const mapped = res.items.map((item) =>
+        mapVersionOption(item, (entry) => entry.title || entry.slug),
+      );
+      setOptions((prev) =>
+        prev ? { ...prev, meals: mergeOptions(prev.meals, mapped) } : prev,
+      );
+      return mapped;
+    },
+    [api],
+  );
+
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
   useEffect(() => () => onDirty(false), [onDirty]);
   useEffect(() => {
     let alive = true;
     Promise.all([
       id ? api(`/admin/programs/${id}`) : null,
-      api('/references/primary-goals'),
-      api('/references/fitness-levels'),
-      choices(
-        api,
-        '/admin/exercises',
-        (item) => item.content?.title || item.slug,
-      ),
-      choices(api, '/admin/meals', (item) => item.title || item.slug),
+      getCachedReference(api, '/references/primary-goals'),
+      getCachedReference(api, '/references/fitness-levels'),
     ])
-      .then(([data, goals, levels, exercises, meals]) => {
-        if (!alive) return;
+      .then(async ([data, goals, levels]) => {
         const draft = data ? fromProgram(data) : emptyProgram();
+        const usedExerciseIds = [];
+        const usedMealIds = [];
+        for (const m of draft.months) {
+          for (const w of m.weeks) {
+            for (const d of w.days) {
+              if (d.workout) {
+                for (const ex of d.workout.exercises) {
+                  if (ex.exerciseRevisionId)
+                    usedExerciseIds.push(ex.exerciseRevisionId);
+                }
+              }
+              for (const meal of d.meals) {
+                if (meal.mealVersionId) usedMealIds.push(meal.mealVersionId);
+              }
+            }
+          }
+        }
+        const [exercises, meals] = await Promise.all([
+          initialChoices(
+            api,
+            '/admin/exercises',
+            (item) => item.content?.title || item.slug,
+            usedExerciseIds,
+          ),
+          initialChoices(
+            api,
+            '/admin/meals',
+            (item) => item.title || item.slug,
+            usedMealIds,
+          ),
+        ]);
+        if (!alive) return;
         setLoaded(data);
         setForm(draft);
         setInitial(JSON.stringify(draft));
@@ -297,6 +393,8 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               form={form}
               update={update}
               options={options}
+              searchExercises={searchExercises}
+              searchMeals={searchMeals}
               location={location}
               setLocation={setLocation}
             />
@@ -677,7 +775,15 @@ function ChoiceGroup({ label, items, checked, required, onChange }) {
   );
 }
 
-function Schedule({ form, update, options, location, setLocation }) {
+function Schedule({
+  form,
+  update,
+  options,
+  searchExercises,
+  searchMeals,
+  location,
+  setLocation,
+}) {
   const { month, week, day } = location;
   const monthData = form.months[month];
   const weekData = monthData.weeks[week];
@@ -905,6 +1011,7 @@ function Schedule({ form, update, options, location, setLocation }) {
                   key={i}
                   item={item}
                   options={exerciseOptions}
+                  searchExercises={searchExercises}
                   onChange={(change) =>
                     changeDay((copy) => change(copy.workout.exercises[i]))
                   }
@@ -941,6 +1048,7 @@ function Schedule({ form, update, options, location, setLocation }) {
                 <VersionSelect
                   value={item.mealVersionId}
                   items={mealOptions}
+                  loadOptions={searchMeals}
                   onChange={(value) =>
                     changeDay((copy) => {
                       copy.meals[i].mealVersionId = value;
@@ -1009,27 +1117,49 @@ function Schedule({ form, update, options, location, setLocation }) {
   );
 }
 
-export function VersionSelect({ value, items = [], onChange }) {
+export function VersionSelect({ value, items = [], loadOptions, onChange }) {
+  const formatOption = useCallback(
+    (item) => ({
+      value: item.value,
+      label: `${item.label}${item.status === 'DRAFT' ? ' (مسودة)' : ''}`,
+    }),
+    [],
+  );
+
   const selectOptions = [
     ...(value && !items.some((item) => item.value === value)
       ? [{ value, label: `إصدار محدد مسبقاً (${value.slice(0, 8)})` }]
       : []),
-    ...items.map((item) => ({
-      value: item.value,
-      label: `${item.label}${item.status === 'DRAFT' ? ' (مسودة)' : ''}`,
-    })),
+    ...items.map(formatOption),
   ];
+
+  const asyncLoader = useCallback(
+    async (query) => {
+      if (!loadOptions) return selectOptions;
+      const loaded = await loadOptions(query);
+      return (loaded || []).map(formatOption);
+    },
+    [loadOptions, formatOption],
+  );
+
   return (
     <CustomSelect
       value={value}
       onChange={onChange}
       placeholder="اختر عنصراً…"
       options={selectOptions}
+      loadOptions={loadOptions ? asyncLoader : undefined}
     />
   );
 }
 
-function ExercisePrescription({ item, options, onChange, onRemove }) {
+function ExercisePrescription({
+  item,
+  options,
+  searchExercises,
+  onChange,
+  onRemove,
+}) {
   const p = item.prescription;
   const fields = [
     ['setCount', 'المجموعات', 1, 100],
@@ -1048,6 +1178,7 @@ function ExercisePrescription({ item, options, onChange, onRemove }) {
           <VersionSelect
             value={item.exerciseRevisionId}
             items={options}
+            loadOptions={searchExercises}
             onChange={(value) =>
               onChange((entry) => {
                 entry.exerciseRevisionId = value;

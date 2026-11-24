@@ -18,8 +18,10 @@ import { ApiRequest, parse } from '../../common/http';
 import { ContentGuard } from '../content/content.guard';
 import {
   adminFaqCreateInput,
+  adminFaqListQuery,
   adminFaqPatchInput,
   adminLegalCreateInput,
+  adminLegalListQuery,
   faqPublicQuery,
   legalAcceptanceInput,
   legalPublicQuery,
@@ -69,8 +71,8 @@ export class SupportController {
 
   @Get('admin/faq')
   @UseGuards(AuthGuard, ContentGuard)
-  listAdminFaq() {
-    return this.support.listAdminFaq();
+  listAdminFaq(@Query() rawQuery: unknown) {
+    return this.support.listAdminFaq(parse(adminFaqListQuery, rawQuery));
   }
 
   @Post('admin/faq')
@@ -96,8 +98,8 @@ export class SupportController {
 
   @Get('admin/legal')
   @UseGuards(AuthGuard, ContentGuard)
-  listAdminLegal() {
-    return this.support.listAdminLegal();
+  listAdminLegal(@Query() rawQuery: unknown) {
+    return this.support.listAdminLegal(parse(adminLegalListQuery, rawQuery));
   }
 
   @Post('admin/legal')
