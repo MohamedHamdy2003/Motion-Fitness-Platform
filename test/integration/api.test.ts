@@ -3841,5 +3841,78 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       '/admin/analytics/overview',
     );
     expect(Object.keys(adminSpec.body.paths)).toContain('/admin/programs');
+    expect(Object.keys(adminSpec.body.paths)).toContain('/admin/users');
+  });
+
+  it('lists, suspends, reactivates, and deletes non-admin trainees while protecting admins', async () => {
+    const { createAdmin } =
+      await import('../../src/infrastructure/database/create-admin.js');
+    const adminId = await createAdmin(db, 'users-admin@example.test', password);
+    const adminLogin = await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'users-admin@example.test', password })
+      .expect(200);
+    const adminHeaders = bearer(adminLogin.body.accessToken);
+
+    const trainee = await register('trainee-manage@example.test');
+
+    const listed = await api
+      .get(prefix + '/admin/users')
+      .set(adminHeaders)
+      .expect(200);
+    expect(
+      listed.body.items.some(
+        (u: { email: string }) => u.email === 'trainee-manage@example.test',
+      ),
+    ).toBe(true);
+    expect(
+      listed.body.items.some(
+        (u: { email: string }) => u.email === 'users-admin@example.test',
+      ),
+    ).toBe(false);
+
+    await api
+      .patch(prefix + `/admin/users/${adminId}/status`)
+      .set(adminHeaders)
+      .send({ status: 'SUSPENDED' })
+      .expect(403);
+
+    await api
+      .delete(prefix + `/admin/users/${adminId}`)
+      .set(adminHeaders)
+      .expect(403);
+
+    await api
+      .patch(prefix + `/admin/users/${trainee.user.id}/status`)
+      .set(adminHeaders)
+      .send({ status: 'SUSPENDED' })
+      .expect(200);
+
+    await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'trainee-manage@example.test', password })
+      .expect(401);
+
+    await api
+      .patch(prefix + `/admin/users/${trainee.user.id}/status`)
+      .set(adminHeaders)
+      .send({ status: 'ACTIVE' })
+      .expect(200);
+
+    await api
+      .post(prefix + '/auth/login')
+      .send({ email: 'trainee-manage@example.test', password })
+      .expect(200);
+
+    await api
+      .delete(prefix + `/admin/users/${trainee.user.id}`)
+      .set(adminHeaders)
+      .expect(200);
+
+    const afterDelete = await api
+      .get(prefix + '/admin/users?search=trainee-manage')
+      .set(adminHeaders)
+      .expect(200);
+    expect(afterDelete.body.items).toHaveLength(0);
   });
 });

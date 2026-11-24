@@ -16,9 +16,9 @@
 }
 
 :root[data-theme='dark'] .logout-confirmation {
-  background: rgb(12 26 21 / 92%);
-  backdrop-filter: blur(22px) saturate(145%);
-  border-color: rgb(167 243 208 / 16%);
+  background: #1c1d30;
+  backdrop-filter: blur(16px);
+  border-color: rgb(255 255 255 / 10%);
 }
 
 .logout-confirmation::backdrop {

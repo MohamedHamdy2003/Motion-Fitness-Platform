@@ -14,10 +14,13 @@
       (function () {
         try {
           var saved = window.localStorage.getItem('motion.admin.theme.v1');
+          var meta = document.querySelector('meta[name="theme-color"]');
           if (saved === 'dark') {
             document.documentElement.dataset.theme = 'dark';
-            var meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', '#07110e');
+            if (meta) meta.setAttribute('content', '#0f1019');
+          } else if (saved === 'lime') {
+            document.documentElement.dataset.theme = 'lime';
+            if (meta) meta.setAttribute('content', '#a8ec17');
           }
         } catch (_err) {}
       })();

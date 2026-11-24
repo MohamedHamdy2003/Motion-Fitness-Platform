@@ -30,12 +30,20 @@ export const readableCode = (code) => {
 };
 
 export const slugify = (title) =>
-  title
+  String(title || '')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 120);
+    .slice(0, 100);
+
+export function makeAutoSlug(prefix, title) {
+  const cleanPrefix = slugify(prefix) || 'item';
+  const base = slugify(title);
+  const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const candidate = base ? `${base}-${stamp}` : `${cleanPrefix}-${stamp}`;
+  return candidate.slice(0, 120).replace(/-+$/g, '');
+}
 
 export const splitList = (text) =>
   text
@@ -142,20 +150,12 @@ export function validateProgram(form) {
   if (
     !form.title.trim() ||
     !form.description.trim() ||
-    !form.slug.trim() ||
     !form.primaryGoal ||
     !form.idealLevel
   ) {
     return {
       message:
-        'يرجى إدخال اسم البرنامج، المعرّف النصي (Slug)، الوصف، الهدف الأساسي، والمستوى المثالي.',
-      tab: 'details',
-    };
-  }
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
-    return {
-      message:
-        'يجب أن يتكون المعرّف النصي (Slug) من أحرف إنجليزية صغيرة وأرقام وشرطات مفردة فقط.',
+        'يرجى إدخال اسم البرنامج، الوصف، الهدف الأساسي، والمستوى المثالي.',
       tab: 'details',
     };
   }

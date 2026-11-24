@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Play, Sparkles } from 'lucide-react';
 import { listAll } from './api';
 import { readableCode } from './program';
-import { ButtonContent, ErrorNotice, Field, Notice, Status } from './ui';
+import {
+  ButtonContent,
+  CustomSelect,
+  ErrorNotice,
+  Field,
+  Notice,
+  Status,
+} from './ui';
 
 const DEFAULT_INSTRUCTIONS =
   'Compare all eligible candidate programs against the user profile and BMI context. When multiple candidates share the same primaryGoal, trainingDaysPerWeek, and supportedLevels, prefer candidates whose idealLevel, description, intendedAudience, and approvedHints best align with the user fitnessLevel, current weight vs target weight delta, and training focus.';
@@ -256,69 +263,61 @@ export function MatchingStudio({ api }) {
             <form onSubmit={handleSimulate}>
               <div className="field-grid">
                 <Field label="الهدف الأساسي">
-                  <select
+                  <CustomSelect
                     value={simProfile.primaryGoal}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       setSimProfile({
                         ...simProfile,
-                        primaryGoal: e.target.value,
+                        primaryGoal: value,
                       })
                     }
-                  >
-                    {options.goals.map((g) => (
-                      <option key={g.code} value={g.code}>
-                        {readableCode(g.code)} ({g.label})
-                      </option>
-                    ))}
-                  </select>
+                    options={options.goals.map((g) => ({
+                      value: g.code,
+                      label: `${readableCode(g.code)} (${g.label})`,
+                    }))}
+                  />
                 </Field>
                 <Field label="مستوى اللياقة">
-                  <select
+                  <CustomSelect
                     value={simProfile.fitnessLevel}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       setSimProfile({
                         ...simProfile,
-                        fitnessLevel: e.target.value,
+                        fitnessLevel: value,
                       })
                     }
-                  >
-                    {options.levels.map((l) => (
-                      <option key={l.code} value={l.code}>
-                        {readableCode(l.code)}
-                      </option>
-                    ))}
-                  </select>
+                    options={options.levels.map((l) => ({
+                      value: l.code,
+                      label: readableCode(l.code),
+                    }))}
+                  />
                 </Field>
                 <Field label="أيام التدريب أسبوعياً">
-                  <select
-                    value={simProfile.trainingDaysPerWeek}
-                    onChange={(e) =>
+                  <CustomSelect
+                    value={String(simProfile.trainingDaysPerWeek)}
+                    onChange={(value) =>
                       setSimProfile({
                         ...simProfile,
-                        trainingDaysPerWeek: Number(e.target.value),
+                        trainingDaysPerWeek: Number(value),
                       })
                     }
-                  >
-                    {[2, 3, 4, 5, 6].map((d) => (
-                      <option key={d} value={d}>
-                        {d} أيام / أسبوع
-                      </option>
-                    ))}
-                  </select>
+                    options={[2, 3, 4, 5, 6].map((d) => ({
+                      value: String(d),
+                      label: `${d} أيام / أسبوع`,
+                    }))}
+                  />
                 </Field>
                 <Field label="النوع">
-                  <select
+                  <CustomSelect
                     value={simProfile.gender}
-                    onChange={(e) =>
-                      setSimProfile({ ...simProfile, gender: e.target.value })
+                    onChange={(value) =>
+                      setSimProfile({ ...simProfile, gender: value })
                     }
-                  >
-                    {options.genders.map((g) => (
-                      <option key={g.code} value={g.code}>
-                        {readableCode(g.code)}
-                      </option>
-                    ))}
-                  </select>
+                    options={options.genders.map((g) => ({
+                      value: g.code,
+                      label: readableCode(g.code),
+                    }))}
+                  />
                 </Field>
                 <Field label="العمر">
                   <input

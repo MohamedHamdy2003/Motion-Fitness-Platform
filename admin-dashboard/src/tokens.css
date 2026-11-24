@@ -1,7 +1,11 @@
+/* =========================================================
+   STAGE 1: CLASSIC (AKEELA FRESH KITCHEN LIGHT — UNTOUCHED)
+   ========================================================= */
 :root {
   color-scheme: light;
   --brand-primary: #008657;
   --brand-primary-hover: #006d46;
+  --on-primary: #ffffff;
   --brand-primary-ink: #008657;
   --brand-secondary: #e7faf0;
   --brand-background: #fffdf9;
@@ -68,7 +72,21 @@
   --backdrop-overlay: rgb(25 57 46 / 36%);
   --brand-action: #cf480d;
   --brand-action-hover: #b43a06;
+  --on-action: #ffffff;
   --nav-active-mark: #ff9b58;
+  --primary-shadow: 0 4px 14px rgb(0 134 87 / 22%);
+  --primary-shadow-hover: 0 7px 20px rgb(16 185 129 / 28%);
+  --action-shadow: 0 4px 14px rgb(207 72 13 / 24%);
+  --action-shadow-hover: 0 7px 20px rgb(232 93 26 / 32%);
+  --nav-active-shadow: 0 6px 18px rgb(0 134 87 / 28%);
+  --brand-badge-bg: linear-gradient(145deg, #009b65, #007750);
+  --brand-badge-shadow: 0 6px 16px rgb(0 134 87 / 24%);
+  --brand-badge-bar-1: #ffffff;
+  --brand-badge-bar-2: #d4ffea;
+  --brand-badge-bar-3: #ff9b58;
+  --select-menu-bg: #ffffff;
+  --select-menu-shadow:
+    0 18px 42px rgb(23 51 43 / 14%), 0 2px 6px rgb(23 51 43 / 6%);
   --code-bg: #f1fcf6;
   --code-border: #d5eee0;
   --code-block-bg: #17332b;
@@ -94,6 +112,8 @@
   --chart-tooltip-title: #ff9b58;
   --chart-tooltip-border: transparent;
   --auth-brand-gradient: linear-gradient(145deg, #009b65, #007750 55%, #005d40);
+  --auth-brand-ink: #ffffff;
+  --auth-brand-sub: #d4ffea;
   --body-bg-glow: none;
   --motion-fast: 150ms;
   --motion-component: 240ms;
@@ -106,96 +126,222 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --brand-primary: #0f9d6e;
-  --brand-primary-hover: #0d855d;
-  --brand-primary-ink: #34d399;
-  --brand-secondary: rgb(16 185 129 / 13%);
-  --brand-background: #07110e;
-  --brand-surface: rgb(14 29 24 / 76%);
-  --surface-solid: #0d1d18;
-  --surface-elevated: rgb(22 44 36 / 62%);
-  --surface-tint: rgb(16 185 129 / 9%);
-  --surface-hover: rgb(52 211 153 / 8%);
-  --surface-subtle: rgb(17 35 29 / 68%);
-  --surface-seg: rgb(7 17 14 / 64%);
-  --surface-seg-active: rgb(24 52 42 / 92%);
-  --surface-input: rgb(8 19 15 / 74%);
-  --surface-sidebar: rgb(11 23 19 / 84%);
-  --surface-glass-blur: 16px;
-  --brand-text: #edf7f2;
-  --brand-muted: #8ea99d;
-  --placeholder-ink: #627e72;
-  --brand-border: rgb(167 243 208 / 11%);
-  --brand-border-soft: rgb(52 211 153 / 24%);
-  --brand-border-accent: rgb(52 211 153 / 34%);
-  --brand-accent: #fb923c;
-  --brand-success: #4ade80;
-  --brand-success-bg: rgb(34 197 94 / 15%);
-  --brand-success-border: rgb(74 222 128 / 28%);
-  --brand-warning: #fbbf24;
-  --brand-warning-bg: rgb(245 158 11 / 15%);
-  --brand-warning-border: rgb(251 191 36 / 28%);
-  --brand-error: #fb7185;
-  --brand-error-bg: rgb(244 63 94 / 15%);
-  --brand-error-border: rgb(251 113 133 / 28%);
-  --brand-info: #60a5fa;
-  --brand-info-bg: rgb(59 130 246 / 15%);
-  --brand-info-border: rgb(96 165 250 / 28%);
-  --brand-orange-ink: #fdba74;
-  --brand-orange-bg: rgb(249 115 22 / 16%);
-  --brand-orange-border: rgb(251 146 60 / 30%);
-  --brand-disabled: rgb(148 168 159 / 14%);
-  --brand-focus: #34d399;
-  --focus-ring: 0 0 0 4px rgb(52 211 153 / 20%);
-  --shadow-dialog: 0 28px 90px rgb(0 0 0 / 62%);
-  --shadow-panel:
-    0 8px 32px rgb(0 0 0 / 28%), inset 0 1px 0 rgb(255 255 255 / 4%);
-  --shadow-sidebar: -12px 0 36px rgb(0 0 0 / 35%);
-  --backdrop-overlay: rgb(2 8 6 / 68%);
-  --brand-action: #e55918;
-  --brand-action-hover: #cf4a0e;
-  --nav-active-mark: #ff9b58;
-  --code-bg: rgb(16 185 129 / 12%);
-  --code-border: rgb(52 211 153 / 22%);
-  --code-block-bg: rgb(5 12 10 / 90%);
-  --code-block-ink: #d1fae5;
-  --spinner-track: rgb(52 211 153 / 20%);
-  --shimmer-a: rgb(20 40 33 / 75%);
-  --shimmer-b: rgb(35 68 56 / 80%);
-  --bar-track: rgb(167 243 208 / 12%);
-  --share-track: rgb(167 243 208 / 14%);
-  --chart-grid: rgb(167 243 208 / 11%);
-  --chart-track: rgb(167 243 208 / 12%);
-  --chart-line: #34d399;
-  --chart-accent: #fb923c;
-  --chart-blue: #60a5fa;
-  --chart-amber: #fbbf24;
-  --chart-teal: #2dd4bf;
-  --chart-error: #fb7185;
-  --chart-dot-fill: #0b1814;
-  --chart-dot-active-stroke: #edf7f2;
-  --chart-bar-hover: #a7f3d0;
-  --chart-tooltip-bg: rgb(7 19 15 / 94%);
-  --chart-tooltip-ink: #edf7f2;
-  --chart-tooltip-title: #fdba74;
-  --chart-tooltip-border: rgb(52 211 153 / 28%);
+/* =========================================================
+   STAGE 2: MOTION LIME LIGHT (BRIGHT PORCELAIN + NEON LIME)
+   ========================================================= */
+:root[data-theme='lime'] {
+  color-scheme: light;
+  --brand-primary: #a8ec17;
+  --brand-primary-hover: #97da0a;
+  --on-primary: #111a05;
+  --brand-primary-ink: #477f00;
+  --brand-secondary: #effcd2;
+  --brand-background: #f6f8f7;
+  --brand-surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-elevated: #f5f9f2;
+  --surface-tint: #f3fce0;
+  --surface-hover: #f5fde6;
+  --surface-subtle: #f8faf8;
+  --surface-seg: #eef3ee;
+  --surface-seg-active: #ffffff;
+  --surface-input: #ffffff;
+  --surface-sidebar: #ffffff;
+  --surface-glass-blur: 0px;
+  --brand-text: #111613;
+  --brand-muted: #616d66;
+  --placeholder-ink: #8a968f;
+  --brand-border: #e6ece8;
+  --brand-border-soft: #d5f496;
+  --brand-border-accent: #b8ee46;
+  --brand-accent: #477f00;
+  --brand-success: #2f7d12;
+  --brand-success-bg: #eafbd6;
+  --brand-success-border: #c5ef97;
+  --brand-warning: #924b00;
+  --brand-warning-bg: #fff4d6;
+  --brand-warning-border: #fde08d;
+  --brand-error: #c92a37;
+  --brand-error-bg: #fff1f2;
+  --brand-error-border: #fecdd3;
+  --brand-info: #1d5ec4;
+  --brand-info-bg: #edf4ff;
+  --brand-info-border: #c3dcfe;
+  --brand-orange-ink: #3c6b00;
+  --brand-orange-bg: #effcd2;
+  --brand-orange-border: #ccef7e;
+  --brand-disabled: #eef2ee;
+  --brand-focus: #84cc00;
+  --focus-ring: 0 0 0 4px rgb(168 236 23 / 28%);
+  --shadow-dialog: 0 24px 72px rgb(17 26 5 / 18%);
+  --shadow-panel: 0 4px 22px rgb(17 26 5 / 5%);
+  --shadow-sidebar: -8px 0 24px rgb(17 26 5 / 4%);
+  --backdrop-overlay: rgb(17 26 5 / 38%);
+  --brand-action: #141c13;
+  --brand-action-hover: #222e1f;
+  --on-action: #c4f135;
+  --nav-active-mark: #111a05;
+  --primary-shadow: 0 5px 16px rgb(168 236 23 / 36%);
+  --primary-shadow-hover: 0 8px 24px rgb(168 236 23 / 48%);
+  --action-shadow: 0 5px 16px rgb(20 28 19 / 22%);
+  --action-shadow-hover: 0 8px 22px rgb(20 28 19 / 30%);
+  --nav-active-shadow: 0 6px 18px rgb(168 236 23 / 38%);
+  --brand-badge-bg: linear-gradient(145deg, #b8f529, #93da08);
+  --brand-badge-shadow: 0 6px 16px rgb(168 236 23 / 38%);
+  --brand-badge-bar-1: #111a05;
+  --brand-badge-bar-2: #2f5500;
+  --brand-badge-bar-3: #ffffff;
+  --select-menu-bg: #ffffff;
+  --select-menu-shadow:
+    0 18px 44px rgb(17 26 5 / 12%), 0 2px 6px rgb(17 26 5 / 6%);
+  --code-bg: #f3fce0;
+  --code-border: #d5f496;
+  --code-block-bg: #141c13;
+  --code-block-ink: #e5fcb5;
+  --spinner-track: #dcf7a2;
+  --shimmer-a: #ebf2e9;
+  --shimmer-b: #f6faf4;
+  --bar-track: #ebf1ec;
+  --share-track: #e1eae3;
+  --chart-grid: #e6ece8;
+  --chart-track: #ebf1ec;
+  --chart-line: #76ba00;
+  --chart-accent: #141c13;
+  --chart-blue: #2563eb;
+  --chart-amber: #d97706;
+  --chart-teal: #0d9488;
+  --chart-error: #dc2626;
+  --chart-dot-fill: #ffffff;
+  --chart-dot-active-stroke: #111a05;
+  --chart-bar-hover: #141c13;
+  --chart-tooltip-bg: #141c13;
+  --chart-tooltip-ink: #f6faf4;
+  --chart-tooltip-title: #c4f135;
+  --chart-tooltip-border: rgb(196 241 53 / 24%);
   --auth-brand-gradient: linear-gradient(
     145deg,
-    #0b5a3f 0%,
-    #073d2b 52%,
-    #042419 100%
+    #1c2a11 0%,
+    #141d0d 55%,
+    #0d1309 100%
   );
+  --auth-brand-ink: #ffffff;
+  --auth-brand-sub: #d7f890;
+  --body-bg-glow: radial-gradient(
+    ellipse 70% 45% at 15% -12%,
+    rgb(168 236 23 / 10%),
+    transparent 60%
+  );
+}
+
+/* =========================================================
+   STAGE 3: MOTION FIGMA DARK (EXACT MOTION DESIGN SYSTEM)
+   ========================================================= */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --brand-primary: #c4f135;
+  --brand-primary-hover: #a3cc1a;
+  --on-primary: #0f1019;
+  --brand-primary-ink: #c4f135;
+  --brand-secondary: rgb(196 241 53 / 12%);
+  --brand-background: #0f1019;
+  --brand-surface: #1c1d30;
+  --surface-solid: #1c1d30;
+  --surface-elevated: rgb(255 255 255 / 7%);
+  --surface-tint: rgb(196 241 53 / 8%);
+  --surface-hover: rgb(255 255 255 / 6%);
+  --surface-subtle: rgb(255 255 255 / 4%);
+  --surface-seg: #080912;
+  --surface-seg-active: #1c1d30;
+  --surface-input: #141526;
+  --surface-sidebar: #161726;
+  --surface-glass-blur: 8px;
+  --brand-text: rgb(255 255 255 / 92%);
+  --brand-muted: #8b95a9;
+  --placeholder-ink: #667085;
+  --brand-border: rgb(255 255 255 / 8%);
+  --brand-border-soft: rgb(196 241 53 / 24%);
+  --brand-border-accent: rgb(196 241 53 / 44%);
+  --brand-accent: #8b5cf6;
+  --brand-success: #22c55e;
+  --brand-success-bg: rgb(34 197 94 / 12%);
+  --brand-success-border: rgb(34 197 94 / 28%);
+  --brand-warning: #f59e0b;
+  --brand-warning-bg: rgb(245 158 11 / 12%);
+  --brand-warning-border: rgb(245 158 11 / 28%);
+  --brand-error: #ef4444;
+  --brand-error-bg: rgb(239 68 68 / 12%);
+  --brand-error-border: rgb(239 68 68 / 28%);
+  --brand-info: #3b82f6;
+  --brand-info-bg: rgb(59 130 246 / 10%);
+  --brand-info-border: rgb(59 130 246 / 28%);
+  --brand-orange-ink: #c4b5fd;
+  --brand-orange-bg: rgb(139 92 246 / 15%);
+  --brand-orange-border: rgb(139 92 246 / 30%);
+  --brand-disabled: rgb(255 255 255 / 8%);
+  --brand-focus: #c4f135;
+  --focus-ring: 0 0 0 3px rgb(196 241 53 / 24%);
+  --shadow-dialog: 0 20px 60px rgb(0 0 0 / 55%);
+  --shadow-panel:
+    0 12px 36px rgb(0 0 0 / 34%), inset 0 1px 0 rgb(255 255 255 / 5%);
+  --shadow-sidebar: -12px 0 36px rgb(0 0 0 / 45%);
+  --backdrop-overlay: rgb(0 0 0 / 58%);
+  --brand-action: #8b5cf6;
+  --brand-action-hover: #7c3aed;
+  --on-action: #ffffff;
+  --nav-active-mark: #0f1019;
+  --primary-shadow: 0 8px 24px rgb(196 241 53 / 34%);
+  --primary-shadow-hover: 0 10px 28px rgb(196 241 53 / 46%);
+  --action-shadow: 0 8px 22px rgb(139 92 246 / 34%);
+  --action-shadow-hover: 0 10px 26px rgb(139 92 246 / 46%);
+  --nav-active-shadow: 0 8px 24px rgb(196 241 53 / 34%);
+  --brand-badge-bg: linear-gradient(145deg, #c4f135, #a3cc1a);
+  --brand-badge-shadow: 0 8px 24px rgb(196 241 53 / 30%);
+  --brand-badge-bar-1: #0f1019;
+  --brand-badge-bar-2: #1c1d30;
+  --brand-badge-bar-3: #8b5cf6;
+  --select-menu-bg: #161726;
+  --select-menu-shadow: 0 20px 60px rgb(0 0 0 / 58%);
+  --code-bg: rgb(196 241 53 / 10%);
+  --code-border: rgb(196 241 53 / 22%);
+  --code-block-bg: #080912;
+  --code-block-ink: #e2e8f0;
+  --spinner-track: rgb(196 241 53 / 18%);
+  --shimmer-a: #161726;
+  --shimmer-b: #23253d;
+  --bar-track: rgb(255 255 255 / 9%);
+  --share-track: rgb(255 255 255 / 9%);
+  --chart-grid: rgb(255 255 255 / 7%);
+  --chart-track: rgb(255 255 255 / 8%);
+  --chart-line: #c4f135;
+  --chart-accent: #8b5cf6;
+  --chart-blue: #3b82f6;
+  --chart-amber: #f59e0b;
+  --chart-teal: #06b6d4;
+  --chart-error: #ef4444;
+  --chart-dot-fill: #0f1019;
+  --chart-dot-active-stroke: #ffffff;
+  --chart-bar-hover: #c4f135;
+  --chart-tooltip-bg: #080912;
+  --chart-tooltip-ink: #ffffff;
+  --chart-tooltip-title: #c4f135;
+  --chart-tooltip-border: rgb(196 241 53 / 28%);
+  --auth-brand-gradient: linear-gradient(
+    155deg,
+    #1c1d30 0%,
+    #161726 52%,
+    #080912 100%
+  );
+  --auth-brand-ink: #ffffff;
+  --auth-brand-sub: #8b95a9;
   --body-bg-glow:
     radial-gradient(
-      ellipse 78% 52% at 14% -8%,
-      rgb(16 185 129 / 12%),
+      ellipse 75% 48% at 15% -10%,
+      rgb(196 241 53 / 7%),
       transparent 60%
     ),
     radial-gradient(
-      ellipse 56% 42% at 88% 106%,
-      rgb(249 115 22 / 7%),
+      ellipse 55% 45% at 88% 106%,
+      rgb(139 92 246 / 9%),
       transparent 58%
     );
 }
