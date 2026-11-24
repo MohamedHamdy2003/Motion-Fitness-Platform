@@ -969,6 +969,18 @@ fieldset,
   border-color: var(--brand-success-border);
 }
 
+.rt-pill.is-reconnecting {
+  background: var(--brand-warning-bg);
+  color: var(--brand-warning);
+  border-color: var(--brand-warning-border);
+}
+
+.rt-pill.is-offline {
+  background: var(--brand-error-bg);
+  color: var(--brand-error);
+  border-color: var(--brand-error-border);
+}
+
 .workspace-body {
   padding-top: 28px;
   flex: 1 1 auto;

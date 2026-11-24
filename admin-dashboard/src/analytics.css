@@ -120,29 +120,6 @@
   box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
 }
 
-.rst-refresh-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 11px;
-  background: var(--brand-surface);
-  backdrop-filter: blur(var(--surface-glass-blur));
-  border: 1px solid var(--brand-border);
-  color: var(--brand-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.rst-refresh-btn:hover:not(:disabled) {
-  background: var(--brand-secondary);
-  border-color: var(--brand-primary-ink);
-  color: var(--brand-primary-ink);
-}
-
-.rst-refresh-btn.spinning svg {
-  animation: spin 0.85s linear infinite;
-}
-
 /* Alerts Strip */
 .rst-alerts {
   display: flex;
@@ -853,7 +830,6 @@ button.rst-kpi:hover {
   .rst-kpi,
   .rst-alert-pill,
   .rst-donut-seg,
-  .rst-refresh-btn.spinning svg,
   .rst-sk-card,
   .rst-sk-chart {
     animation: none;

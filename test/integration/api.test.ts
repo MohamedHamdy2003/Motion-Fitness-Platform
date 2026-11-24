@@ -3972,4 +3972,106 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
     expect(Array.isArray(pagedLegal.body.items)).toBe(true);
     expect(typeof pagedLegal.body.total).toBe('number');
   });
+
+  it('authenticates admin WebSocket clients, rejects athletes, and broadcasts live invalidations', async () => {
+    const { WebSocket } = await import('ws');
+    const admin = await register('ws-admin@example.test');
+    const athlete = await register('ws-athlete@example.test');
+    await db.query(`INSERT INTO user_roles VALUES($1,'ADMIN')`, [
+      admin.user.id,
+    ]);
+
+    const httpServer = app.getHttpServer();
+    const wasListening = httpServer.listening;
+    if (!wasListening) {
+      await new Promise<void>((resolve) =>
+        httpServer.listen(0, '127.0.0.1', () => resolve()),
+      );
+    }
+    const address = httpServer.address();
+    const port =
+      typeof address === 'object' && address ? address.port : Number(address);
+    const wsUrl = `ws://127.0.0.1:${port}/api/v1/admin/ws`;
+
+    try {
+      // Non-admin athlete is rejected with 4403 FORBIDDEN
+      const athleteCloseCode = await new Promise<number>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        ws.on('open', () =>
+          ws.send(JSON.stringify({ type: 'auth', token: athlete.accessToken })),
+        );
+        ws.on('close', (code) => resolve(code));
+        ws.on('error', reject);
+      });
+      expect(athleteCloseCode).toBe(4403);
+
+      // Invalid token is rejected with 4401 UNAUTHENTICATED
+      const invalidCloseCode = await new Promise<number>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        ws.on('open', () =>
+          ws.send(JSON.stringify({ type: 'auth', token: 'not-a-valid-jwt' })),
+        );
+        ws.on('close', (code) => resolve(code));
+        ws.on('error', reject);
+      });
+      expect(invalidCloseCode).toBe(4401);
+
+      // Authenticated admin receives ready + live invalidation on FAQ mutation
+      const receivedEvent = await new Promise<{
+        type: string;
+        topics?: string[];
+      }>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        const timer = setTimeout(() => {
+          ws.close();
+          reject(new Error('Timed out waiting for WebSocket invalidation'));
+        }, 5000);
+
+        ws.on('open', () =>
+          ws.send(JSON.stringify({ type: 'auth', token: admin.accessToken })),
+        );
+        ws.on('message', (raw) => {
+          const msg = JSON.parse(String(raw)) as {
+            type: string;
+            topics?: string[];
+          };
+          if (msg.type === 'ready') {
+            void api
+              .post(prefix + '/admin/faq')
+              .set(bearer(admin.accessToken))
+              .send({
+                category: 'GENERAL',
+                displayOrder: 1,
+                active: true,
+                questionAr: 'سؤال بث لحظي؟',
+                answerAr: 'إجابة بث لحظي.',
+                questionEn: 'Realtime question?',
+                answerEn: 'Realtime answer.',
+              })
+              .expect(201)
+              .catch((err) => {
+                clearTimeout(timer);
+                ws.close();
+                reject(err);
+              });
+          } else if (msg.type === 'invalidate') {
+            clearTimeout(timer);
+            ws.close();
+            resolve(msg);
+          }
+        });
+        ws.on('error', (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+
+      expect(receivedEvent.type).toBe('invalidate');
+      expect(receivedEvent.topics).toContain('support');
+    } finally {
+      if (!wasListening) {
+        await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+      }
+    }
+  });
 });

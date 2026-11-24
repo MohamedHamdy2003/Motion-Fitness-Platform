@@ -31,7 +31,7 @@ function simulationStatusMeta(status) {
   return { tone: 'INFO', label: 'قيد المعالجة…' };
 }
 
-export function MatchingStudio({ api }) {
+export function MatchingStudio({ api, realtimeTick = 0 }) {
   const [activeRuleset, setActiveRuleset] = useState(null);
   const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
   const [options, setOptions] = useState({
@@ -69,10 +69,12 @@ export function MatchingStudio({ api }) {
         if (!alive) return;
         const current =
           loadedRulesets.find((r) => r.active) || loadedRulesets[0] || null;
-        setActiveRuleset(current);
-        if (current?.instructions) {
-          setInstructions(current.instructions);
-        }
+        setActiveRuleset((prev) => {
+          if (current?.instructions && prev?.id !== current.id) {
+            setInstructions(current.instructions);
+          }
+          return current;
+        });
         setOptions({
           goals: goals.items || [],
           levels: levels.items || [],
@@ -88,7 +90,7 @@ export function MatchingStudio({ api }) {
     return () => {
       alive = false;
     };
-  }, [api, reload]);
+  }, [api, reload, realtimeTick]);
 
   async function handleSaveAndActivate(event) {
     event.preventDefault();

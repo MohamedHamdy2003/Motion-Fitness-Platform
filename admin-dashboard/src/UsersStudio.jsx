@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   PauseCircle,
   PlayCircle,
-  RefreshCw,
   Search,
   Trash2,
   UserCheck,
@@ -29,7 +28,7 @@ function statusMeta(status) {
   return { tone: 'ARCHIVED', label: 'قيد الحذف' };
 }
 
-export function UsersStudio({ api }) {
+export function UsersStudio({ api, realtimeTick = 0 }) {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -92,7 +91,7 @@ export function UsersStudio({ api }) {
     const controller = new AbortController();
     void loadUsers(controller.signal);
     return () => controller.abort();
-  }, [loadUsers, reload]);
+  }, [loadUsers, reload, realtimeTick]);
 
   async function toggleStatus(user) {
     const nextStatus = user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
@@ -148,15 +147,6 @@ export function UsersStudio({ api }) {
             حذف الحسابات التجريبية (حسابات الإدارة محمية ولا تظهر هنا).
           </p>
         </div>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={loading || fetching}
-          onClick={() => setReload((n) => n + 1)}
-        >
-          <RefreshCw size={16} aria-hidden="true" />
-          <span>تحديث القائمة</span>
-        </button>
       </header>
 
       <ErrorNotice error={error} onRetry={() => setReload((n) => n + 1)} />

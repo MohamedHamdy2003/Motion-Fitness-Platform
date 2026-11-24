@@ -633,8 +633,8 @@ export function MotionLatencyBarChart({ checks }) {
       {ordered.length === 0 ? (
         <div className="rst-chart-empty">
           <p>
-            لم تُسجّل فحوصات توافر بعد. اضغط «فحص صحة النظام الآن» لتسجيل أول
-            قراءة.
+            بانتظار تسجيل أول فحص توافر تلقائي (يتم الفحص والتحديث تلقائياً كل
+            دقيقة).
           </p>
         </div>
       ) : (

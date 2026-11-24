@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { query } from '../database/query';
+import { AdminEventsService } from '../realtime/admin-events.service';
 
 export type AiOperation =
   | 'PROGRAM_MATCHING'
@@ -77,7 +78,12 @@ export function estimateGeminiCostUsd(
 
 @Injectable()
 export class AiUsageService {
-  constructor(@Inject(DataSource) private readonly db: DataSource) {}
+  constructor(
+    @Inject(DataSource) private readonly db: DataSource,
+    @Optional()
+    @Inject(AdminEventsService)
+    private readonly events?: AdminEventsService,
+  ) {}
 
   async record(entry: AiUsageRecord): Promise<void> {
     const inputTokens = Math.max(0, Math.round(entry.inputTokens ?? 0));
@@ -116,6 +122,7 @@ export class AiUsageService {
           entry.failureCode ?? null,
         ],
       );
+      this.events?.emit(['analytics', 'matching']);
     } catch {
       // Telemetry must never interrupt user-facing AI execution.
     }
