@@ -3,6 +3,7 @@ import { FileText, HelpCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   ButtonContent,
   ConfirmDialog,
+  CustomSelect,
   ErrorNotice,
   Field,
   Notice,
@@ -118,16 +119,14 @@ function FaqEditDialog({ item, onClose, onSaved, api }) {
 
       <form onSubmit={handleSave} className="field-grid panel-spaced-sm">
         <Field label="التصنيف">
-          <select
+          <CustomSelect
             value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-          >
-            {FAQ_CATEGORIES.map((cat) => (
-              <option key={cat.code} value={cat.code}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setForm({ ...form, category: value })}
+            options={FAQ_CATEGORIES.map((cat) => ({
+              value: cat.code,
+              label: cat.label,
+            }))}
+          />
         </Field>
         <Field label="ترتيب العرض">
           <input
@@ -382,18 +381,16 @@ export function SupportStudio({ api }) {
             </div>
             <form onSubmit={createFaq} className="field-grid">
               <Field label="التصنيف">
-                <select
+                <CustomSelect
                   value={faqForm.category}
-                  onChange={(e) =>
-                    setFaqForm({ ...faqForm, category: e.target.value })
+                  onChange={(value) =>
+                    setFaqForm({ ...faqForm, category: value })
                   }
-                >
-                  {FAQ_CATEGORIES.map((cat) => (
-                    <option key={cat.code} value={cat.code}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
+                  options={FAQ_CATEGORIES.map((cat) => ({
+                    value: cat.code,
+                    label: cat.label,
+                  }))}
+                />
               </Field>
               <Field label="ترتيب العرض">
                 <input
@@ -484,10 +481,9 @@ export function SupportStudio({ api }) {
             </div>
             <form onSubmit={publishLegal} className="field-grid">
               <Field label="نوع الوثيقة">
-                <select
+                <CustomSelect
                   value={legalForm.type}
-                  onChange={(e) => {
-                    const nextType = e.target.value;
+                  onChange={(nextType) => {
                     setLegalForm({
                       ...legalForm,
                       type: nextType,
@@ -501,16 +497,16 @@ export function SupportStudio({ api }) {
                             : 'Motion Privacy Policy',
                     });
                   }}
-                >
-                  <option value="TERMS">الشروط والأحكام</option>
-                  <option value="PRIVACY">سياسة الخصوصية</option>
-                </select>
+                  options={[
+                    { value: 'TERMS', label: 'الشروط والأحكام' },
+                    { value: 'PRIVACY', label: 'سياسة الخصوصية' },
+                  ]}
+                />
               </Field>
               <Field label="اللغة">
-                <select
+                <CustomSelect
                   value={legalForm.locale}
-                  onChange={(e) => {
-                    const nextLocale = e.target.value;
+                  onChange={(nextLocale) => {
                     setLegalForm({
                       ...legalForm,
                       locale: nextLocale,
@@ -524,10 +520,11 @@ export function SupportStudio({ api }) {
                             : 'Motion Privacy Policy',
                     });
                   }}
-                >
-                  <option value="ar">العربية</option>
-                  <option value="en">الإنجليزية</option>
-                </select>
+                  options={[
+                    { value: 'ar', label: 'العربية' },
+                    { value: 'en', label: 'الإنجليزية' },
+                  ]}
+                />
               </Field>
               <Field label="عنوان الوثيقة" full>
                 <input

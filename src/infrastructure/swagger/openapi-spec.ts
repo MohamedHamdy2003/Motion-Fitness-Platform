@@ -1985,6 +1985,52 @@ const ROUTES: RouteDoc[] = [
       active: true,
     },
   },
+
+  // 12. Admin — Trainees & Accounts
+  {
+    method: 'get',
+    path: '/admin/users',
+    audience: 'admin',
+    tag: '12. Admin — Trainees & Accounts',
+    summary: 'List non-admin trainees with enrollment and activity summaries',
+    auth: 'bearer',
+    params: [
+      {
+        name: 'search',
+        in: 'query',
+        description: 'Filter trainees by email or display name',
+        schema: { type: 'string' },
+      },
+      {
+        name: 'status',
+        in: 'query',
+        description: 'Filter trainees by account status',
+        schema: {
+          type: 'string',
+          enum: ['ACTIVE', 'SUSPENDED', 'DELETION_PENDING'],
+        },
+      },
+    ],
+  },
+  {
+    method: 'patch',
+    path: '/admin/users/:id/status',
+    audience: 'admin',
+    tag: '12. Admin — Trainees & Accounts',
+    summary: 'Suspend or reactivate a trainee account',
+    auth: 'bearer',
+    params: [uuidParam('id', 'Trainee user ID')],
+    bodyExample: { status: 'SUSPENDED' },
+  },
+  {
+    method: 'delete',
+    path: '/admin/users/:id',
+    audience: 'admin',
+    tag: '12. Admin — Trainees & Accounts',
+    summary: 'Permanently delete a non-admin trainee account',
+    auth: 'bearer',
+    params: [uuidParam('id', 'Trainee user ID')],
+  },
 ];
 
 function toOpenApiPath(expressPath: string): string {

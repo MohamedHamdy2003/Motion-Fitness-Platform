@@ -16,12 +16,19 @@ import {
   emptyProgram,
   emptyWorkout,
   fromProgram,
+  makeAutoSlug,
   readableCode,
-  slugify,
   splitList,
   validateProgram,
 } from './program';
-import { ConfirmDialog, ErrorNotice, Field, Notice, Status } from './ui';
+import {
+  ConfirmDialog,
+  CustomSelect,
+  ErrorNotice,
+  Field,
+  Notice,
+  Status,
+} from './ui';
 
 async function choices(api, path, getTitle) {
   const items = (await listAll(api, path)).filter((item) => !item.archived);
@@ -125,6 +132,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
         return;
       }
       const { slug, ...body } = form;
+      const resolvedSlug = slug?.trim() || makeAutoSlug('program', form.title);
       const data =
         action === 'publish'
           ? await api(`/admin/programs/${loaded.id}/publish`, {
@@ -138,7 +146,7 @@ export function ProgramEditor({ id, api, onBack, onDirty }) {
               })
             : await api('/admin/programs', {
                 method: 'POST',
-                body: { ...body, slug },
+                body: { ...body, slug: resolvedSlug },
               });
       const next = fromProgram(data);
       setLoaded(data);
@@ -495,16 +503,9 @@ function ProgramHints({ loaded, api, onUpdated, onError }) {
   );
 }
 
-function ProgramDetails({ form, update, options, slugLocked }) {
-  function change(event) {
-    const { name, value } = event.target;
+function ProgramDetails({ form, update, options }) {
+  function setField(name, value) {
     update((copy) => {
-      if (
-        name === 'title' &&
-        !slugLocked &&
-        (!copy.slug || copy.slug === slugify(copy.title))
-      )
-        copy.slug = slugify(value);
       copy[name] =
         name === 'requiredEquipment'
           ? splitList(value)
@@ -528,6 +529,10 @@ function ProgramDetails({ form, update, options, slugLocked }) {
     });
   }
 
+  function change(event) {
+    setField(event.target.name, event.target.value);
+  }
+
   function toggle(key, code, checked) {
     update((copy) => {
       copy[key] = checked
@@ -538,25 +543,12 @@ function ProgramDetails({ form, update, options, slugLocked }) {
 
   return (
     <div className="editor-body field-grid">
-      <Field label="اسم البرنامج">
+      <Field label="اسم البرنامج" full>
         <input
           name="title"
           maxLength="160"
           value={form.title}
           onChange={change}
-        />
-      </Field>
-      <Field
-        label="المعرّف النصي (Slug)"
-        hint="أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
-      >
-        <input
-          dir="ltr"
-          name="slug"
-          maxLength="120"
-          value={form.slug}
-          onChange={change}
-          readOnly={slugLocked}
         />
       </Field>
       <Field label="وصف البرنامج" full>
@@ -571,9 +563,8 @@ function ProgramDetails({ form, update, options, slugLocked }) {
       <div>
         <Field label="الهدف الأساسي">
           <LookupSelect
-            name="primaryGoal"
             value={form.primaryGoal}
-            onChange={change}
+            onChange={(value) => setField('primaryGoal', value)}
             items={options.goals}
           />
         </Field>
@@ -588,9 +579,8 @@ function ProgramDetails({ form, update, options, slugLocked }) {
       <div>
         <Field label="المستوى المثالي">
           <LookupSelect
-            name="idealLevel"
             value={form.idealLevel}
-            onChange={change}
+            onChange={(value) => setField('idealLevel', value)}
             items={options.levels}
           />
         </Field>
@@ -603,17 +593,14 @@ function ProgramDetails({ form, update, options, slugLocked }) {
         />
       </div>
       <Field label="أيام التدريب أسبوعياً">
-        <select
-          name="trainingDaysPerWeek"
-          value={form.trainingDaysPerWeek}
-          onChange={change}
-        >
-          {[2, 3, 4, 5, 6].map((number) => (
-            <option key={number} value={number}>
-              {number} أيام / أسبوع
-            </option>
-          ))}
-        </select>
+        <CustomSelect
+          value={String(form.trainingDaysPerWeek)}
+          onChange={(value) => setField('trainingDaysPerWeek', value)}
+          options={[2, 3, 4, 5, 6].map((number) => ({
+            value: String(number),
+            label: `${number} أيام / أسبوع`,
+          }))}
+        />
       </Field>
       <Field label="الأولوية التحريرية">
         <input
@@ -645,19 +632,23 @@ function ProgramDetails({ form, update, options, slugLocked }) {
   );
 }
 
-function LookupSelect({ name, value, items, onChange }) {
+function LookupSelect({ value, items, onChange }) {
+  const selectOptions = [
+    ...(value && !items.some((item) => item.code === value)
+      ? [{ value, label: `${value} (غير متاح)` }]
+      : []),
+    ...items.map((item) => ({
+      value: item.code,
+      label: `${readableCode(item.code)} (${item.label})`,
+    })),
+  ];
   return (
-    <select name={name} value={value} onChange={onChange}>
-      <option value="">اختر قيمة</option>
-      {value && !items.some((item) => item.code === value) && (
-        <option value={value}>{value} (غير متاح)</option>
-      )}
-      {items.map((item) => (
-        <option value={item.code} key={item.code}>
-          {readableCode(item.code)} ({item.label})
-        </option>
-      ))}
-    </select>
+    <CustomSelect
+      value={value}
+      onChange={onChange}
+      placeholder="اختر قيمة…"
+      options={selectOptions}
+    />
   );
 }
 
@@ -759,22 +750,20 @@ function Schedule({ form, update, options, location, setLocation }) {
     <div className="editor-body schedule">
       <div className="schedule-top">
         <Field label="الشهر">
-          <select
-            value={month}
-            onChange={(event) =>
+          <CustomSelect
+            value={String(month)}
+            onChange={(value) =>
               setLocation({
-                month: Number(event.target.value),
+                month: Number(value),
                 week: 0,
                 day: 0,
               })
             }
-          >
-            {form.months.map((item, i) => (
-              <option value={i} key={i}>
-                {item.title || `الشهر ${i + 1}`}
-              </option>
-            ))}
-          </select>
+            options={form.months.map((item, i) => ({
+              value: String(i),
+              label: item.title || `الشهر ${i + 1}`,
+            }))}
+          />
         </Field>
         <Field label="عنوان الشهر">
           <input
@@ -868,19 +857,20 @@ function Schedule({ form, update, options, location, setLocation }) {
               <p>حدد نوع اليوم سواء كان يوم تدريب أو يوم راحة.</p>
             </div>
             <Field label="نوع اليوم">
-              <select
+              <CustomSelect
                 value={dayData.kind}
-                onChange={(event) =>
+                onChange={(value) =>
                   changeDay((copy) => {
-                    copy.kind = event.target.value;
+                    copy.kind = value;
                     if (copy.kind === 'TRAINING') copy.workout = emptyWorkout();
                     else delete copy.workout;
                   })
                 }
-              >
-                <option value="REST">راحة</option>
-                <option value="TRAINING">تدريب</option>
-              </select>
+                options={[
+                  { value: 'REST', label: 'راحة' },
+                  { value: 'TRAINING', label: 'تدريب' },
+                ]}
+              />
             </Field>
           </div>
           {dayData.workout && (
@@ -1019,20 +1009,23 @@ function Schedule({ form, update, options, location, setLocation }) {
   );
 }
 
-export function VersionSelect({ value, items, onChange }) {
+export function VersionSelect({ value, items = [], onChange }) {
+  const selectOptions = [
+    ...(value && !items.some((item) => item.value === value)
+      ? [{ value, label: `إصدار محدد مسبقاً (${value.slice(0, 8)})` }]
+      : []),
+    ...items.map((item) => ({
+      value: item.value,
+      label: `${item.label}${item.status === 'DRAFT' ? ' (مسودة)' : ''}`,
+    })),
+  ];
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">اختر عنصراً</option>
-      {value && !items.some((item) => item.value === value) && (
-        <option value={value}>إصدار محدد مسبقاً ({value.slice(0, 8)})</option>
-      )}
-      {items.map((item) => (
-        <option key={item.value} value={item.value}>
-          {item.label}
-          {item.status === 'DRAFT' ? ' (مسودة)' : ''}
-        </option>
-      ))}
-    </select>
+    <CustomSelect
+      value={value}
+      onChange={onChange}
+      placeholder="اختر عنصراً…"
+      options={selectOptions}
+    />
   );
 }
 
@@ -1063,13 +1056,13 @@ function ExercisePrescription({ item, options, onChange, onRemove }) {
           />
         </Field>
         <Field label="نظام القياس">
-          <select
+          <CustomSelect
             value={p.mode}
-            onChange={(event) =>
+            onChange={(value) =>
               onChange((entry) => {
                 const { setCount, restSeconds } = entry.prescription;
                 entry.prescription =
-                  event.target.value === 'REPS'
+                  value === 'REPS'
                     ? {
                         mode: 'REPS',
                         setCount,
@@ -1085,10 +1078,11 @@ function ExercisePrescription({ item, options, onChange, onRemove }) {
                       };
               })
             }
-          >
-            <option value="REPS">تكرارات</option>
-            <option value="DURATION">زمن بالثواني</option>
-          </select>
+            options={[
+              { value: 'REPS', label: 'تكرارات' },
+              { value: 'DURATION', label: 'زمن بالثواني' },
+            ]}
+          />
         </Field>
         <button
           className="icon-button"

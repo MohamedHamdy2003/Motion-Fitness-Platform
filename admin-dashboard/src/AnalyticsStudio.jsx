@@ -226,11 +226,11 @@ export function AnalyticsStudio({ api, onNavigate }) {
         text: 'خدمة Gemini AI بانتظار استكمال إعداد المتغيرات',
       });
     }
-    if ((summary?.failedRequests || 0) > 0) {
+    if (summary?.latestCallFailed) {
       liveAlerts.push({
         key: 'ai-failures',
         tone: 'is-warning',
-        text: `${formatNumber(summary.failedRequests)} استدعاء فاشل لـ Gemini خلال آخر ${days} يوماً`,
+        text: `فشل آخر استدعاء لـ Gemini (${formatNumber(summary.failedLast24h || 1)} فشل خلال آخر 24 ساعة)`,
       });
     }
     if (uptime.integrations.s3Storage === 'NOT_CONFIGURED') {
@@ -440,7 +440,11 @@ export function AnalyticsStudio({ api, onNavigate }) {
               </div>
             </article>
 
-            <article className="rst-kpi">
+            <button
+              type="button"
+              className="rst-kpi"
+              onClick={() => onNavigate?.({ section: 'users' })}
+            >
               <div className="rst-kpi-top">
                 <span className="rst-kpi-label">
                   <span className="rst-kpi-ico is-blue" aria-hidden="true">
@@ -454,9 +458,9 @@ export function AnalyticsStudio({ api, onNavigate }) {
               </div>
               <div className="rst-kpi-foot numeric">
                 من إجمالي {formatNumber(platform.totalUsers)} مسجّل ·{' '}
-                {formatNumber(platform.activeEnrollments)} مشترك ببرنامج
+                {formatNumber(platform.activeEnrollments)} مشترك ببرنامج ←
               </div>
-            </article>
+            </button>
 
             <button
               type="button"

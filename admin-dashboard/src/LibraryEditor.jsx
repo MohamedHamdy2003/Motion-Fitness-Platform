@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { listAll } from './api';
-import { slugify, splitList } from './program';
+import { makeAutoSlug, splitList } from './program';
 import { VersionSelect } from './ProgramEditor';
-import { ConfirmDialog, ErrorNotice, Field, Notice, Status } from './ui';
+import {
+  ConfirmDialog,
+  CustomSelect,
+  ErrorNotice,
+  Field,
+  Notice,
+  Status,
+} from './ui';
 
 const emptyMealItem = () => ({ memberId: '', exchangeUnits: 1 });
 const emptyFoodIngredient = () => ({ ingredientId: '', quantityG: 100 });
@@ -56,9 +63,11 @@ function contentForm(kind, item) {
       instructions: content?.instructions.join('\n') || '',
       muscleGroups: content?.muscleGroups.join(', ') || '',
       equipment: content?.equipment.join(', ') || '',
-      sourceTitle: content?.source.title || '',
-      sourceReference: content?.source.reference || '',
-      sourceLicense: content?.source.licenseNotes || '',
+      sourceTitle: content?.source?.title || 'Motion Fitness Library',
+      sourceReference:
+        content?.source?.reference || 'https://motion.app/library',
+      sourceLicense:
+        content?.source?.licenseNotes || 'Internal curated exercise guide',
       mediaId: content?.mediaId || '',
     };
   }
@@ -100,17 +109,12 @@ function contentForm(kind, item) {
 }
 
 function payload(kind, form, creating) {
-  if (!form.title.trim() || !form.slug)
-    throw new Error('يرجى إدخال الاسم والمعرّف النصي (Slug).');
-  if (creating && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
-    throw new Error(
-      'يجب أن يتكون المعرّف النصي (Slug) من أحرف إنجليزية صغيرة وأرقام وشرطات مفردة فقط.',
-    );
-  }
-  const slug = creating ? { slug: form.slug.trim() } : {};
+  if (!form.title.trim()) throw new Error('يرجى إدخال الاسم / العنوان.');
+  const autoSlug = form.slug?.trim() || makeAutoSlug(kind, form.title);
+  const slug = creating ? { slug: autoSlug } : {};
   if (kind === 'meal-sections') {
     return {
-      slug: form.slug.trim(),
+      slug: autoSlug,
       title: form.title.trim(),
     };
   }
@@ -158,14 +162,9 @@ function payload(kind, form, creating) {
     if (
       !form.description.trim() ||
       !instructions.length ||
-      !muscleGroups.length ||
-      !form.sourceTitle.trim() ||
-      !form.sourceReference.trim() ||
-      !form.sourceLicense.trim()
+      !muscleGroups.length
     ) {
-      throw new Error(
-        'يرجى إدخال الوصف والتعليمات والمجموعات العضلية وبيانات المصدر.',
-      );
+      throw new Error('يرجى إدخال الوصف وخطوات الأداء والمجموعات العضلية.');
     }
     return {
       ...slug,
@@ -176,9 +175,11 @@ function payload(kind, form, creating) {
         muscleGroups,
         equipment: splitList(form.equipment),
         source: {
-          title: form.sourceTitle,
-          reference: form.sourceReference,
-          licenseNotes: form.sourceLicense,
+          title: form.sourceTitle?.trim() || 'Motion Fitness Library',
+          reference:
+            form.sourceReference?.trim() || 'https://motion.app/library',
+          licenseNotes:
+            form.sourceLicense?.trim() || 'Internal curated exercise guide',
         },
         mediaId: form.mediaId || null,
       },
@@ -354,14 +355,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
 
   function change(event) {
     const { name, value } = event.target;
-    update({
-      [name]: value,
-      ...(name === 'title' &&
-      !item &&
-      (!form.slug || form.slug === slugify(form.title))
-        ? { slug: slugify(value) }
-        : {}),
-    });
+    update({ [name]: value });
   }
 
   async function perform(action) {
@@ -501,21 +495,8 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
       <section className="editor-panel">
         <fieldset className="unframed" disabled={saving || item?.archived}>
           <div className="editor-body field-grid">
-            <Field label="الاسم / العنوان">
+            <Field label="الاسم / العنوان" full>
               <input name="title" value={form.title} onChange={change} />
-            </Field>
-            <Field
-              label="المعرّف النصي (Slug)"
-              hint="أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
-            >
-              <input
-                dir="ltr"
-                name="slug"
-                maxLength="120"
-                value={form.slug}
-                onChange={change}
-                readOnly={Boolean(item && kind !== 'meal-sections')}
-              />
             </Field>
             {kind === 'exercises' ? (
               <ExerciseFields
@@ -538,14 +519,9 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
                 options={options}
               />
             ) : kind === 'ingredients' ? (
-              <IngredientFields form={form} change={change} />
+              <IngredientFields form={form} change={change} update={update} />
             ) : kind === 'meal-sections' ? null : (
-              <MealFields
-                form={form}
-                change={change}
-                update={update}
-                options={options}
-              />
+              <MealFields form={form} update={update} options={options} />
             )}
           </div>
         </fieldset>
@@ -571,7 +547,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
   );
 }
 
-function IngredientFields({ form, change }) {
+function IngredientFields({ form, change, update }) {
   return (
     <>
       <Field label="الوصف" full>
@@ -583,14 +559,14 @@ function IngredientFields({ form, change }) {
         />
       </Field>
       <Field label="حالة التوثيق">
-        <select
-          name="verificationStatus"
+        <CustomSelect
           value={form.verificationStatus}
-          onChange={change}
-        >
-          <option value="VERIFIED">موثّق (VERIFIED)</option>
-          <option value="UNKNOWN">غير موثّق (UNKNOWN)</option>
-        </select>
+          onChange={(verificationStatus) => update({ verificationStatus })}
+          options={[
+            { value: 'VERIFIED', label: 'موثّق (VERIFIED)' },
+            { value: 'UNKNOWN', label: 'غير موثّق (UNKNOWN)' },
+          ]}
+        />
       </Field>
       <Field
         label="رموز مسببات الحساسية"
@@ -721,34 +697,43 @@ function ExerciseFields({ form, change, update, options }) {
       <Field label="الأدوات المطلوبة">
         <input name="equipment" value={form.equipment} onChange={change} />
       </Field>
-      <Field label="اسم المصدر">
-        <input name="sourceTitle" value={form.sourceTitle} onChange={change} />
-      </Field>
-      <Field label="رابط / مرجع المصدر">
-        <input
-          dir="ltr"
-          name="sourceReference"
-          value={form.sourceReference}
-          onChange={change}
-        />
-      </Field>
-      <Field label="ملاحظات الترخيص">
-        <input
-          name="sourceLicense"
-          value={form.sourceLicense}
-          onChange={change}
-        />
-      </Field>
-      <Field
-        label="وسائط التمرين (فيديو / صورة)"
-        hint="اختياري — اختر ملفاً جاهزاً من مكتبة الوسائط."
-      >
-        <VersionSelect
-          value={form.mediaId}
-          items={options.media}
-          onChange={(mediaId) => update({ mediaId })}
-        />
-      </Field>
+      <details className="advanced-box">
+        <summary>إعدادات متقدمة للمصدر والوسائط (اختياري)</summary>
+        <div className="advanced-box-grid">
+          <Field label="اسم المصدر">
+            <input
+              name="sourceTitle"
+              value={form.sourceTitle}
+              onChange={change}
+            />
+          </Field>
+          <Field label="رابط / مرجع المصدر">
+            <input
+              dir="ltr"
+              name="sourceReference"
+              value={form.sourceReference}
+              onChange={change}
+            />
+          </Field>
+          <Field label="ملاحظات الترخيص">
+            <input
+              name="sourceLicense"
+              value={form.sourceLicense}
+              onChange={change}
+            />
+          </Field>
+          <Field
+            label="وسائط التمرين (فيديو / صورة)"
+            hint="اختر ملفاً جاهزاً من مكتبة الوسائط."
+          >
+            <VersionSelect
+              value={form.mediaId}
+              items={options.media}
+              onChange={(mediaId) => update({ mediaId })}
+            />
+          </Field>
+        </div>
+      </details>
     </>
   );
 }
@@ -772,15 +757,15 @@ function FoodFields({ form, change, update, options }) {
         />
       </Field>
       <Field label="حالة التحضير">
-        <select
-          name="preparationState"
+        <CustomSelect
           value={form.preparationState}
-          onChange={change}
-        >
-          <option value="RAW">نيء (RAW)</option>
-          <option value="COOKED">مطبوخ (COOKED)</option>
-          <option value="READY_TO_EAT">جاهز للأكل (READY_TO_EAT)</option>
-        </select>
+          onChange={(preparationState) => update({ preparationState })}
+          options={[
+            { value: 'RAW', label: 'نيء (RAW)' },
+            { value: 'COOKED', label: 'مطبوخ (COOKED)' },
+            { value: 'READY_TO_EAT', label: 'جاهز للأكل (READY_TO_EAT)' },
+          ]}
+        />
       </Field>
       <Field label="زمن التحضير (بالدقائق)">
         <input
@@ -842,24 +827,33 @@ function FoodFields({ form, change, update, options }) {
           onChange={change}
         />
       </Field>
-      <Field label="مصدر البيانات الغذائية">
-        <input name="sourceTitle" value={form.sourceTitle} onChange={change} />
-      </Field>
-      <Field label="رابط المصدر">
-        <input
-          dir="ltr"
-          name="sourceReference"
-          value={form.sourceReference}
-          onChange={change}
-        />
-      </Field>
-      <Field label="الترخيص">
-        <input
-          name="sourceLicense"
-          value={form.sourceLicense}
-          onChange={change}
-        />
-      </Field>
+      <details className="advanced-box">
+        <summary>إعدادات متقدمة لمصدر البيانات الغذائية (اختياري)</summary>
+        <div className="advanced-box-grid">
+          <Field label="مصدر البيانات الغذائية">
+            <input
+              name="sourceTitle"
+              value={form.sourceTitle}
+              onChange={change}
+            />
+          </Field>
+          <Field label="رابط المصدر">
+            <input
+              dir="ltr"
+              name="sourceReference"
+              value={form.sourceReference}
+              onChange={change}
+            />
+          </Field>
+          <Field label="الترخيص" full>
+            <input
+              name="sourceLicense"
+              value={form.sourceLicense}
+              onChange={change}
+            />
+          </Field>
+        </div>
+      </details>
       <div className="full schedule-section">
         <div className="section-heading">
           <div>
@@ -921,7 +915,7 @@ function FoodFields({ form, change, update, options }) {
   );
 }
 
-function MealFields({ form, change, update, options }) {
+function MealFields({ form, update, options }) {
   function setItem(i, patch) {
     update({
       items: form.items.map((item, index) =>
@@ -930,21 +924,26 @@ function MealFields({ form, change, update, options }) {
     });
   }
 
+  const sectionOptions = [
+    ...(form.sectionId &&
+    !options.sections.some(({ id }) => id === form.sectionId)
+      ? [{ value: form.sectionId, label: 'قسم غير متاح' }]
+      : []),
+    ...options.sections.map((section) => ({
+      value: section.id,
+      label: section.title,
+    })),
+  ];
+
   return (
     <>
       <Field label="قسم الوجبة" full>
-        <select name="sectionId" value={form.sectionId} onChange={change}>
-          <option value="">اختر قسم الوجبة</option>
-          {form.sectionId &&
-            !options.sections.some(({ id }) => id === form.sectionId) && (
-              <option value={form.sectionId}>قسم غير متاح</option>
-            )}
-          {options.sections.map((section) => (
-            <option key={section.id} value={section.id}>
-              {section.title}
-            </option>
-          ))}
-        </select>
+        <CustomSelect
+          value={form.sectionId}
+          onChange={(sectionId) => update({ sectionId })}
+          placeholder="اختر قسم الوجبة…"
+          options={sectionOptions}
+        />
       </Field>
       <div className="full schedule-section">
         <div className="section-heading">

@@ -21,6 +21,7 @@ import {
   Minimize2,
   Plus,
   Sparkles,
+  Users,
   Utensils,
   Wheat,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ import { Presence } from './presence';
 import { ProgramEditor } from './ProgramEditor';
 import { readableCode } from './program';
 import { SupportStudio } from './SupportStudio';
+import { UsersStudio } from './UsersStudio';
 import {
   Brand,
   ButtonContent,
@@ -52,6 +54,14 @@ const sections = [
     Icon: BarChart3,
     intro:
       'متابعة استهلاك Gemini API، التكلفة التقديرية، جاهزية السيرفر، وحالة التكاملات الحية.',
+  },
+  {
+    key: 'users',
+    label: 'المتدربون',
+    singular: 'متدرب',
+    Icon: Users,
+    intro:
+      'إدارة حسابات المتدربين المسجلين وبرامجهم النشطة وإيقاف أو حذف الحسابات التجريبية.',
   },
   {
     key: 'programs',
@@ -185,7 +195,12 @@ const columns = {
   ],
 };
 
-const studioOnlySections = new Set(['analytics', 'matching', 'support']);
+const studioOnlySections = new Set([
+  'analytics',
+  'users',
+  'matching',
+  'support',
+]);
 
 function formatTodayCairo() {
   return new Intl.DateTimeFormat('ar-EG', {
@@ -234,28 +249,35 @@ function clearRouteHash() {
 
 const THEME_STORAGE_KEY = 'motion.admin.theme.v1';
 
+function normalizeTheme(value) {
+  if (value === 'dark' || value === 'lime' || value === 'classic') return value;
+  return 'classic';
+}
+
 function readInitialTheme() {
   try {
-    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
-      ? 'dark'
-      : 'light';
+    return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
-    return 'light';
+    return 'classic';
   }
 }
 
 function applyTheme(theme) {
-  if (theme === 'dark') {
-    document.documentElement.dataset.theme = 'dark';
-  } else {
+  const safe = normalizeTheme(theme);
+  if (safe === 'classic') {
     delete document.documentElement.dataset.theme;
+  } else {
+    document.documentElement.dataset.theme = safe;
   }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute('content', theme === 'dark' ? '#07110e' : '#008657');
+    meta.setAttribute(
+      'content',
+      safe === 'dark' ? '#0f1019' : safe === 'lime' ? '#a8ec17' : '#008657',
+    );
   }
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, safe);
   } catch {
     // Ignore storage failures in restricted browser modes.
   }
@@ -296,8 +318,8 @@ function App() {
     setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
   }, [setDirty]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  const selectTheme = useCallback((nextTheme) => {
+    setTheme(normalizeTheme(nextTheme));
   }, []);
 
   useEffect(() => {
@@ -307,7 +329,7 @@ function App() {
   useEffect(() => {
     function syncTheme(event) {
       if (event.key !== THEME_STORAGE_KEY) return;
-      setTheme(event.newValue === 'dark' ? 'dark' : 'light');
+      setTheme(normalizeTheme(event.newValue));
     }
     window.addEventListener('storage', syncTheme);
     return () => window.removeEventListener('storage', syncTheme);
@@ -459,7 +481,7 @@ function App() {
       <SignIn
         notice={signedOut}
         theme={theme}
-        onToggleTheme={toggleTheme}
+        onSelectTheme={selectTheme}
         onSignIn={(active) => {
           setSignedOut('');
           setSession(active);
@@ -522,7 +544,7 @@ function App() {
         onCloseMobile={() => setMobileOpen(false)}
         logoutTriggerRef={logoutTriggerRef}
         theme={theme}
-        onToggleTheme={toggleTheme}
+        onSelectTheme={selectTheme}
         onRequestSignOut={() => {
           if (!canLeave()) return;
           setMobileOpen(false);
@@ -597,6 +619,8 @@ function App() {
           <Notice text={notice} />
           {section.key === 'analytics' ? (
             <AnalyticsStudio api={session.api} onNavigate={navigate} />
+          ) : section.key === 'users' ? (
+            <UsersStudio api={session.api} />
           ) : section.key === 'matching' ? (
             <MatchingStudio api={session.api} />
           ) : section.key === 'support' ? (
@@ -637,7 +661,7 @@ function App() {
   );
 }
 
-function SignIn({ onSignIn, onExpired, notice, theme, onToggleTheme }) {
+function SignIn({ onSignIn, onExpired, notice, theme, onSelectTheme }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -665,7 +689,7 @@ function SignIn({ onSignIn, onExpired, notice, theme, onToggleTheme }) {
   return (
     <main className="auth-layout">
       <section className="auth-main">
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} floating />
+        <ThemeToggle theme={theme} onSelectTheme={onSelectTheme} floating />
         <div className="auth-form">
           <div className="auth-mobile-brand">
             <Brand />

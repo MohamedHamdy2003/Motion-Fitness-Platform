@@ -93,7 +93,7 @@
 
 .rst-seg button.active {
   background: var(--brand-primary);
-  color: #ffffff;
+  color: var(--on-primary);
 }
 
 .rst-seg-sm {
@@ -240,7 +240,7 @@ button.rst-alert-pill:hover {
 button.rst-kpi:hover {
   border-color: var(--brand-border-accent);
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgb(16 185 129 / 14%);
+  box-shadow: var(--primary-shadow);
 }
 
 .rst-kpi-top {
