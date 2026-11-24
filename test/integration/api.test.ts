@@ -761,13 +761,13 @@ describe('external adapter boundaries with fixture transports', () => {
     const { default: sharp } = await import('sharp');
     const rawPng = await sharp({
       create: {
-        width: 1400,
-        height: 1400,
+        width: 1200,
+        height: 1200,
         channels: 4,
         background: { r: 24, g: 160, b: 92, alpha: 1 },
       },
     })
-      .png({ compressionLevel: 0 })
+      .png({ compressionLevel: 1 })
       .toBuffer();
     await db.query(
       `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,'uploads/fixture','uploads/fixture','image/png',$3,'PENDING')`,
