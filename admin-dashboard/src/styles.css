@@ -396,7 +396,7 @@ fieldset,
   flex-direction: column;
   border-inline-end: 1px solid var(--brand-border);
   background: var(--surface-sidebar);
-  backdrop-filter: blur(var(--surface-glass-blur)) saturate(145%);
+  backdrop-filter: blur(var(--surface-glass-blur));
   color: var(--brand-text);
   z-index: 20;
   overflow-y: auto;
@@ -430,29 +430,23 @@ fieldset,
   height: 42px;
   border-radius: 12px;
   background: var(--brand-badge-bg);
+  border: 1px solid var(--brand-badge-border);
+  color: var(--brand-badge-ink);
   box-shadow: var(--brand-badge-shadow);
   flex-shrink: 0;
-  direction: ltr;
-  gap: 3px;
-  padding-inline: 7px;
+  overflow: hidden;
+  padding: 2px;
+  transition:
+    background-color 220ms var(--ease-out),
+    border-color 220ms var(--ease-out),
+    color 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
 }
 
-.brand-badge i {
+.brand-logo-svg {
+  width: 100%;
+  height: 100%;
   display: block;
-  width: 6px;
-  height: 20px;
-  border-radius: 2px;
-  background: var(--brand-badge-bar-1);
-  transform: skew(-22deg);
-}
-
-.brand-badge i:nth-child(2) {
-  transform: skew(18deg) scaleY(0.72);
-  background: var(--brand-badge-bar-2);
-}
-
-.brand-badge i:nth-child(3) {
-  background: var(--brand-badge-bar-3);
 }
 
 .brand-copy {
@@ -702,17 +696,6 @@ fieldset,
 
 .theme-stage-btn[aria-checked='true'] svg {
   transform: scale(1.12) rotate(-8deg);
-}
-
-.theme-switcher.is-floating {
-  position: absolute;
-  top: 22px;
-  left: 22px;
-  z-index: 4;
-  width: 244px;
-  background: var(--brand-surface);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-panel);
 }
 
 /* Compact cycling orb when sidebar is collapsed */
@@ -1068,7 +1051,7 @@ fieldset,
 .editor-panel,
 .listing {
   background: var(--brand-surface);
-  backdrop-filter: blur(var(--surface-glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--surface-glass-blur));
   box-shadow: var(--shadow-panel);
   border: 1px solid var(--brand-border);
   border-radius: var(--radius-panel);
@@ -1884,39 +1867,38 @@ tbody tr:hover {
 }
 
 /* =========================================================
-   SPLIT-SCREEN LOGIN (DUAL-THEME LOGIN-V2 COMPOSITION)
+   CENTERED SIGN-IN LAYOUT
    ========================================================= */
 .auth-layout {
-  min-height: 100dvh;
-  display: grid;
-  grid-template-columns: 57% 43%;
-  align-items: start;
-  background: var(--brand-background);
-}
-
-.auth-main {
   position: relative;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100dvh;
-  padding: 48px 36px;
-  background: var(--surface-solid);
+  padding: 96px 20px 44px;
+  background: var(--brand-background);
 }
 
-:root[data-theme='dark'] .auth-main {
-  background: transparent;
+.auth-header {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  z-index: 2;
+  animation: content-in var(--motion-view) var(--ease-out) backwards;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 36px 34px 30px;
+  border-radius: 20px;
+  background: var(--surface-solid);
+  border: 1px solid var(--brand-border);
+  box-shadow: var(--shadow-panel);
 }
 
 .auth-form {
   width: 100%;
-  max-width: 440px;
-}
-
-.auth-mobile-brand {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
 }
 
 .auth-form h1 {
@@ -1971,64 +1953,6 @@ tbody tr:hover {
   text-align: center;
   color: var(--brand-muted);
   font-size: 13px;
-}
-
-.auth-brand {
-  background: var(--auth-brand-gradient);
-  color: #ffffff;
-  text-align: center;
-  padding: 48px 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: sticky;
-  top: 0;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
-  border-inline-start: 1px solid var(--brand-border);
-}
-
-.auth-brand-logo {
-  position: absolute;
-  top: 38px;
-  left: 38px;
-  z-index: 2;
-  animation: content-in 650ms var(--ease-out) backwards;
-}
-
-.auth-brand-logo .brand-badge {
-  background: rgb(255 255 255 / 16%);
-  border: 1px solid rgb(255 255 255 / 26%);
-  box-shadow: none;
-}
-
-.auth-brand-logo .brand-copy strong {
-  color: var(--auth-brand-ink);
-}
-
-.auth-brand-logo .brand-copy small {
-  color: var(--auth-brand-sub);
-}
-
-.auth-brand h2 {
-  font-size: 30px;
-  line-height: 1.55;
-  position: relative;
-  z-index: 2;
-  margin-bottom: 12px;
-  color: var(--auth-brand-ink);
-  animation: content-in 650ms var(--ease-out) 100ms backwards;
-}
-
-.auth-brand p {
-  font-size: 16px;
-  color: var(--auth-brand-sub);
-  position: relative;
-  z-index: 2;
-  max-width: 34ch;
-  animation: content-in 650ms var(--ease-out) 180ms backwards;
 }
 
 /* =========================================================
@@ -2261,19 +2185,6 @@ tbody tr:hover {
   }
 }
 
-.auth-artwork {
-  position: absolute;
-  bottom: -24px;
-  left: -30px;
-  width: 460px;
-  max-width: 115%;
-  height: auto;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.92;
-  animation: botanical-in 900ms var(--ease-out) backwards;
-}
-
 /* =========================================================
    KEYFRAMES & RESPONSIVE BREAKPOINTS
    ========================================================= */
@@ -2344,17 +2255,6 @@ tbody tr:hover {
 @keyframes backdrop-out {
   to {
     opacity: 0;
-  }
-}
-
-@keyframes botanical-in {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -2439,12 +2339,6 @@ tbody tr:hover {
     pointer-events: none;
     animation: backdrop-out var(--motion-dialog) var(--ease-in) forwards;
   }
-  .auth-layout {
-    grid-template-columns: 60% 40%;
-  }
-  .auth-brand h2 {
-    font-size: 24px;
-  }
 }
 
 @media (max-width: 680px) {
@@ -2480,15 +2374,16 @@ tbody tr:hover {
   .search {
     max-width: none;
   }
+  .auth-header {
+    top: 18px;
+    left: 18px;
+  }
   .auth-layout {
-    display: block;
+    padding: 86px 16px 36px;
   }
-  .auth-brand {
-    display: none;
-  }
-  .auth-main {
-    padding: 72px 22px 48px;
-    align-items: flex-start;
+  .auth-card {
+    padding: 28px 22px 24px;
+    border-radius: 16px;
   }
   .skip-link {
     right: 14px;

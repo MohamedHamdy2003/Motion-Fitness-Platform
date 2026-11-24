@@ -204,7 +204,7 @@ button.rst-alert-pill:hover {
 
 .rst-kpi {
   background: var(--brand-surface);
-  backdrop-filter: blur(var(--surface-glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--surface-glass-blur));
   border: 1px solid var(--brand-border);
   border-radius: 16px;
   padding: 18px 20px;

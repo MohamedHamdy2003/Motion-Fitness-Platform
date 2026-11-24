@@ -44,7 +44,6 @@ import {
   Field,
   Notice,
   SideNav,
-  ThemeToggle,
 } from './ui';
 
 const AnalyticsStudio = lazy(() =>
@@ -232,10 +231,12 @@ function formatTodayCairo() {
   }).format(new Date());
 }
 
-function readRouteFromHash() {
-  const raw = window.location.hash.replace(/^#\/?/, '').trim();
-  if (!raw) return { section: 'analytics' };
-  const [sectionKey, target] = raw.split('/');
+function parseRouteString(raw) {
+  const clean = String(raw || '')
+    .replace(/^\/+|\/+$/g, '')
+    .trim();
+  if (!clean) return { section: 'analytics' };
+  const [sectionKey, target] = clean.split('/');
   if (!sections.some((entry) => entry.key === sectionKey)) {
     return { section: 'analytics' };
   }
@@ -250,35 +251,52 @@ function readRouteFromHash() {
   }
 }
 
-function writeRouteToHash(next) {
-  let hash = `#${next.section}`;
+function buildRoutePath(next) {
+  let path = `/${next.section}`;
   if (!studioOnlySections.has(next.section)) {
-    if (next.new) hash += '/new';
-    else if (next.id) hash += `/${encodeURIComponent(next.id)}`;
+    if (next.new) path += '/new';
+    else if (next.id) path += `/${encodeURIComponent(next.id)}`;
   }
-  window.history.replaceState(null, '', hash);
+  return path;
 }
 
-function clearRouteHash() {
-  window.history.replaceState(
-    null,
-    '',
-    `${window.location.pathname}${window.location.search}`,
-  );
+function readRouteFromLocation() {
+  const pathRaw = window.location.pathname.replace(/^\/+|\/+$/g, '').trim();
+  if (pathRaw) return parseRouteString(pathRaw);
+  const hashRaw = window.location.hash.replace(/^#\/?/, '').trim();
+  if (hashRaw) return parseRouteString(hashRaw);
+  return { section: 'analytics' };
 }
 
-const THEME_STORAGE_KEY = 'motion.admin.theme.v1';
+function writeRouteToHistory(next, { replace = false } = {}) {
+  const target = buildRoutePath(next);
+  const current = `${window.location.pathname}${window.location.hash}`;
+  if (current === target) return;
+  if (replace) {
+    window.history.replaceState(null, '', target);
+  } else {
+    window.history.pushState(null, '', target);
+  }
+}
+
+function clearRoutePath() {
+  if (window.location.pathname !== '/' || window.location.hash) {
+    window.history.replaceState(null, '', '/');
+  }
+}
+
+const THEME_STORAGE_KEY = 'motion.admin.theme.v2';
 
 function normalizeTheme(value) {
   if (value === 'dark' || value === 'lime' || value === 'classic') return value;
-  return 'classic';
+  return 'lime';
 }
 
 function readInitialTheme() {
   try {
     return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
-    return 'classic';
+    return 'lime';
   }
 }
 
@@ -293,7 +311,7 @@ function applyTheme(theme) {
   if (meta) {
     meta.setAttribute(
       'content',
-      safe === 'dark' ? '#0f1019' : safe === 'lime' ? '#a8ec17' : '#008657',
+      safe === 'dark' ? '#0f1019' : safe === 'lime' ? '#f6f8f7' : '#008657',
     );
   }
   try {
@@ -307,7 +325,7 @@ function App() {
   const [theme, setTheme] = useState(() => readInitialTheme());
   const [session, setSession] = useState(null);
   const [restoring, setRestoring] = useState(() => hasStoredSession());
-  const [route, setRoute] = useState(() => readRouteFromHash());
+  const [route, setRoute] = useState(() => readRouteFromLocation());
   const [signedOut, setSignedOut] = useState('');
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [notice, setNotice] = useState('');
@@ -318,11 +336,16 @@ function App() {
     () => window.matchMedia('(max-width: 960px)').matches,
   );
   const dirty = useRef(false);
+  const routeRef = useRef(route);
   const [routeFocus, setRouteFocus] = useState(0);
   const mainRef = useRef(null);
   const sidebarRef = useRef(null);
   const logoutTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null);
+
+  useEffect(() => {
+    routeRef.current = route;
+  }, [route]);
 
   const setDirty = useCallback((value) => {
     dirty.current = value;
@@ -334,7 +357,7 @@ function App() {
     setRoute({ section: 'analytics' });
     setMobileOpen(false);
     setLogoutOpen(false);
-    clearRouteHash();
+    clearRoutePath();
     setSignedOut('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مجدداً.');
   }, [setDirty]);
 
@@ -357,6 +380,7 @@ function App() {
 
   useEffect(() => {
     if (!hasStoredSession()) {
+      clearRoutePath();
       setRestoring(false);
       return;
     }
@@ -364,7 +388,12 @@ function App() {
     restoreSession(handleExpired)
       .then((active) => {
         if (!alive) return;
-        if (active) setSession(active);
+        if (active) {
+          setSession(active);
+          writeRouteToHistory(routeRef.current, { replace: true });
+        } else {
+          clearRoutePath();
+        }
       })
       .finally(() => {
         if (alive) setRestoring(false);
@@ -373,6 +402,27 @@ function App() {
       alive = false;
     };
   }, [handleExpired]);
+
+  useEffect(() => {
+    if (!session) return;
+    function onPopState() {
+      if (
+        dirty.current &&
+        !window.confirm('هل تريد المغادرة بدون حفظ التعديلات؟')
+      ) {
+        writeRouteToHistory(routeRef.current);
+        return;
+      }
+      const next = readRouteFromLocation();
+      setNotice('');
+      setMobileOpen(false);
+      setRoute(next);
+      writeRouteToHistory(next, { replace: true });
+      window.scrollTo(0, 0);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [session]);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 960px)');
@@ -460,7 +510,7 @@ function App() {
     setNotice(message || '');
     setRoute(next);
     setMobileOpen(false);
-    writeRouteToHash(next);
+    writeRouteToHistory(next);
     setRouteFocus((value) => value + 1);
     window.scrollTo(0, 0);
   }
@@ -470,7 +520,7 @@ function App() {
     setDirty(false);
     setSession(null);
     setRoute({ section: 'analytics' });
-    clearRouteHash();
+    clearRoutePath();
     setNotice('');
     setSignedOut('تم تسجيل الخروج بنجاح.');
   }
@@ -480,7 +530,7 @@ function App() {
     setDirty(false);
     setSession(null);
     setRoute({ section: 'analytics' });
-    clearRouteHash();
+    clearRoutePath();
     setNotice('');
     setSignedOut('تم إنهاء الجلسة محلياً من هذا المتصفح.');
   }
@@ -500,12 +550,10 @@ function App() {
     return (
       <SignIn
         notice={signedOut}
-        theme={theme}
-        onSelectTheme={selectTheme}
         onSignIn={(active) => {
           setSignedOut('');
           setSession(active);
-          writeRouteToHash(route);
+          writeRouteToHistory(route, { replace: true });
         }}
         onExpired={handleExpired}
       />
@@ -689,7 +737,7 @@ function App() {
   );
 }
 
-function SignIn({ onSignIn, onExpired, notice, theme, onSelectTheme }) {
+function SignIn({ onSignIn, onExpired, notice }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -716,12 +764,11 @@ function SignIn({ onSignIn, onExpired, notice, theme, onSelectTheme }) {
 
   return (
     <main className="auth-layout">
-      <section className="auth-main">
-        <ThemeToggle theme={theme} onSelectTheme={onSelectTheme} floating />
+      <header className="auth-header">
+        <Brand />
+      </header>
+      <section className="auth-card">
         <div className="auth-form">
-          <div className="auth-mobile-brand">
-            <Brand />
-          </div>
           <h1>أهلًا بعودتك</h1>
           <p className="auth-subtitle">
             سجّل دخولك لإدارة منصة Motion والبرامج التدريبية.
@@ -764,82 +811,9 @@ function SignIn({ onSignIn, onExpired, notice, theme, onSelectTheme }) {
               </button>
             </fieldset>
           </form>
-          <div className="auth-foot">
-            Motion Platform · وصول محصور بحساب مدير النظام المعتمد
-          </div>
+          <div className="auth-foot">وصول محصور بحساب مدير النظام المعتمد</div>
         </div>
       </section>
-
-      <aside className="auth-brand" aria-hidden="true">
-        <div className="auth-brand-logo">
-          <Brand />
-        </div>
-        <h2>مساحة هادئة ليومٍ حافل.</h2>
-        <p>
-          من إدارة البرامج التدريبية والخطط الغذائية حتى متابعة أداء الذكاء
-          الاصطناعي والخادم.
-        </p>
-        <svg
-          className="auth-artwork"
-          viewBox="0 0 460 320"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle
-            cx="150"
-            cy="270"
-            r="175"
-            stroke="#ff9b58"
-            strokeWidth="1.5"
-            strokeOpacity="0.65"
-          />
-          <circle
-            cx="180"
-            cy="295"
-            r="138"
-            stroke="#d4ffea"
-            strokeWidth="1.2"
-            strokeOpacity="0.45"
-          />
-          <path
-            d="M35 320C55 245 105 188 188 148C145 208 118 265 98 320H35Z"
-            fill="url(#leafGlow)"
-            fillOpacity="0.28"
-          />
-          <path
-            d="M115 320C142 238 198 175 288 128C236 196 206 258 186 320H115Z"
-            fill="url(#leafGlow)"
-            fillOpacity="0.18"
-          />
-          <path
-            d="M12 248C66 202 126 170 206 154"
-            stroke="#d4ffea"
-            strokeWidth="1.4"
-            strokeOpacity="0.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M72 308C124 242 184 198 274 166"
-            stroke="#d4ffea"
-            strokeWidth="1.2"
-            strokeOpacity="0.38"
-            strokeLinecap="round"
-          />
-          <defs>
-            <linearGradient
-              id="leafGlow"
-              x1="40"
-              y1="128"
-              x2="260"
-              y2="320"
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop stopColor="#d4ffea" />
-              <stop offset="1" stopColor="#005d40" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </aside>
     </main>
   );
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#008657" />
+    <meta name="theme-color" content="#f6f8f7" />
     <meta
       name="description"
       content="Motion — بوابة إدارة البرامج التدريبية والتغذية والمطابقة الذكية وتحليلات المنصة."
@@ -13,16 +13,21 @@
     <script>
       (function () {
         try {
-          var saved = window.localStorage.getItem('motion.admin.theme.v1');
+          var saved = window.localStorage.getItem('motion.admin.theme.v2');
           var meta = document.querySelector('meta[name="theme-color"]');
           if (saved === 'dark') {
             document.documentElement.dataset.theme = 'dark';
             if (meta) meta.setAttribute('content', '#0f1019');
-          } else if (saved === 'lime') {
+          } else if (saved === 'classic') {
+            delete document.documentElement.dataset.theme;
+            if (meta) meta.setAttribute('content', '#008657');
+          } else {
             document.documentElement.dataset.theme = 'lime';
-            if (meta) meta.setAttribute('content', '#a8ec17');
+            if (meta) meta.setAttribute('content', '#f6f8f7');
           }
-        } catch (_err) {}
+        } catch (_err) {
+          document.documentElement.dataset.theme = 'lime';
+        }
       })();
     </script>
   </head>
