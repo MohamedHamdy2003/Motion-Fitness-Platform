@@ -142,8 +142,8 @@ export class AnalyticsService
       query(
         this.db,
         `SELECT
-           (SELECT count(*)::integer FROM users) AS "totalUsers",
-           (SELECT count(*)::integer FROM users WHERE status='ACTIVE') AS "activeUsers",
+           (SELECT count(*)::integer FROM users u WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')) AS "totalUsers",
+           (SELECT count(*)::integer FROM users u WHERE u.status='ACTIVE' AND NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role_code='ADMIN')) AS "activeUsers",
            (SELECT count(*)::integer FROM user_profiles WHERE onboarded_at IS NOT NULL) AS "onboardedUsers",
            (SELECT count(*)::integer FROM program_enrollments WHERE ended_at IS NULL) AS "activeEnrollments",
            (SELECT count(DISTINCT program_id)::integer FROM program_versions WHERE status='PUBLISHED') AS "publishedPrograms",

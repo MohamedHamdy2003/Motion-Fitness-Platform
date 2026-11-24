@@ -11,23 +11,66 @@ import {
   faqPublicQuery,
 } from './support.dto';
 
+function bumpLegalVersion(existingVersions: string[]): string {
+  let maxMajor = 1;
+  let maxMinor = -1;
+  for (const raw of existingVersions) {
+    const match = /^v?(\d+)\.(\d+)(?:\.(\d+))?$/.exec(String(raw || '').trim());
+    if (!match) continue;
+    const major = Number(match[1]);
+    const minor = Number(match[2]);
+    if (major > maxMajor || (major === maxMajor && minor > maxMinor)) {
+      maxMajor = major;
+      maxMinor = minor;
+    }
+  }
+  if (maxMinor < 0) return '1.0.0';
+  return `${maxMajor}.${maxMinor + 1}.0`;
+}
+
 @Injectable()
 export class SupportService {
   constructor(@Inject(DataSource) private readonly db: DataSource) {}
 
   async listPublicFaq(filters: z.infer<typeof faqPublicQuery>) {
     const search = filters.q ? `%${filters.q}%` : null;
-    const items = await query(
+    const rows = await query(
       this.db,
-      `SELECT id, slug, category, locale, question, answer,
+      `SELECT id, category,
+              question_ar AS "questionAr", answer_ar AS "answerAr",
+              question_en AS "questionEn", answer_en AS "answerEn",
               display_order AS "displayOrder"
        FROM faq_entries
        WHERE active
-         AND ($1::text IS NULL OR locale = $1)
-         AND ($2::text IS NULL OR lower(category) = lower($2))
-         AND ($3::text IS NULL OR question ILIKE $3 OR answer ILIKE $3)
+         AND ($1::text IS NULL OR lower(category) = lower($1))
+         AND ($2::text IS NULL
+              OR question_ar ILIKE $2 OR answer_ar ILIKE $2
+              OR question_en ILIKE $2 OR answer_en ILIKE $2)
        ORDER BY display_order ASC, created_at ASC`,
-      [filters.locale ?? null, filters.category ?? null, search],
+      [filters.category ?? null, search],
+    );
+    const locale = filters.locale ?? 'en';
+    const items = rows.map(
+      (row: {
+        id: string;
+        category: string;
+        questionAr: string;
+        answerAr: string;
+        questionEn: string;
+        answerEn: string;
+        displayOrder: number;
+      }) => ({
+        id: row.id,
+        category: row.category,
+        locale,
+        question: locale === 'ar' ? row.questionAr : row.questionEn,
+        answer: locale === 'ar' ? row.answerAr : row.answerEn,
+        questionAr: row.questionAr,
+        answerAr: row.answerAr,
+        questionEn: row.questionEn,
+        answerEn: row.answerEn,
+        displayOrder: row.displayOrder,
+      }),
     );
     return { items };
   }
@@ -107,44 +150,36 @@ export class SupportService {
   async listAdminFaq() {
     const items = await query(
       this.db,
-      `SELECT id, slug, category, locale, question, answer,
+      `SELECT id, category,
+              question_ar AS "questionAr", answer_ar AS "answerAr",
+              question_en AS "questionEn", answer_en AS "answerEn",
               display_order AS "displayOrder", active,
               created_at AS "createdAt"
        FROM faq_entries
-       ORDER BY locale ASC, display_order ASC, created_at ASC`,
+       ORDER BY display_order ASC, created_at ASC`,
     );
     return { items };
   }
 
   async createAdminFaq(input: z.infer<typeof adminFaqCreateInput>) {
-    const [existing] = await query(
-      this.db,
-      'SELECT id FROM faq_entries WHERE slug=$1',
-      [input.slug],
-    );
-    if (existing) {
-      throw new ApiError(
-        'FAQ_SLUG_TAKEN',
-        409,
-        'An FAQ entry with this slug already exists.',
-      );
-    }
     const [created] = await query(
       this.db,
       `INSERT INTO faq_entries(
-         id, slug, category, locale, question, answer, display_order, active
+         id, category, question_ar, answer_ar, question_en, answer_en, display_order, active
        )
        VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, slug, category, locale, question, answer,
+       RETURNING id, category,
+                 question_ar AS "questionAr", answer_ar AS "answerAr",
+                 question_en AS "questionEn", answer_en AS "answerEn",
                  display_order AS "displayOrder", active,
                  created_at AS "createdAt"`,
       [
         randomUUID(),
-        input.slug,
         input.category,
-        input.locale,
-        input.question,
-        input.answer,
+        input.questionAr,
+        input.answerAr,
+        input.questionEn,
+        input.answerEn,
         input.displayOrder,
         input.active,
       ],
@@ -157,21 +192,25 @@ export class SupportService {
       this.db,
       `UPDATE faq_entries
        SET category = coalesce($2, category),
-           locale = coalesce($3, locale),
-           question = coalesce($4, question),
-           answer = coalesce($5, answer),
-           display_order = coalesce($6, display_order),
-           active = coalesce($7, active)
+           question_ar = coalesce($3, question_ar),
+           answer_ar = coalesce($4, answer_ar),
+           question_en = coalesce($5, question_en),
+           answer_en = coalesce($6, answer_en),
+           display_order = coalesce($7, display_order),
+           active = coalesce($8, active)
        WHERE id = $1
-       RETURNING id, slug, category, locale, question, answer,
+       RETURNING id, category,
+                 question_ar AS "questionAr", answer_ar AS "answerAr",
+                 question_en AS "questionEn", answer_en AS "answerEn",
                  display_order AS "displayOrder", active,
                  created_at AS "createdAt"`,
       [
         id,
         input.category ?? null,
-        input.locale ?? null,
-        input.question ?? null,
-        input.answer ?? null,
+        input.questionAr ?? null,
+        input.answerAr ?? null,
+        input.questionEn ?? null,
+        input.answerEn ?? null,
         input.displayOrder ?? null,
         input.active ?? null,
       ],
@@ -203,11 +242,22 @@ export class SupportService {
 
   async createAdminLegal(input: z.infer<typeof adminLegalCreateInput>) {
     return this.db.transaction(async (manager) => {
+      let version = input.version?.trim();
+      if (!version) {
+        const existing = await query(
+          manager,
+          `SELECT version FROM legal_documents WHERE type=$1 AND locale=$2`,
+          [input.type, input.locale],
+        );
+        version = bumpLegalVersion(
+          existing.map((r: { version: string }) => r.version),
+        );
+      }
       const [duplicate] = await query(
         manager,
         `SELECT id FROM legal_documents
          WHERE type=$1 AND version=$2 AND locale=$3`,
-        [input.type, input.version, input.locale],
+        [input.type, version, input.locale],
       );
       if (duplicate) {
         throw new ApiError(
@@ -236,7 +286,7 @@ export class SupportService {
         [
           randomUUID(),
           input.type,
-          input.version,
+          version,
           input.locale,
           input.title,
           input.content,

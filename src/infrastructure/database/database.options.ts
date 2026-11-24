@@ -10,6 +10,7 @@ import { WorkoutExecution1793448025000 } from './migrations/1793448025000-Workou
 import { UserNutritionExecution1793448026000 } from './migrations/1793448026000-UserNutritionExecution';
 import { NotificationsCheckInsSupportAndIndexes1793448027000 } from './migrations/1793448027000-NotificationsCheckInsSupportAndIndexes';
 import { AiUsageAndSystemMetrics1793448028000 } from './migrations/1793448028000-AiUsageAndSystemMetrics';
+import { BilingualFaqWithoutSlug1793448029000 } from './migrations/1793448029000-BilingualFaqWithoutSlug';
 import { RemoveIdempotency1793448016000 } from './migrations/1793448016000-RemoveIdempotency';
 import { FoodDisplay1793448015000 } from './migrations/1793448015000-FoodDisplay';
 import { readFileSync } from 'node:fs';
@@ -93,6 +94,7 @@ export function databaseOptions(): DataSourceOptions {
       UserNutritionExecution1793448026000,
       NotificationsCheckInsSupportAndIndexes1793448027000,
       AiUsageAndSystemMetrics1793448028000,
+      BilingualFaqWithoutSlug1793448029000,
     ],
     synchronize: false,
     migrationsRun: false,

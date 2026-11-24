@@ -3608,7 +3608,9 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
     expect(faqEn.body.items.length).toBeGreaterThanOrEqual(4);
 
     const faqAr = await api.get(prefix + '/faq?locale=ar').expect(200);
-    expect(faqAr.body.items.length).toBeGreaterThanOrEqual(2);
+    expect(faqAr.body.items.length).toBeGreaterThanOrEqual(4);
+    expect(faqAr.body.items[0].questionAr).toBeTruthy();
+    expect(faqAr.body.items[0].questionEn).toBeTruthy();
 
     const termsEn = await api
       .get(prefix + '/legal/terms?locale=en')
@@ -3657,24 +3659,27 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       .post(prefix + '/admin/faq')
       .set(adminHeaders)
       .send({
-        slug: 'water-reminder-schedule-en',
-        category: 'ACTIVITY',
-        locale: 'en',
-        question: 'How do smart water reminders work?',
-        answer:
+        category: 'GENERAL',
+        questionAr: 'كيف تعمل تذكيرات شرب المياه الذكية؟',
+        answerAr:
+          'تُرسل التذكيرات وفق الفاصل الزمني الذي تختاره وتتوقف تلقائياً عند بلوغ هدفك اليومي.',
+        questionEn: 'How do smart water reminders work?',
+        answerEn:
           'Reminders fire at your chosen interval and pause once your hydration goal is met.',
         displayOrder: 10,
         active: true,
       })
       .expect(201);
-    expect(createdFaq.body.slug).toBe('water-reminder-schedule-en');
+    expect(createdFaq.body.questionAr).toContain('المياه');
+    expect(createdFaq.body.questionEn).toContain('water reminders');
 
     const updatedFaq = await api
       .patch(prefix + `/admin/faq/${createdFaq.body.id}`)
       .set(adminHeaders)
-      .send({ active: false })
+      .send({ active: false, questionEn: 'How do water reminders work?' })
       .expect(200);
     expect(updatedFaq.body.active).toBe(false);
+    expect(updatedFaq.body.questionEn).toBe('How do water reminders work?');
 
     await api
       .delete(prefix + `/admin/faq/${createdFaq.body.id}`)
@@ -3686,7 +3691,6 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       .set(adminHeaders)
       .send({
         type: 'TERMS',
-        version: '1.1.0',
         locale: 'en',
         title: 'Motion Terms & Conditions v1.1',
         content: 'Updated terms and conditions for Motion athletes.',
@@ -3694,6 +3698,7 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       })
       .expect(201);
     expect(newTerms.body.active).toBe(true);
+    expect(newTerms.body.version).toBe('1.1.0');
 
     const activeTermsNow = await api
       .get(prefix + '/legal/terms?locale=en')

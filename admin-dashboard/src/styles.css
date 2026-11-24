@@ -1833,6 +1833,25 @@ tbody tr:hover {
   justify-content: flex-end;
 }
 
+.confirm.modal-wide {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.status-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 /* =========================================================
    SPLIT-SCREEN LOGIN (DUAL-THEME LOGIN-V2 COMPOSITION)
    ========================================================= */
