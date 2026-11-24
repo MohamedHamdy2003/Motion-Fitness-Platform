@@ -71,8 +71,8 @@ export class AdminUsersService {
            (
              SELECT count(*)::integer
              FROM scheduled_meals sm
-             JOIN scheduled_days sd ON sd.id = sm.scheduled_day_id
-             JOIN program_enrollments pe ON pe.id = sd.enrollment_id
+             JOIN nutrition_days nd ON nd.id = sm.nutrition_day_id
+             JOIN program_enrollments pe ON pe.id = nd.enrollment_id
              WHERE pe.user_id = u.id AND sm.status = 'COMPLETED'
            ) AS "completedMeals"
          FROM users u
