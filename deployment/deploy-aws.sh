@@ -18,6 +18,12 @@ compose=(docker compose --project-name motion-aws --env-file .env.aws -f deploym
 previous_api=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q api)" 2>/dev/null || true)
 previous_admin=$(docker inspect --format '{{.Config.Image}}' "$("${compose[@]}" ps -q admin)" 2>/dev/null || true)
 
+# Reclaim unused images and BuildKit cache before building on bounded EC2 volumes.
+# Images backing currently running containers are kept intact so rollback stays safe.
+docker container prune -f || true
+docker image prune -af || true
+docker builder prune -af || true
+
 # Build API and standalone Admin Portal containers independently.
 docker build --tag "$MOTION_IMAGE" .
 docker build --tag "$MOTION_ADMIN_IMAGE" admin-dashboard
@@ -60,5 +66,8 @@ fi
 "${compose[@]}" up --detach --wait --wait-timeout 60 caddy
 # A bind-mounted configuration can change without Compose recreating the container.
 "${compose[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+# Reclaim superseded images and stale build cache after successful rollout.
+docker image prune -af || true
+docker builder prune -af --keep-storage=512MB 2>/dev/null || docker builder prune -af || true
 printf '%s\n' "$revision" > .local/aws-deployed-revision
 printf 'Deployment ready: %s\n' "$revision"
