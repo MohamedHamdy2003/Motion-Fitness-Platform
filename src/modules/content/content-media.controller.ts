@@ -16,6 +16,11 @@ import { DataSource } from 'typeorm';
 import { AuthGuard } from '../../common/auth.guard';
 import { ApiError, ApiRequest, empty, parse, uuid } from '../../common/http';
 import { query } from '../../infrastructure/database/query';
+import {
+  MAX_LIBRARY_IMAGE_BYTES,
+  MAX_LIBRARY_VIDEO_BYTES,
+  isOptimizableImageMime,
+} from '../media/image-optimizer';
 import { MediaService } from '../media/media.service';
 import { ContentGuard } from './content.guard';
 @Controller('admin/media')
@@ -33,9 +38,18 @@ export class ContentMediaController {
       z
         .object({
           mime: z.enum(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']),
-          size: z.number().int().min(1).max(104857600),
+          size: z.number().int().min(1).max(MAX_LIBRARY_VIDEO_BYTES),
         })
-        .strict(),
+        .strict()
+        .refine(
+          (v) =>
+            !isOptimizableImageMime(v.mime) ||
+            v.size <= MAX_LIBRARY_IMAGE_BYTES,
+          {
+            message: 'Image uploads must be 15 MB or smaller',
+            path: ['size'],
+          },
+        ),
       body,
     );
     const result = await this.media.intent(
@@ -60,7 +74,7 @@ export class ContentMediaController {
     );
     if (!asset) throw new ApiError('NOT_FOUND', 404);
     if (asset.status === 'READY' && asset.owner_user_id === null)
-      return { id, status: 'READY' };
+      return { id, status: 'READY', mime: asset.mime, size: asset.size };
     const result = await this.media.finalize(req.principal.userId, id, true);
     return result;
   }

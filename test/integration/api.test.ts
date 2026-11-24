@@ -754,13 +754,24 @@ describe('external adapter boundaries with fixture transports', () => {
     expect(failed.last_error_code).toBe('EXTERNAL_OPERATION_FAILED');
     expect(JSON.stringify(failed)).not.toContain('PRIVATE CONTENT');
   });
-  it('finalizes avatar bytes into an immutable owned key and rejects a different user', async () => {
+  it('finalizes avatar bytes by compressing to WebP into an immutable owned key and rejects a different user', async () => {
     const user = await register();
     const other = await register('other@example.test');
     const id = crypto.randomUUID();
+    const { default: sharp } = await import('sharp');
+    const rawPng = await sharp({
+      create: {
+        width: 1400,
+        height: 1400,
+        channels: 4,
+        background: { r: 24, g: 160, b: 92, alpha: 1 },
+      },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
     await db.query(
-      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,'uploads/fixture','uploads/fixture','image/png',16,'PENDING')`,
-      [id, user.user.id],
+      `INSERT INTO media_assets(id,owner_user_id,storage_key,upload_key,mime,size,status) VALUES($1,$2,'uploads/fixture','uploads/fixture','image/png',$3,'PENDING')`,
+      [id, user.user.id, rawPng.length],
     );
     const { MediaService } =
       await import('../../src/modules/media/media.service.js');
@@ -770,15 +781,14 @@ describe('external adapter boundaries with fixture transports', () => {
       commands.push(command);
       if (command.constructor.name === 'HeadObjectCommand')
         return {
-          ContentLength: 16,
+          ContentLength: rawPng.length,
           ContentType: 'image/png',
           ETag: '"fixture-etag"',
         };
       if (command.constructor.name === 'GetObjectCommand')
         return {
           Body: {
-            transformToByteArray: async () =>
-              Buffer.from('89504e470d0a1a0a0000000000000000', 'hex'),
+            transformToByteArray: async () => rawPng,
           },
         };
       return {};
@@ -797,16 +807,30 @@ describe('external adapter boundaries with fixture transports', () => {
       .set(bearer(user.accessToken))
       .send({});
     expect(response.status, response.text).toBe(201);
+    expect(response.body.mime).toBe('image/webp');
+    expect(response.body.originalSize).toBe(rawPng.length);
+    expect(response.body.size).toBeLessThan(rawPng.length);
+    expect(response.body.width).toBe(1024);
+    expect(response.body.height).toBe(1024);
     const [stored] = await db.query('SELECT * FROM media_assets WHERE id=$1', [
       id,
     ]);
     expect(stored.status).toBe('READY');
+    expect(stored.mime).toBe('image/webp');
+    expect(stored.size).toBe(response.body.size);
     expect(stored.storage_key).toContain('avatars/' + user.user.id + '/');
     expect(stored.storage_key).not.toBe(stored.upload_key);
     expect(
-      commands.find((c) => c.constructor.name === 'CopyObjectCommand').input
-        .CopySourceIfMatch,
+      commands.find((c) => c.constructor.name === 'GetObjectCommand').input
+        .IfMatch,
     ).toBe('"fixture-etag"');
+    const putCommand = commands.find(
+      (c) => c.constructor.name === 'PutObjectCommand',
+    );
+    expect(putCommand.input.ContentType).toBe('image/webp');
+    expect(putCommand.input.CacheControl).toContain('immutable');
+    expect(putCommand.input.Body.subarray(0, 4).toString()).toBe('RIFF');
+    expect(putCommand.input.Body.subarray(8, 12).toString()).toBe('WEBP');
     expect(
       (
         await api
@@ -816,7 +840,7 @@ describe('external adapter boundaries with fixture transports', () => {
       ).body.code,
     ).toBe('INVALID_AVATAR');
   });
-  it('rejects mismatched image content before marking an avatar ready', async () => {
+  it('rejects mismatched or corrupted image content before marking an avatar ready', async () => {
     const user = await register();
     const id = crypto.randomUUID();
     await db.query(
@@ -833,7 +857,7 @@ describe('external adapter boundaries with fixture transports', () => {
           : {
               Body: {
                 transformToByteArray: async () =>
-                  Buffer.from('this is not a PNG'),
+                  Buffer.from('89504e470d0a1a0a0000000000000000', 'hex'),
               },
             },
       ),

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Plus, Trash2, Upload } from 'lucide-react';
 import { fetchPage, listAll } from './api';
+import { compressImageFile, formatBytes } from './imageCompress';
 import { makeAutoSlug, splitList } from './program';
 import { VersionSelect } from './ProgramEditor';
 import {
@@ -265,6 +266,27 @@ const mapExchangeMemberOption = (m) => ({
   status: m.status,
 });
 
+function mapMediaOption(file) {
+  const kindLabel =
+    file.mime === 'video/mp4'
+      ? 'فيديو'
+      : file.mime === 'image/webp'
+        ? 'صورة WebP'
+        : 'صورة';
+  const sizePart = file.size ? ` · ${formatBytes(file.size)}` : '';
+  return {
+    value: file.id,
+    label: `${kindLabel}${sizePart} · ${file.id.slice(0, 8)}`,
+  };
+}
+
+async function loadMediaOptions(api) {
+  const files = await listAll(api, '/admin/media');
+  return files
+    .filter((file) => !file.library_archived && file.status === 'READY')
+    .map(mapMediaOption);
+}
+
 async function getOptions(api, kind, loadedItem) {
   if (kind === 'meal-sections' || kind === 'ingredients') {
     return {};
@@ -299,14 +321,8 @@ async function getOptions(api, kind, loadedItem) {
     };
   }
   if (kind === 'exercises') {
-    const files = await listAll(api, '/admin/media');
     return {
-      media: files
-        .filter((file) => !file.library_archived && file.status === 'READY')
-        .map((file) => ({
-          value: file.id,
-          label: `${file.mime === 'video/mp4' ? 'فيديو' : 'صورة'} · ${file.id.slice(0, 8)}`,
-        })),
+      media: await loadMediaOptions(api),
     };
   }
   if (kind === 'foods') {
@@ -317,7 +333,7 @@ async function getOptions(api, kind, loadedItem) {
           .filter(Boolean),
       ),
     ];
-    const [recent, selected] = await Promise.all([
+    const [recent, selected, media] = await Promise.all([
       fetchPage(api, '/admin/ingredients', {
         limit: 20,
         offset: 0,
@@ -330,12 +346,14 @@ async function getOptions(api, kind, loadedItem) {
             extra: { ids: usedIngIds.join(',') },
           })
         : Promise.resolve({ items: [] }),
+      loadMediaOptions(api),
     ]);
     return {
       ingredients: dedupeOptions([
         ...selected.items.map(mapIngredientOption),
         ...recent.items.filter((i) => !i.archived).map(mapIngredientOption),
       ]),
+      media,
     };
   }
   const usedSectionId = loadedItem?.versions?.[0]?.section_id;
@@ -491,6 +509,47 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
           : prev,
       );
       return mapped;
+    },
+    [api],
+  );
+
+  const uploadLibraryImage = useCallback(
+    async (file) => {
+      const prepared = await compressImageFile(file, {
+        maxDimension: 1920,
+        quality: 0.88,
+      });
+      const intent = await api('/admin/media/upload-intents', {
+        method: 'POST',
+        body: { mime: prepared.mime, size: prepared.size },
+      });
+      const uploadRes = await fetch(intent.uploadUrl, {
+        method: intent.method || 'PUT',
+        headers: { 'Content-Type': prepared.mime },
+        body: prepared.blob,
+      });
+      if (!uploadRes.ok) {
+        throw new Error('فشل رفع الصورة إلى مساحة التخزين السحابي.');
+      }
+      const finalized = await api(`/admin/media/${intent.id}/finalize`, {
+        method: 'POST',
+        body: {},
+      });
+      const option = mapMediaOption({
+        id: finalized.id,
+        mime: finalized.mime || prepared.mime,
+        size: finalized.size ?? prepared.size,
+      });
+      setOptions((prev) =>
+        prev
+          ? { ...prev, media: dedupeOptions([option, ...(prev.media || [])]) }
+          : prev,
+      );
+      return {
+        id: finalized.id,
+        originalSize: file.size,
+        finalSize: finalized.size ?? prepared.size,
+      };
     },
     [api],
   );
@@ -677,6 +736,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
                 change={change}
                 update={update}
                 options={options}
+                onUploadImage={uploadLibraryImage}
               />
             ) : kind === 'foods' ? (
               <FoodFields
@@ -685,6 +745,7 @@ export function LibraryEditor({ section, id, api, onBack, onDirty }) {
                 update={update}
                 options={options}
                 searchIngredients={searchIngredients}
+                onUploadImage={uploadLibraryImage}
               />
             ) : kind === 'food-sections' ? (
               <FoodSectionFields
@@ -850,7 +911,85 @@ function FoodSectionFields({ form, update, options, searchFoods }) {
   );
 }
 
-function ExerciseFields({ form, change, update, options }) {
+function MediaPickerField({ value, items, onChange, onUploadImage }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [stats, setStats] = useState(null);
+
+  async function handleFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !onUploadImage) return;
+    setUploadError('');
+    setStats(null);
+    setUploading(true);
+    try {
+      const result = await onUploadImage(file);
+      onChange(result.id);
+      setStats({
+        originalSize: result.originalSize,
+        finalSize: result.finalSize,
+      });
+    } catch (reason) {
+      setUploadError(reason?.message || 'تعذر رفع الصورة.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const savedPercent =
+    stats && stats.originalSize > 0
+      ? Math.max(
+          0,
+          Math.round(
+            ((stats.originalSize - stats.finalSize) / stats.originalSize) * 100,
+          ),
+        )
+      : 0;
+
+  return (
+    <Field
+      label="الوسائط (صورة / فيديو)"
+      hint="يتم ضغط الصور تلقائياً إلى WebP بجودة بصرية عالية قبل التخزين لتسريع التحميل."
+      full
+    >
+      <div className="media-picker">
+        <VersionSelect value={value} items={items} onChange={onChange} />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={handleFileChange}
+        />
+        <button
+          type="button"
+          className="button secondary compact media-upload-btn"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload size={15} aria-hidden="true" />
+          <span>{uploading ? 'جارٍ الضغط والرفع…' : 'رفع صورة مضغوطة'}</span>
+        </button>
+      </div>
+      {stats && (
+        <small className="media-upload-stats" role="status">
+          تم الضغط والرفع بنجاح: {formatBytes(stats.originalSize)} ←{' '}
+          {formatBytes(stats.finalSize)}
+          {savedPercent > 0 ? ` (توفير ${savedPercent}%)` : ''}
+        </small>
+      )}
+      {uploadError && (
+        <small className="media-upload-error" role="alert">
+          {uploadError}
+        </small>
+      )}
+    </Field>
+  );
+}
+
+function ExerciseFields({ form, change, update, options, onUploadImage }) {
   return (
     <>
       <Field label="الوصف" full>
@@ -904,23 +1043,26 @@ function ExerciseFields({ form, change, update, options }) {
               onChange={change}
             />
           </Field>
-          <Field
-            label="وسائط التمرين (فيديو / صورة)"
-            hint="اختر ملفاً جاهزاً من مكتبة الوسائط."
-          >
-            <VersionSelect
-              value={form.mediaId}
-              items={options.media}
-              onChange={(mediaId) => update({ mediaId })}
-            />
-          </Field>
+          <MediaPickerField
+            value={form.mediaId}
+            items={options.media}
+            onChange={(mediaId) => update({ mediaId })}
+            onUploadImage={onUploadImage}
+          />
         </div>
       </details>
     </>
   );
 }
 
-function FoodFields({ form, change, update, options, searchIngredients }) {
+function FoodFields({
+  form,
+  change,
+  update,
+  options,
+  searchIngredients,
+  onUploadImage,
+}) {
   function setIngredient(i, patch) {
     update({
       ingredients: form.ingredients.map((item, idx) =>
@@ -1034,6 +1176,12 @@ function FoodFields({ form, change, update, options, searchIngredients }) {
               onChange={change}
             />
           </Field>
+          <MediaPickerField
+            value={form.mediaId}
+            items={options.media}
+            onChange={(mediaId) => update({ mediaId })}
+            onUploadImage={onUploadImage}
+          />
         </div>
       </details>
       <div className="full schedule-section">
