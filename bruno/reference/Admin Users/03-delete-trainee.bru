@@ -1,0 +1,15 @@
+meta {
+  name: Delete trainee
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/admin/users/{{userId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
