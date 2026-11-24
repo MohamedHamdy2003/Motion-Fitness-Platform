@@ -79,11 +79,10 @@
   --action-shadow: 0 4px 14px rgb(207 72 13 / 24%);
   --action-shadow-hover: 0 7px 20px rgb(232 93 26 / 32%);
   --nav-active-shadow: 0 6px 18px rgb(0 134 87 / 28%);
-  --brand-badge-bg: linear-gradient(145deg, #009b65, #007750);
-  --brand-badge-shadow: 0 6px 16px rgb(0 134 87 / 24%);
-  --brand-badge-bar-1: #ffffff;
-  --brand-badge-bar-2: #d4ffea;
-  --brand-badge-bar-3: #ff9b58;
+  --brand-badge-bg: linear-gradient(145deg, #008657 0%, #006643 100%);
+  --brand-badge-border: transparent;
+  --brand-badge-ink: #c5f52f;
+  --brand-badge-shadow: 0 2px 8px rgb(0 134 87 / 18%);
   --select-menu-bg: #ffffff;
   --select-menu-shadow:
     0 18px 42px rgb(23 51 43 / 14%), 0 2px 6px rgb(23 51 43 / 6%);
@@ -172,28 +171,27 @@
   --brand-orange-border: #ccef7e;
   --brand-disabled: #eef2ee;
   --brand-focus: #84cc00;
-  --focus-ring: 0 0 0 4px rgb(168 236 23 / 28%);
-  --shadow-dialog: 0 24px 72px rgb(17 26 5 / 18%);
-  --shadow-panel: 0 4px 22px rgb(17 26 5 / 5%);
-  --shadow-sidebar: -8px 0 24px rgb(17 26 5 / 4%);
-  --backdrop-overlay: rgb(17 26 5 / 38%);
+  --focus-ring: 0 0 0 3px rgb(132 204 0 / 18%);
+  --shadow-dialog: 0 14px 36px rgb(17 26 5 / 11%);
+  --shadow-panel: 0 1px 3px rgb(17 26 5 / 4%), 0 2px 8px rgb(17 26 5 / 3%);
+  --shadow-sidebar: -2px 0 10px rgb(17 26 5 / 3%);
+  --backdrop-overlay: rgb(17 26 5 / 32%);
   --brand-action: #141c13;
   --brand-action-hover: #222e1f;
   --on-action: #c4f135;
   --nav-active-mark: #111a05;
-  --primary-shadow: 0 5px 16px rgb(168 236 23 / 36%);
-  --primary-shadow-hover: 0 8px 24px rgb(168 236 23 / 48%);
-  --action-shadow: 0 5px 16px rgb(20 28 19 / 22%);
-  --action-shadow-hover: 0 8px 22px rgb(20 28 19 / 30%);
-  --nav-active-shadow: 0 6px 18px rgb(168 236 23 / 38%);
-  --brand-badge-bg: linear-gradient(145deg, #b8f529, #93da08);
-  --brand-badge-shadow: 0 6px 16px rgb(168 236 23 / 38%);
-  --brand-badge-bar-1: #111a05;
-  --brand-badge-bar-2: #2f5500;
-  --brand-badge-bar-3: #ffffff;
+  --primary-shadow: 0 1px 2px rgb(17 26 5 / 7%), 0 2px 6px rgb(132 204 0 / 13%);
+  --primary-shadow-hover: 0 3px 10px rgb(132 204 0 / 18%);
+  --action-shadow: 0 2px 6px rgb(20 28 19 / 11%);
+  --action-shadow-hover: 0 4px 10px rgb(20 28 19 / 16%);
+  --nav-active-shadow: 0 1px 4px rgb(132 204 0 / 15%);
+  --brand-badge-bg: linear-gradient(145deg, #ffffff 0%, #effbd4 100%);
+  --brand-badge-border: #cce98c;
+  --brand-badge-ink: #5c9e00;
+  --brand-badge-shadow: 0 1px 4px rgb(17 26 5 / 6%);
   --select-menu-bg: #ffffff;
   --select-menu-shadow:
-    0 18px 44px rgb(17 26 5 / 12%), 0 2px 6px rgb(17 26 5 / 6%);
+    0 10px 24px rgb(17 26 5 / 8%), 0 2px 5px rgb(17 26 5 / 4%);
   --code-bg: #f3fce0;
   --code-border: #d5f496;
   --code-block-bg: #141c13;
@@ -226,11 +224,7 @@
   );
   --auth-brand-ink: #ffffff;
   --auth-brand-sub: #d7f890;
-  --body-bg-glow: radial-gradient(
-    ellipse 70% 45% at 15% -12%,
-    rgb(168 236 23 / 10%),
-    transparent 60%
-  );
+  --body-bg-glow: none;
 }
 
 /* =========================================================
@@ -294,11 +288,10 @@
   --action-shadow: 0 8px 22px rgb(139 92 246 / 34%);
   --action-shadow-hover: 0 10px 26px rgb(139 92 246 / 46%);
   --nav-active-shadow: 0 8px 24px rgb(196 241 53 / 34%);
-  --brand-badge-bg: linear-gradient(145deg, #c4f135, #a3cc1a);
-  --brand-badge-shadow: 0 8px 24px rgb(196 241 53 / 30%);
-  --brand-badge-bar-1: #0f1019;
-  --brand-badge-bar-2: #1c1d30;
-  --brand-badge-bar-3: #8b5cf6;
+  --brand-badge-bg: #000000;
+  --brand-badge-border: rgb(197 245 47 / 22%);
+  --brand-badge-ink: #c5f52f;
+  --brand-badge-shadow: 0 4px 12px rgb(0 0 0 / 45%);
   --select-menu-bg: #161726;
   --select-menu-shadow: 0 20px 60px rgb(0 0 0 / 58%);
   --code-bg: rgb(196 241 53 / 10%);

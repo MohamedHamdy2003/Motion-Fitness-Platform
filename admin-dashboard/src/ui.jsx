@@ -473,13 +473,31 @@ export function PaginationBar({
   );
 }
 
+export function MotionLogo() {
+  return (
+    <svg
+      className="brand-logo-svg"
+      viewBox="0 0 622 622"
+      fill="none"
+      aria-hidden="true"
+    >
+      <g fill="currentColor">
+        <path d="M113,139L116,140L265,292L279,296L294,294L311,286L514,143L487,292L483,296L414,295L397,297L254,398L161,308L159,311L129,478L124,482L53,482L52,477L56,454Z" />
+        <path d="M566,275L569,275L569,280L529,278Z" />
+        <path d="M563,307L569,307L569,317L453,313Z" />
+        <path d="M546,341L569,341L569,354L409,347Z" />
+        <path d="M560,375L569,375L569,399L563,390L553,388L364,382Z" />
+        <path d="M395,407L467,408L453,481L380,481L390,415Z" />
+      </g>
+    </svg>
+  );
+}
+
 export function Brand({ compact = false }) {
   return (
     <div className="brand">
       <span className="brand-badge" aria-hidden="true">
-        <i />
-        <i />
-        <i />
+        <MotionLogo />
       </span>
       {!compact && (
         <span className="brand-copy">
@@ -557,9 +575,7 @@ export function SideNav({
         <Brand />
         <span className="sidebar-mark" aria-hidden="true">
           <span className="brand-badge">
-            <i />
-            <i />
-            <i />
+            <MotionLogo />
           </span>
         </span>
         <button
