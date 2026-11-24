@@ -7,6 +7,10 @@ import { AppModule } from './app.module';
 import { ApiError, ErrorFilter, ApiRequest } from './common/http';
 import { hash } from './common/crypto';
 import { environment } from './config/environment';
+import {
+  AdminEventsService,
+  routeToRealtimeTopics,
+} from './infrastructure/realtime/admin-events.service';
 import { setupSwagger } from './infrastructure/swagger/setup-swagger';
 
 interface EdgeBucket {
@@ -86,6 +90,22 @@ export async function createApp() {
     }),
   );
   app.use(express.json({ limit: '1mb' }));
+  app.use(
+    (req: ApiRequest, res: express.Response, next: express.NextFunction) => {
+      const topics = routeToRealtimeTopics(
+        req.method,
+        req.originalUrl || req.url,
+      );
+      if (topics.length > 0) {
+        res.on('finish', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            app.get(AdminEventsService).emit(topics);
+          }
+        });
+      }
+      next();
+    },
+  );
   app.useGlobalFilters(new ErrorFilter());
   app.setGlobalPrefix('api/v1');
   setupSwagger(app);
@@ -104,5 +124,6 @@ export async function createApp() {
     });
   app.enableShutdownHooks();
   await app.init();
+  app.get(AdminEventsService).attachToHttpServer(app.getHttpServer());
   return app;
 }

@@ -203,7 +203,7 @@ function FaqEditDialog({ item, onClose, onSaved, api }) {
   );
 }
 
-export function SupportStudio({ api }) {
+export function SupportStudio({ api, realtimeTick = 0 }) {
   const [faqItems, setFaqItems] = useState([]);
   const [faqTotal, setFaqTotal] = useState(0);
   const [faqPage, setFaqPage] = useState(0);
@@ -338,13 +338,13 @@ export function SupportStudio({ api }) {
     const controller = new AbortController();
     void loadFaq(controller.signal);
     return () => controller.abort();
-  }, [loadFaq, faqReload]);
+  }, [loadFaq, faqReload, realtimeTick]);
 
   useEffect(() => {
     const controller = new AbortController();
     void loadLegal(controller.signal);
     return () => controller.abort();
-  }, [loadLegal, legalReload]);
+  }, [loadLegal, legalReload, realtimeTick]);
 
   async function createFaq(event) {
     event.preventDefault();

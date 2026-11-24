@@ -36,6 +36,7 @@ import { fetchPage, hasStoredSession, login, restoreSession } from './api';
 import { LogoutConfirmation } from './LogoutConfirmation';
 import { Presence } from './presence';
 import { readableCode } from './program';
+import { useAdminRealtime } from './realtime';
 import {
   Brand,
   ButtonContent,
@@ -342,6 +343,7 @@ function App() {
   const sidebarRef = useRef(null);
   const logoutTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null);
+  const { status: rtStatus, revisions } = useAdminRealtime(session);
 
   useEffect(() => {
     routeRef.current = route;
@@ -671,9 +673,23 @@ function App() {
             <span className="topbar-crumb">{section.label}</span>
           </div>
           <div className="topbar-meta">
-            <span className="rt-pill is-connected">
+            <span
+              className={
+                'rt-pill ' +
+                (rtStatus === 'connected'
+                  ? 'is-connected'
+                  : rtStatus === 'disconnected'
+                    ? 'is-offline'
+                    : 'is-reconnecting')
+              }
+              role="status"
+            >
               <span className="rt-dot" aria-hidden="true" />
-              متصل بالخادم
+              {rtStatus === 'connected'
+                ? 'متصل لحظياً'
+                : rtStatus === 'disconnected'
+                  ? 'غير متصل'
+                  : 'جارٍ الاتصال…'}
             </span>
             <span>{formatTodayCairo()}</span>
           </div>
@@ -693,13 +709,26 @@ function App() {
             }
           >
             {section.key === 'analytics' ? (
-              <AnalyticsStudio api={session.api} onNavigate={navigate} />
+              <AnalyticsStudio
+                api={session.api}
+                onNavigate={navigate}
+                realtimeTick={revisions.analytics || 0}
+              />
             ) : section.key === 'users' ? (
-              <UsersStudio api={session.api} />
+              <UsersStudio
+                api={session.api}
+                realtimeTick={revisions.users || 0}
+              />
             ) : section.key === 'matching' ? (
-              <MatchingStudio api={session.api} />
+              <MatchingStudio
+                api={session.api}
+                realtimeTick={revisions.matching || 0}
+              />
             ) : section.key === 'support' ? (
-              <SupportStudio api={session.api} />
+              <SupportStudio
+                api={session.api}
+                realtimeTick={revisions.support || 0}
+              />
             ) : navigatingEditor ? (
               section.key === 'programs' ? (
                 <ProgramEditor
@@ -721,6 +750,7 @@ function App() {
               <LibraryPage
                 section={section}
                 api={session.api}
+                realtimeTick={revisions[section.key] || 0}
                 onOpen={(id) => navigate({ section: section.key, id })}
                 onCreate={() => navigate({ section: section.key, new: true })}
               />
@@ -820,7 +850,7 @@ function SignIn({ onSignIn, onExpired, notice }) {
 
 const LIBRARY_PAGE_SIZE = 10;
 
-function LibraryPage({ section, api, onCreate, onOpen }) {
+function LibraryPage({ section, api, realtimeTick = 0, onCreate, onOpen }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -831,6 +861,7 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState(null);
   const [reload, setReload] = useState(0);
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -842,8 +873,7 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const isInitial = items.length === 0 && !error;
-    if (isInitial) setLoading(true);
+    if (!loadedOnce.current) setLoading(true);
     else setFetching(true);
     setError(null);
 
@@ -861,6 +891,7 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
           title: item.title || item.content?.title || item.slug,
           status: item.archived ? 'ARCHIVED' : item.status || 'PUBLISHED',
         }));
+        loadedOnce.current = true;
         setItems(nextItems);
         setTotal(typeof res.total === 'number' ? res.total : nextItems.length);
       })
@@ -875,7 +906,7 @@ function LibraryPage({ section, api, onCreate, onOpen }) {
       });
 
     return () => controller.abort();
-  }, [section.key, api, page, search, filter, reload]);
+  }, [section.key, api, page, search, filter, reload, realtimeTick]);
 
   const statusFilters =
     section.key === 'meal-sections' || section.key === 'ingredients'

@@ -225,6 +225,14 @@ function createSession({
     }
   }
 
+  async function getAccessToken({ forceRefresh = false } = {}) {
+    if (closed) return null;
+    if (forceRefresh || Date.now() >= expiresAt - 15000) {
+      await refreshTokens(tokens.accessToken);
+    }
+    return closed ? null : tokens.accessToken || null;
+  }
+
   async function signOut() {
     try {
       await api('/auth/logout', { method: 'POST' });
@@ -239,7 +247,7 @@ function createSession({
     clearStoredSession();
   }
 
-  return { api, email, signOut, destroy };
+  return { api, email, signOut, destroy, getAccessToken };
 }
 
 export async function login(email, password, onExpired) {
@@ -256,7 +264,12 @@ export async function login(email, password, onExpired) {
     await session.signOut().catch(() => {});
     throw error;
   }
-  return { api: session.api, email: session.email, signOut: session.signOut };
+  return {
+    api: session.api,
+    email: session.email,
+    signOut: session.signOut,
+    getAccessToken: session.getAccessToken,
+  };
 }
 
 export async function restoreSession(onExpired) {
@@ -279,14 +292,24 @@ export async function restoreSession(onExpired) {
   try {
     await session.api('/admin/programs?limit=1');
     ready = true;
-    return { api: session.api, email: session.email, signOut: session.signOut };
+    return {
+      api: session.api,
+      email: session.email,
+      signOut: session.signOut,
+      getAccessToken: session.getAccessToken,
+    };
   } catch (error) {
     if (error.status === 401 || error.status === 403) {
       session.destroy();
       return null;
     }
     ready = true;
-    return { api: session.api, email: session.email, signOut: session.signOut };
+    return {
+      api: session.api,
+      email: session.email,
+      signOut: session.signOut,
+      getAccessToken: session.getAccessToken,
+    };
   }
 }
 

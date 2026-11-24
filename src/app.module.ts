@@ -10,6 +10,7 @@ import { ContentModule } from './modules/content/content.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseOptions } from './infrastructure/database/database.options';
+import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProfileModule } from './modules/profiles/profile.module';
@@ -19,6 +20,7 @@ import { HealthController } from './health.controller';
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({ useFactory: databaseOptions }),
+    RealtimeModule,
     CommonModule,
     AuthModule,
     ProfileModule,

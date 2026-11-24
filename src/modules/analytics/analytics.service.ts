@@ -3,11 +3,13 @@ import {
   Injectable,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { environment } from '../../config/environment';
 import { query } from '../../infrastructure/database/query';
+import { AdminEventsService } from '../../infrastructure/realtime/admin-events.service';
 
 const processStartedAt = new Date().toISOString();
 
@@ -19,7 +21,12 @@ export class AnalyticsService
   private lastAiModel: string | null = null;
   private lastAiUptimeSeconds: number | null = null;
 
-  constructor(@Inject(DataSource) private readonly db: DataSource) {}
+  constructor(
+    @Inject(DataSource) private readonly db: DataSource,
+    @Optional()
+    @Inject(AdminEventsService)
+    private readonly events?: AdminEventsService,
+  ) {}
 
   onApplicationBootstrap() {
     if (environment().NODE_ENV !== 'test') {
@@ -129,6 +136,7 @@ export class AnalyticsService
         live.apiUptimeSeconds,
       ],
     );
+    this.events?.emit('analytics');
     return { id, ...live };
   }
 

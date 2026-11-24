@@ -5,8 +5,8 @@ const apiOrigin = process.env.MOTION_API_ORIGIN || 'http://127.0.0.1:3100';
 
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/api/v1': apiOrigin } },
-  preview: { proxy: { '/api/v1': apiOrigin } },
+  server: { proxy: { '/api/v1': { target: apiOrigin, ws: true } } },
+  preview: { proxy: { '/api/v1': { target: apiOrigin, ws: true } } },
   build: {
     rollupOptions: {
       output: {

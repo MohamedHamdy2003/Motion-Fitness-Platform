@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Cloud,
   Cpu,
@@ -10,7 +9,6 @@ import {
   KeyRound,
   Layers3,
   Mail,
-  RefreshCw,
   Search,
   Server,
   ShieldCheck,
@@ -23,13 +21,7 @@ import {
   MotionLatencyBarChart,
   MotionTrendChart,
 } from './AnalyticsCharts';
-import {
-  ButtonContent,
-  ErrorNotice,
-  Notice,
-  PaginationBar,
-  Status,
-} from './ui';
+import { ErrorNotice, PaginationBar, Status } from './ui';
 import './analytics.css';
 
 const CALLS_PAGE_SIZE = 10;
@@ -101,27 +93,25 @@ function AnalyticsSkeleton() {
   );
 }
 
-export function AnalyticsStudio({ api, onNavigate }) {
+export function AnalyticsStudio({ api, onNavigate, realtimeTick = 0 }) {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [checking, setChecking] = useState(false);
   const [error, setError] = useState(null);
-  const [notice, setNotice] = useState('');
   const [callsPage, setCallsPage] = useState(0);
   const [callsSearch, setCallsSearch] = useState('');
 
   const loadOverview = useCallback(
-    async (period) => {
-      setLoading(true);
+    async (period, { silent = false } = {}) => {
+      if (!silent) setLoading(true);
       setError(null);
       try {
         const res = await api(`/admin/analytics/overview?days=${period}`);
         setData(res);
       } catch (reason) {
-        setError(reason);
+        if (!silent) setError(reason);
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     },
     [api],
@@ -131,31 +121,11 @@ export function AnalyticsStudio({ api, onNavigate }) {
     void loadOverview(days);
   }, [days, loadOverview]);
 
-  async function triggerLiveProbe() {
-    setChecking(true);
-    setError(null);
-    setNotice('');
-    try {
-      const probe = await api('/admin/analytics/uptime-check', {
-        method: 'POST',
-        body: {},
-      });
-      const aiLabel =
-        probe.aiService.status === 'UP'
-          ? `يعمل (${probe.aiService.latencyMs}ms)`
-          : probe.aiService.status === 'NOT_CONFIGURED'
-            ? 'غير مُعدّ بعد'
-            : 'غير متاح';
-      setNotice(
-        `تم تسجيل فحص مباشر — قاعدة البيانات: ${probe.database.ok ? `متصلة (${probe.database.latencyMs}ms)` : 'خطأ'} · خدمة Gemini AI: ${aiLabel}.`,
-      );
-      await loadOverview(days);
-    } catch (reason) {
-      setError(reason);
-    } finally {
-      setChecking(false);
+  useEffect(() => {
+    if (realtimeTick > 0) {
+      void loadOverview(days, { silent: true });
     }
-  }
+  }, [realtimeTick, days, loadOverview]);
 
   const summary = data?.geminiUsage?.summary;
   const platform = data?.platform;
@@ -291,34 +261,10 @@ export function AnalyticsStudio({ api, onNavigate }) {
               </button>
             ))}
           </div>
-
-          <button
-            type="button"
-            className={'rst-refresh-btn' + (loading ? ' spinning' : '')}
-            aria-label="تحديث البيانات"
-            title="تحديث البيانات"
-            disabled={loading}
-            onClick={() => void loadOverview(days)}
-          >
-            <RefreshCw size={17} aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            className="button action"
-            disabled={checking || loading}
-            onClick={triggerLiveProbe}
-          >
-            <ButtonContent busy={checking}>
-              <span>فحص صحة النظام الآن</span>
-              <ArrowLeft size={17} aria-hidden="true" />
-            </ButtonContent>
-          </button>
         </div>
       </section>
 
       <ErrorNotice error={error} onRetry={() => void loadOverview(days)} />
-      <Notice text={notice} />
 
       {loading && !data && <AnalyticsSkeleton />}
 
