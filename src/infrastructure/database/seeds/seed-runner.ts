@@ -86,67 +86,60 @@ export async function seedLookups(db: DataSource) {
         [code, label, order + 1],
       );
 
-    for (const [id, slug, category, locale, question, answer, order] of [
+    for (const [
+      id,
+      category,
+      questionAr,
+      answerAr,
+      questionEn,
+      answerEn,
+      order,
+    ] of [
       [
         '81000000-0000-4000-8000-000000000001',
-        'how-program-matching-works-en',
         'PROGRAMS',
-        'en',
+        'كيف يتم اختيار برنامجي التدريبي والغذائي؟',
+        'يقوم تطبيق Motion بتحليل هدفك الأساسي ومستوى لياقتك وأيام تمرينك الأسبوعية وقياسات جسمك ومطابقتها تلقائياً مع أفضل برنامج تدريبي وغذائي متاح لمدة 12 أسبوعاً.',
         'How is my training and nutrition program selected?',
         'Motion evaluates your primary goal, fitness level, weekly training schedule, and body metrics against published programs using an AI-assisted matching ruleset to assign the best-fitting 12-week program.',
         1,
       ],
       [
         '81000000-0000-4000-8000-000000000002',
-        'how-exercise-fitting-works-en',
         'WORKOUTS',
-        'en',
+        'كيف يتعامل التطبيق مع الإصابات المسجلة أثناء التمرين؟',
+        'قبل كل يوم تدريبي مستحق، يقوم النظام بفحص التمارين مقابل إصاباتك النشطة واستبعاد أي تمرين قد يسبب إجهاداً لمنطقة الإصابة.',
         'How does Motion handle my reported injuries during workouts?',
         'Before each due training day, Motion runs daily exercise fitting against your active injuries and automatically blocks exercises that conflict with injured body areas.',
         2,
       ],
       [
         '81000000-0000-4000-8000-000000000003',
-        'how-nutrition-swaps-work-en',
         'NUTRITION',
-        'en',
+        'كيف تحافظ بدائل الوجبات والأطعمة على السعرات والماكروز؟',
+        'يعتمد Motion على مجموعات التبادل الغذائي؛ فأي بديل تختاره داخل نفس القسم يُعاد ضبط كميته تلقائياً للحفاظ على السعرات والبروتين والماكروز المستهدفة.',
         'How do meal and ingredient swaps keep my macros balanced?',
         'Motion uses section-based portion scaling so any alternative ingredient or replacement meal from the same section is automatically scaled to preserve your target calories and macros.',
         3,
       ],
       [
         '81000000-0000-4000-8000-000000000004',
-        'how-periodic-check-ins-work-en',
         'PROGRESS',
-        'en',
+        'كل كم يوم يُفضّل إتمام المتابعة الدورية (Check-in)؟',
+        'تُجدول المتابعة الدورية كل 3 أيام لتسجيل وزنك الحالي وصعوبة التمرين ومدى الالتزام بالتغذية، مع إنشاء ملخص تلقائي لمستوى تقدمك.',
         'How often should I complete a progress check-in?',
         'Check-ins are scheduled every 3 days to record your current weight, workout difficulty, and nutrition adherence, generating an automated summary of your recent consistency.',
         4,
       ],
-      [
-        '81000000-0000-4000-8000-000000000005',
-        'how-program-matching-works-ar',
-        'PROGRAMS',
-        'ar',
-        'كيف يتم اختيار برنامجي التدريبي والغذائي؟',
-        'يقوم تطبيق Motion بتحليل هدفك الأساسي ومستوى لياقتك وأيام تمرينك الأسبوعية وقياسات جسمك ومطابقتها تلقائياً مع أفضل برنامج تدريبي وغذائي متاح لمدة 12 أسبوعاً.',
-        1,
-      ],
-      [
-        '81000000-0000-4000-8000-000000000006',
-        'how-exercise-fitting-works-ar',
-        'WORKOUTS',
-        'ar',
-        'كيف يتعامل التطبيق مع الإصابات المسجلة أثناء التمرين؟',
-        'قبل كل يوم تدريبي مستحق، يقوم النظام بفحص التمارين مقابل إصاباتك النشطة واستبعاد أي تمرين قد يسبب إجهاداً لمنطقة الإصابة.',
-        2,
-      ],
     ] as const)
       await query(
         m,
-        `INSERT INTO faq_entries(id,slug,category,locale,question,answer,display_order,active)
-         VALUES($1,$2,$3,$4,$5,$6,$7,true) ON CONFLICT(slug) DO NOTHING`,
-        [id, slug, category, locale, question, answer, order],
+        `INSERT INTO faq_entries(id,category,question_ar,answer_ar,question_en,answer_en,display_order,active)
+         VALUES($1,$2,$3,$4,$5,$6,$7,true)
+         ON CONFLICT(id) DO UPDATE
+           SET question_ar = CASE WHEN faq_entries.question_ar = faq_entries.question_en THEN EXCLUDED.question_ar ELSE faq_entries.question_ar END,
+               answer_ar = CASE WHEN faq_entries.answer_ar = faq_entries.answer_en THEN EXCLUDED.answer_ar ELSE faq_entries.answer_ar END`,
+        [id, category, questionAr, answerAr, questionEn, answerEn, order],
       );
 
     for (const [id, type, version, locale, title, content] of [

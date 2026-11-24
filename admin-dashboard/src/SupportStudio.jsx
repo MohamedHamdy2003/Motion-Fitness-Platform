@@ -1,7 +1,196 @@
-import { useEffect, useState } from 'react';
-import { FileText, HelpCircle, Plus, Trash2 } from 'lucide-react';
-import { slugify } from './program';
-import { ErrorNotice, Field, Notice, Status } from './ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FileText, HelpCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  ButtonContent,
+  ConfirmDialog,
+  ErrorNotice,
+  Field,
+  Notice,
+  Status,
+} from './ui';
+
+const FAQ_CATEGORIES = [
+  { code: 'PROGRAMS', label: 'البرامج والتدريب' },
+  { code: 'WORKOUTS', label: 'التمارين والإصابات' },
+  { code: 'NUTRITION', label: 'التغذية والوجبات' },
+  { code: 'PROGRESS', label: 'المتابعة والتقدم' },
+  { code: 'ACCOUNT', label: 'الحساب والاشتراك' },
+  { code: 'GENERAL', label: 'أسئلة عامة' },
+];
+
+function categoryLabel(code) {
+  const upper = String(code || '').toUpperCase();
+  return FAQ_CATEGORIES.find((c) => c.code === upper)?.label || code;
+}
+
+function nextLegalVersion(items, type, locale) {
+  let maxMajor = 1;
+  let maxMinor = -1;
+  for (const item of items) {
+    if (item.type !== type || item.locale !== locale) continue;
+    const match = /^v?(\d+)\.(\d+)(?:\.(\d+))?$/.exec(
+      String(item.version || '').trim(),
+    );
+    if (!match) continue;
+    const major = Number(match[1]);
+    const minor = Number(match[2]);
+    if (major > maxMajor || (major === maxMajor && minor > maxMinor)) {
+      maxMajor = major;
+      maxMinor = minor;
+    }
+  }
+  return maxMinor < 0 ? '1.0.0' : `${maxMajor}.${maxMinor + 1}.0`;
+}
+
+function FaqEditDialog({ item, onClose, onSaved, api }) {
+  const dialogRef = useRef(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [form, setForm] = useState({
+    category: item.category || 'PROGRAMS',
+    displayOrder: item.displayOrder ?? 0,
+    active: Boolean(item.active),
+    questionAr: item.questionAr || '',
+    answerAr: item.answerAr || '',
+    questionEn: item.questionEn || '',
+    answerEn: item.answerEn || '',
+  });
+
+  useEffect(() => {
+    const node = dialogRef.current;
+    node?.showModal();
+    return () => node?.close();
+  }, []);
+
+  async function handleSave(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api(`/admin/faq/${item.id}`, {
+        method: 'PATCH',
+        body: {
+          category: form.category,
+          displayOrder: Number(form.displayOrder) || 0,
+          active: form.active,
+          questionAr: form.questionAr.trim(),
+          answerAr: form.answerAr.trim(),
+          questionEn: form.questionEn.trim(),
+          answerEn: form.answerEn.trim(),
+        },
+      });
+      await onSaved('تم حفظ تعديلات السؤال الشائع بنجاح.');
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="confirm modal-wide"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onClose();
+      }}
+    >
+      <div className="modal-head">
+        <div>
+          <h2>تعديل السؤال الشائع</h2>
+          <p className="inline-help">
+            عدّل نص السؤال والإجابة باللغتين العربية والإنجليزية في نفس السجل.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="إغلاق نافذة التعديل"
+          disabled={saving}
+          onClick={onClose}
+        >
+          <X size={19} />
+        </button>
+      </div>
+
+      <ErrorNotice error={error} />
+
+      <form onSubmit={handleSave} className="field-grid panel-spaced-sm">
+        <Field label="التصنيف">
+          <select
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+          >
+            {FAQ_CATEGORIES.map((cat) => (
+              <option key={cat.code} value={cat.code}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="ترتيب العرض">
+          <input
+            type="number"
+            min="0"
+            value={form.displayOrder}
+            onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
+          />
+        </Field>
+
+        <Field label="السؤال (بالعربية)" full>
+          <input
+            value={form.questionAr}
+            onChange={(e) => setForm({ ...form, questionAr: e.target.value })}
+            required
+          />
+        </Field>
+        <Field label="الإجابة (بالعربية)" full>
+          <textarea
+            rows="3"
+            value={form.answerAr}
+            onChange={(e) => setForm({ ...form, answerAr: e.target.value })}
+            required
+          />
+        </Field>
+
+        <Field label="السؤال (بالإنجليزية)" full>
+          <input
+            dir="ltr"
+            value={form.questionEn}
+            onChange={(e) => setForm({ ...form, questionEn: e.target.value })}
+            required
+          />
+        </Field>
+        <Field label="الإجابة (بالإنجليزية)" full>
+          <textarea
+            dir="ltr"
+            rows="3"
+            value={form.answerEn}
+            onChange={(e) => setForm({ ...form, answerEn: e.target.value })}
+            required
+          />
+        </Field>
+
+        <div className="full actions">
+          <button
+            type="button"
+            className="button secondary"
+            disabled={saving}
+            onClick={onClose}
+          >
+            إلغاء
+          </button>
+          <button type="submit" className="button primary" disabled={saving}>
+            <ButtonContent busy={saving}>
+              <span>حفظ التعديلات</span>
+            </ButtonContent>
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
 
 export function SupportStudio({ api }) {
   const [faqItems, setFaqItems] = useState([]);
@@ -11,25 +200,31 @@ export function SupportStudio({ api }) {
   const [notice, setNotice] = useState('');
   const [savingFaq, setSavingFaq] = useState(false);
   const [savingLegal, setSavingLegal] = useState(false);
+  const [editingFaq, setEditingFaq] = useState(null);
+  const [deletingFaq, setDeletingFaq] = useState(null);
 
   const [faqForm, setFaqForm] = useState({
-    slug: '',
     category: 'PROGRAMS',
-    locale: 'ar',
-    question: '',
-    answer: '',
+    questionAr: '',
+    answerAr: '',
+    questionEn: '',
+    answerEn: '',
     displayOrder: 1,
     active: true,
   });
 
   const [legalForm, setLegalForm] = useState({
     type: 'TERMS',
-    version: '1.1.0',
     locale: 'ar',
     title: 'الشروط والأحكام لتطبيق Motion',
     content: '',
     active: true,
   });
+
+  const upcomingLegalVersion = useMemo(
+    () => nextLegalVersion(legalItems, legalForm.type, legalForm.locale),
+    [legalItems, legalForm.type, legalForm.locale],
+  );
 
   async function loadAll() {
     setLoading(true);
@@ -39,8 +234,13 @@ export function SupportStudio({ api }) {
         api('/admin/faq'),
         api('/admin/legal'),
       ]);
-      setFaqItems(faqRes.items || []);
+      const loadedFaqs = faqRes.items || [];
+      setFaqItems(loadedFaqs);
       setLegalItems(legalRes.items || []);
+      setFaqForm((prev) => ({
+        ...prev,
+        displayOrder: loadedFaqs.length + 1,
+      }));
     } catch (reason) {
       setError(reason);
     } finally {
@@ -61,23 +261,25 @@ export function SupportStudio({ api }) {
       await api('/admin/faq', {
         method: 'POST',
         body: {
-          ...faqForm,
-          slug:
-            faqForm.slug ||
-            slugify(`faq-${faqForm.category}-${Date.now()}-${faqForm.locale}`),
+          category: faqForm.category,
+          questionAr: faqForm.questionAr.trim(),
+          answerAr: faqForm.answerAr.trim(),
+          questionEn: faqForm.questionEn.trim(),
+          answerEn: faqForm.answerEn.trim(),
           displayOrder: Number(faqForm.displayOrder) || 0,
+          active: true,
         },
       });
       setFaqForm({
-        slug: '',
         category: 'PROGRAMS',
-        locale: 'ar',
-        question: '',
-        answer: '',
-        displayOrder: faqItems.length + 1,
+        questionAr: '',
+        answerAr: '',
+        questionEn: '',
+        answerEn: '',
+        displayOrder: faqItems.length + 2,
         active: true,
       });
-      setNotice('تمت إضافة السؤال الشائع بنجاح.');
+      setNotice('تمت إضافة السؤال الشائع باللغتين بنجاح.');
       await loadAll();
     } catch (reason) {
       setError(reason);
@@ -94,19 +296,26 @@ export function SupportStudio({ api }) {
         method: 'PATCH',
         body: { active: !item.active },
       });
-      setNotice(`تم تحديث حالة السؤال «${item.slug}».`);
+      setNotice(
+        item.active
+          ? 'تم إيقاف عرض السؤال في التطبيق.'
+          : 'تم تفعيل عرض السؤال في التطبيق.',
+      );
       await loadAll();
     } catch (reason) {
       setError(reason);
     }
   }
 
-  async function removeFaq(item) {
+  async function confirmRemoveFaq() {
+    if (!deletingFaq) return;
+    const target = deletingFaq;
+    setDeletingFaq(null);
     setError(null);
     setNotice('');
     try {
-      await api(`/admin/faq/${item.id}`, { method: 'DELETE' });
-      setNotice(`تم حذف السؤال «${item.slug}».`);
+      await api(`/admin/faq/${target.id}`, { method: 'DELETE' });
+      setNotice('تم مسح السؤال الشائع بنجاح.');
       await loadAll();
     } catch (reason) {
       setError(reason);
@@ -119,12 +328,19 @@ export function SupportStudio({ api }) {
     setError(null);
     setNotice('');
     try {
-      await api('/admin/legal', {
+      const created = await api('/admin/legal', {
         method: 'POST',
-        body: legalForm,
+        body: {
+          type: legalForm.type,
+          locale: legalForm.locale,
+          title: legalForm.title.trim(),
+          content: legalForm.content.trim(),
+          active: true,
+        },
       });
+      setLegalForm((prev) => ({ ...prev, content: '' }));
       setNotice(
-        `تم نشر الوثيقة ${legalForm.type === 'TERMS' ? 'الشروط والأحكام' : 'سياسة الخصوصية'} (${legalForm.version}).`,
+        `تم نشر ${legalForm.type === 'TERMS' ? 'الشروط والأحكام' : 'سياسة الخصوصية'} تلقائياً كإصدار v${created.version}.`,
       );
       await loadAll();
     } catch (reason) {
@@ -140,8 +356,8 @@ export function SupportStudio({ api }) {
         <div>
           <h1>الأسئلة الشائعة والوثائق القانونية</h1>
           <p>
-            إدارة محتوى مركز المساعدة ونسخ الشروط والأحكام وسياسة الخصوصية التي
-            تظهر داخل تطبيق الموبايل.
+            إدارة الأسئلة الشائعة باللغتين العربية والإنجليزية في سجل واحد، ونشر
+            تحديثات الشروط والأحكام وسياسة الخصوصية بترقيم تلقائي.
           </p>
         </div>
       </header>
@@ -158,55 +374,25 @@ export function SupportStudio({ api }) {
                   <HelpCircle size={18} className="heading-icon" />
                   إضافة سؤال شائع
                 </h2>
-                <p>انشر أسئلة وأجوبة قابلة للبحث بالعربية أو الإنجليزية.</p>
+                <p>
+                  أدخل السؤال والإجابة بالعربية والإنجليزية معاً ليُخزنا تبع نفس
+                  السؤال.
+                </p>
               </div>
             </div>
             <form onSubmit={createFaq} className="field-grid">
-              <Field label="السؤال" full>
-                <input
-                  value={faqForm.question}
-                  onChange={(e) =>
-                    setFaqForm({
-                      ...faqForm,
-                      question: e.target.value,
-                    })
-                  }
-                  required
-                />
-              </Field>
-              <Field
-                label="المعرّف النصي (Slug)"
-                hint="أحرف إنجليزية صغيرة وشرطات فقط"
-              >
-                <input
-                  dir="ltr"
-                  placeholder="how-matching-works-ar"
-                  value={faqForm.slug}
-                  onChange={(e) =>
-                    setFaqForm({ ...faqForm, slug: e.target.value })
-                  }
-                  required
-                />
-              </Field>
               <Field label="التصنيف">
-                <input
-                  dir="ltr"
+                <select
                   value={faqForm.category}
                   onChange={(e) =>
                     setFaqForm({ ...faqForm, category: e.target.value })
                   }
-                  required
-                />
-              </Field>
-              <Field label="اللغة">
-                <select
-                  value={faqForm.locale}
-                  onChange={(e) =>
-                    setFaqForm({ ...faqForm, locale: e.target.value })
-                  }
                 >
-                  <option value="ar">العربية (ar)</option>
-                  <option value="en">الإنجليزية (en)</option>
+                  {FAQ_CATEGORIES.map((cat) => (
+                    <option key={cat.code} value={cat.code}>
+                      {cat.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="ترتيب العرض">
@@ -219,12 +405,46 @@ export function SupportStudio({ api }) {
                   }
                 />
               </Field>
-              <Field label="الإجابة" full>
+              <Field label="السؤال (بالعربية)" full>
+                <input
+                  placeholder="مثال: كيف يتم اختيار برنامجي التدريبي؟"
+                  value={faqForm.questionAr}
+                  onChange={(e) =>
+                    setFaqForm({ ...faqForm, questionAr: e.target.value })
+                  }
+                  required
+                />
+              </Field>
+              <Field label="الإجابة (بالعربية)" full>
                 <textarea
                   rows="3"
-                  value={faqForm.answer}
+                  placeholder="اكتب الإجابة الواضحة للمستخدم بالعربية…"
+                  value={faqForm.answerAr}
                   onChange={(e) =>
-                    setFaqForm({ ...faqForm, answer: e.target.value })
+                    setFaqForm({ ...faqForm, answerAr: e.target.value })
+                  }
+                  required
+                />
+              </Field>
+              <Field label="السؤال (بالإنجليزية)" full>
+                <input
+                  dir="ltr"
+                  placeholder="e.g. How is my training program selected?"
+                  value={faqForm.questionEn}
+                  onChange={(e) =>
+                    setFaqForm({ ...faqForm, questionEn: e.target.value })
+                  }
+                  required
+                />
+              </Field>
+              <Field label="الإجابة (بالإنجليزية)" full>
+                <textarea
+                  dir="ltr"
+                  rows="3"
+                  placeholder="Write the clear English answer..."
+                  value={faqForm.answerEn}
+                  onChange={(e) =>
+                    setFaqForm({ ...faqForm, answerEn: e.target.value })
                   }
                   required
                 />
@@ -235,8 +455,10 @@ export function SupportStudio({ api }) {
                   type="submit"
                   disabled={savingFaq}
                 >
-                  <Plus size={17} />
-                  {savingFaq ? 'جارٍ الحفظ…' : 'إضافة السؤال'}
+                  <ButtonContent busy={savingFaq}>
+                    <Plus size={17} aria-hidden="true" />
+                    <span>إضافة السؤال</span>
+                  </ButtonContent>
                 </button>
               </div>
             </form>
@@ -249,49 +471,67 @@ export function SupportStudio({ api }) {
               <div>
                 <h2>
                   <FileText size={18} className="heading-icon" />
-                  نشر إصدار وثيقة قانونية
+                  نشر تحديث وثيقة قانونية
                 </h2>
                 <p>
-                  تفعيل إصدار جديد يستبدل تلقائياً الإصدار النشط السابق لنفس
-                  النوع واللغة.
+                  يتم توليد رقم الإصدار تلقائياً وأرشفة النسخة السابقة عند
+                  النشر.
                 </p>
               </div>
+              <span className="version" dir="ltr">
+                الإصدار التالي: v{upcomingLegalVersion}
+              </span>
             </div>
             <form onSubmit={publishLegal} className="field-grid">
               <Field label="نوع الوثيقة">
                 <select
                   value={legalForm.type}
-                  onChange={(e) =>
-                    setLegalForm({ ...legalForm, type: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const nextType = e.target.value;
+                    setLegalForm({
+                      ...legalForm,
+                      type: nextType,
+                      title:
+                        legalForm.locale === 'ar'
+                          ? nextType === 'TERMS'
+                            ? 'الشروط والأحكام لتطبيق Motion'
+                            : 'سياسة الخصوصية لتطبيق Motion'
+                          : nextType === 'TERMS'
+                            ? 'Motion Terms & Conditions'
+                            : 'Motion Privacy Policy',
+                    });
+                  }}
                 >
-                  <option value="TERMS">الشروط والأحكام (TERMS)</option>
-                  <option value="PRIVACY">سياسة الخصوصية (PRIVACY)</option>
+                  <option value="TERMS">الشروط والأحكام</option>
+                  <option value="PRIVACY">سياسة الخصوصية</option>
                 </select>
-              </Field>
-              <Field label="رقم الإصدار">
-                <input
-                  dir="ltr"
-                  value={legalForm.version}
-                  onChange={(e) =>
-                    setLegalForm({ ...legalForm, version: e.target.value })
-                  }
-                  required
-                />
               </Field>
               <Field label="اللغة">
                 <select
                   value={legalForm.locale}
-                  onChange={(e) =>
-                    setLegalForm({ ...legalForm, locale: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const nextLocale = e.target.value;
+                    setLegalForm({
+                      ...legalForm,
+                      locale: nextLocale,
+                      title:
+                        nextLocale === 'ar'
+                          ? legalForm.type === 'TERMS'
+                            ? 'الشروط والأحكام لتطبيق Motion'
+                            : 'سياسة الخصوصية لتطبيق Motion'
+                          : legalForm.type === 'TERMS'
+                            ? 'Motion Terms & Conditions'
+                            : 'Motion Privacy Policy',
+                    });
+                  }}
                 >
-                  <option value="ar">العربية (ar)</option>
-                  <option value="en">الإنجليزية (en)</option>
+                  <option value="ar">العربية</option>
+                  <option value="en">الإنجليزية</option>
                 </select>
               </Field>
-              <Field label="عنوان الوثيقة">
+              <Field label="عنوان الوثيقة" full>
                 <input
+                  dir={legalForm.locale === 'en' ? 'ltr' : 'rtl'}
                   value={legalForm.title}
                   onChange={(e) =>
                     setLegalForm({ ...legalForm, title: e.target.value })
@@ -301,7 +541,8 @@ export function SupportStudio({ api }) {
               </Field>
               <Field label="نص الوثيقة" full>
                 <textarea
-                  rows="4"
+                  dir={legalForm.locale === 'en' ? 'ltr' : 'rtl'}
+                  rows="7"
                   value={legalForm.content}
                   onChange={(e) =>
                     setLegalForm({ ...legalForm, content: e.target.value })
@@ -315,8 +556,10 @@ export function SupportStudio({ api }) {
                   type="submit"
                   disabled={savingLegal}
                 >
-                  <Plus size={17} />
-                  {savingLegal ? 'جارٍ النشر…' : 'نشر الإصدار القانوني'}
+                  <ButtonContent busy={savingLegal}>
+                    <Plus size={17} aria-hidden="true" />
+                    <span>نشر الإصدار الجديد (v{upcomingLegalVersion})</span>
+                  </ButtonContent>
                 </button>
               </div>
             </form>
@@ -329,21 +572,22 @@ export function SupportStudio({ api }) {
           <div className="section-heading">
             <div>
               <h2>سجل الأسئلة الشائعة ({faqItems.length})</h2>
-              <p>جميع الأسئلة النشطة والموقوفة باللغتين.</p>
+              <p>جميع الأسئلة الشائعة بنصيها العربي والإنجليزي.</p>
             </div>
           </div>
           {loading ? (
             <div className="loading-list">
               <span className="spinner" /> جارٍ تحميل الأسئلة…
             </div>
+          ) : faqItems.length === 0 ? (
+            <p className="inline-help">لا توجد أسئلة شائعة مضافة بعد.</p>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>السؤال</th>
+                    <th>السؤال (عربي / إنجليزي)</th>
                     <th>التصنيف</th>
-                    <th>اللغة</th>
                     <th>الحالة</th>
                     <th>إجراءات</th>
                   </tr>
@@ -352,35 +596,42 @@ export function SupportStudio({ api }) {
                   {faqItems.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <strong>{item.question}</strong>
+                        <strong>{item.questionAr}</strong>
                         <div className="muted-meta" dir="ltr">
-                          {item.slug}
+                          {item.questionEn}
                         </div>
                       </td>
-                      <td dir="ltr">{item.category}</td>
-                      <td>{item.locale === 'ar' ? 'العربية' : 'الإنجليزية'}</td>
+                      <td>{categoryLabel(item.category)}</td>
                       <td>
-                        <Status
-                          value={item.active ? 'PUBLISHED' : 'DRAFT'}
-                          customLabel={item.active ? 'نشط' : 'موقوف'}
-                        />
+                        <button
+                          type="button"
+                          className="status-toggle"
+                          title="تبديل حالة العرض"
+                          onClick={() => toggleFaqActive(item)}
+                        >
+                          <Status
+                            value={item.active ? 'PUBLISHED' : 'DRAFT'}
+                            customLabel={item.active ? 'نشط' : 'موقوف'}
+                          />
+                        </button>
                       </td>
                       <td>
                         <div className="actions">
                           <button
                             type="button"
                             className="button secondary compact"
-                            onClick={() => toggleFaqActive(item)}
+                            onClick={() => setEditingFaq(item)}
                           >
-                            {item.active ? 'إيقاف' : 'تفعيل'}
+                            <Pencil size={14} aria-hidden="true" />
+                            تعديل
                           </button>
                           <button
                             type="button"
-                            className="icon-button"
-                            aria-label="حذف السؤال"
-                            onClick={() => removeFaq(item)}
+                            className="button danger compact"
+                            onClick={() => setDeletingFaq(item)}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={14} aria-hidden="true" />
+                            مسح
                           </button>
                         </div>
                       </td>
@@ -440,6 +691,34 @@ export function SupportStudio({ api }) {
           )}
         </div>
       </section>
+
+      {editingFaq && (
+        <FaqEditDialog
+          item={editingFaq}
+          api={api}
+          onClose={() => setEditingFaq(null)}
+          onSaved={async (msg) => {
+            setEditingFaq(null);
+            setNotice(msg);
+            await loadAll();
+          }}
+        />
+      )}
+
+      {deletingFaq && (
+        <ConfirmDialog
+          title="مسح السؤال الشائع؟"
+          action="تأكيد المسح"
+          destructive
+          onCancel={() => setDeletingFaq(null)}
+          onConfirm={confirmRemoveFaq}
+        >
+          <p>
+            سيتم حذف السؤال «{deletingFaq.questionAr}» نهائياً باللغتين العربية
+            والإنجليزية من تطبيق الموبايل.
+          </p>
+        </ConfirmDialog>
+      )}
     </>
   );
 }

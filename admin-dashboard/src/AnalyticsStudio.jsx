@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Activity,
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
@@ -441,6 +440,24 @@ export function AnalyticsStudio({ api, onNavigate }) {
               </div>
             </article>
 
+            <article className="rst-kpi">
+              <div className="rst-kpi-top">
+                <span className="rst-kpi-label">
+                  <span className="rst-kpi-ico is-blue" aria-hidden="true">
+                    <Users size={17} />
+                  </span>
+                  المتدربون النشطون
+                </span>
+              </div>
+              <div className="rst-kpi-val numeric" dir="ltr">
+                {formatNumber(platform.activeUsers)}
+              </div>
+              <div className="rst-kpi-foot numeric">
+                من إجمالي {formatNumber(platform.totalUsers)} مسجّل ·{' '}
+                {formatNumber(platform.activeEnrollments)} مشترك ببرنامج
+              </div>
+            </article>
+
             <button
               type="button"
               className="rst-kpi"
@@ -448,38 +465,20 @@ export function AnalyticsStudio({ api, onNavigate }) {
             >
               <div className="rst-kpi-top">
                 <span className="rst-kpi-label">
-                  <span className="rst-kpi-ico is-blue" aria-hidden="true">
-                    <Users size={17} />
+                  <span className="rst-kpi-ico is-emerald" aria-hidden="true">
+                    <Layers3 size={17} />
                   </span>
-                  المتدربون والبرامج النشطة
+                  البرامج التدريبية المنشورة
                 </span>
               </div>
               <div className="rst-kpi-val numeric" dir="ltr">
-                {formatNumber(platform.activeUsers)}
+                {formatNumber(platform.publishedPrograms)}
               </div>
               <div className="rst-kpi-foot numeric">
-                {formatNumber(platform.activeEnrollments)} مشترك ·{' '}
-                {formatNumber(platform.publishedPrograms)} برنامج منشور ←
+                {formatNumber(platform.completedWorkouts)} تمرين ·{' '}
+                {formatNumber(platform.completedMeals)} وجبة ({days} يوماً) ←
               </div>
             </button>
-
-            <article className="rst-kpi">
-              <div className="rst-kpi-top">
-                <span className="rst-kpi-label">
-                  <span className="rst-kpi-ico is-emerald" aria-hidden="true">
-                    <Activity size={17} />
-                  </span>
-                  النشاط المسجل ({days} يوماً)
-                </span>
-              </div>
-              <div className="rst-kpi-val numeric" dir="ltr">
-                {formatNumber(platform.completedWorkouts)}
-              </div>
-              <div className="rst-kpi-foot numeric">
-                تمرين مكتمل · {formatNumber(platform.completedMeals)} وجبة ·{' '}
-                {formatNumber(platform.checkIns)} متابعة وزن
-              </div>
-            </article>
           </section>
 
           <div className="rst-grid-primary">

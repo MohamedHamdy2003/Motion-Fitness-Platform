@@ -22,14 +22,11 @@ export const legalAcceptanceInput = z
 
 export const adminFaqCreateInput = z
   .object({
-    slug: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9][a-z0-9-]{1,120}$/),
     category: z.string().trim().min(1).max(80),
-    locale: z.enum(['en', 'ar']).default('en'),
-    question: z.string().trim().min(1).max(500),
-    answer: z.string().trim().min(1).max(5000),
+    questionAr: z.string().trim().min(1).max(500),
+    answerAr: z.string().trim().min(1).max(5000),
+    questionEn: z.string().trim().min(1).max(500),
+    answerEn: z.string().trim().min(1).max(5000),
     displayOrder: z.number().int().min(0).max(10000).default(0),
     active: z.boolean().default(true),
   })
@@ -38,9 +35,10 @@ export const adminFaqCreateInput = z
 export const adminFaqPatchInput = z
   .object({
     category: z.string().trim().min(1).max(80).optional(),
-    locale: z.enum(['en', 'ar']).optional(),
-    question: z.string().trim().min(1).max(500).optional(),
-    answer: z.string().trim().min(1).max(5000).optional(),
+    questionAr: z.string().trim().min(1).max(500).optional(),
+    answerAr: z.string().trim().min(1).max(5000).optional(),
+    questionEn: z.string().trim().min(1).max(500).optional(),
+    answerEn: z.string().trim().min(1).max(5000).optional(),
     displayOrder: z.number().int().min(0).max(10000).optional(),
     active: z.boolean().optional(),
   })
@@ -52,7 +50,7 @@ export const adminFaqPatchInput = z
 export const adminLegalCreateInput = z
   .object({
     type: z.enum(['TERMS', 'PRIVACY']),
-    version: z.string().trim().min(1).max(64),
+    version: z.string().trim().min(1).max(64).optional(),
     locale: z.enum(['en', 'ar']).default('en'),
     title: z.string().trim().min(1).max(200),
     content: z.string().trim().min(1).max(50000),
