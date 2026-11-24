@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Play, Sparkles } from 'lucide-react';
-import { listAll } from './api';
+import { getCachedReference, listAll } from './api';
 import { readableCode } from './program';
 import {
   ButtonContent,
@@ -61,9 +61,9 @@ export function MatchingStudio({ api }) {
     let alive = true;
     Promise.all([
       listAll(api, '/admin/matching/rulesets'),
-      api('/references/primary-goals'),
-      api('/references/fitness-levels'),
-      api('/references/genders'),
+      getCachedReference(api, '/references/primary-goals'),
+      getCachedReference(api, '/references/fitness-levels'),
+      getCachedReference(api, '/references/genders'),
     ])
       .then(([loadedRulesets, goals, levels, genders]) => {
         if (!alive) return;

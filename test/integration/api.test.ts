@@ -1338,9 +1338,10 @@ describe('F03 content library', () => {
       .get(prefix + '/admin/ingredients')
       .set(headers);
     expect(ingredientList.status, ingredientList.text).toBe(200);
-    expect(ingredientList.body.map((row: { id: string }) => row.id)).toContain(
-      added.body.id,
-    );
+    expect(
+      ingredientList.body.items.map((row: { id: string }) => row.id),
+    ).toContain(added.body.id);
+    expect(ingredientList.body.total).toBeGreaterThanOrEqual(1);
     const ingredientDetails = await api
       .get(prefix + `/admin/ingredients/${added.body.id}`)
       .set(headers);
@@ -3914,5 +3915,37 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       .set(adminHeaders)
       .expect(200);
     expect(afterDelete.body.items).toHaveLength(0);
+    expect(afterDelete.body.total).toBe(0);
+
+    // Verify server-side pagination, search, totals & single-query food exchange members
+    const pagedPrograms = await api
+      .get(prefix + '/admin/programs?limit=5&offset=0')
+      .set(adminHeaders)
+      .expect(200);
+    expect(Array.isArray(pagedPrograms.body.items)).toBe(true);
+    expect(typeof pagedPrograms.body.total).toBe('number');
+    expect(pagedPrograms.body.limit).toBe(5);
+    expect(pagedPrograms.body.offset).toBe(0);
+
+    const pagedMembers = await api
+      .get(prefix + '/admin/food-exchange-members?limit=10&offset=0')
+      .set(adminHeaders)
+      .expect(200);
+    expect(Array.isArray(pagedMembers.body.items)).toBe(true);
+    expect(typeof pagedMembers.body.total).toBe('number');
+
+    const pagedFaq = await api
+      .get(prefix + '/admin/faq?limit=10&offset=0')
+      .set(adminHeaders)
+      .expect(200);
+    expect(Array.isArray(pagedFaq.body.items)).toBe(true);
+    expect(typeof pagedFaq.body.total).toBe('number');
+
+    const pagedLegal = await api
+      .get(prefix + '/admin/legal?limit=10&offset=0')
+      .set(adminHeaders)
+      .expect(200);
+    expect(Array.isArray(pagedLegal.body.items)).toBe(true);
+    expect(typeof pagedLegal.body.total).toBe('number');
   });
 });

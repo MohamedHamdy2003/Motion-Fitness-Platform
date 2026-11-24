@@ -140,7 +140,8 @@ export const programList = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
     offset: z.coerce.number().int().min(0).default(0),
-    status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
+    search: z.string().trim().max(120).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
   })
   .strict();
 export const hintDraft = z

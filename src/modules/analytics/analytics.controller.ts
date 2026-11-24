@@ -16,6 +16,7 @@ import { AnalyticsService } from './analytics.service';
 const overviewQuery = z
   .object({
     days: z.coerce.number().int().min(1).max(90).default(30),
+    live: z.enum(['true', 'false']).optional(),
   })
   .strict();
 
@@ -30,7 +31,7 @@ export class AnalyticsController {
   @Get('overview')
   overview(@Query() rawQuery: unknown) {
     const q = parse(overviewQuery, rawQuery);
-    return this.analytics.overview(q.days);
+    return this.analytics.overview(q.days, q.live === 'true');
   }
 
   @Post('uptime-check')

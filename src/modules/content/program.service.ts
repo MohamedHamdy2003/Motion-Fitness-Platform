@@ -21,12 +21,53 @@ export class ProgramService {
     ]);
   }
 
-  async list(limit: number, offset: number, status?: string) {
-    return query(
-      this.db,
-      `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true WHERE NOT p.archived AND ($3::text IS NULL OR pv.status=$3) ORDER BY p.slug LIMIT $1 OFFSET $2`,
-      [limit, offset, status ?? null],
-    );
+  async list(
+    limit: number,
+    offset: number,
+    filters: {
+      status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      search?: string;
+    } = {},
+  ) {
+    const params: unknown[] = [];
+    const conditions: string[] = [];
+
+    if (filters.status === 'ARCHIVED') {
+      conditions.push('p.archived');
+    } else if (filters.status === 'DRAFT' || filters.status === 'PUBLISHED') {
+      params.push(filters.status);
+      conditions.push(`NOT p.archived AND pv.status = $${params.length}`);
+    } else {
+      conditions.push('NOT p.archived');
+    }
+
+    if (filters.search) {
+      params.push(`%${filters.search}%`);
+      conditions.push(
+        `(pv.title ILIKE $${params.length} OR p.slug ILIKE $${params.length})`,
+      );
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const baseFrom = `FROM programs p JOIN LATERAL(SELECT * FROM program_versions WHERE program_id=p.id ORDER BY version DESC LIMIT 1) pv ON true ${whereClause}`;
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+
+    const [rows, countRows] = await Promise.all([
+      query(
+        this.db,
+        `SELECT p.id,p.slug,p.archived,pv.id AS version_id,pv.version,pv.revision,pv.status,pv.title,pv.primary_goal,(SELECT array_agg(primary_goal_code ORDER BY primary_goal_code) FROM program_version_supported_goals WHERE program_version_id=pv.id) AS supported_goals,pv.ideal_level,(SELECT array_agg(fitness_level_code ORDER BY fitness_level_code) FROM program_version_supported_levels WHERE program_version_id=pv.id) AS supported_levels,pv.training_days_per_week,pv.created_at,(SELECT count(*)::integer FROM monthly_plans mp WHERE mp.program_version_id=pv.id) AS month_count ${baseFrom} ORDER BY p.slug LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(this.db, `SELECT count(*)::integer AS total ${baseFrom}`, params),
+    ]);
+
+    return {
+      items: rows,
+      total: countRows[0]?.total ?? 0,
+      limit,
+      offset,
+    };
   }
 
   async get(id: string) {
@@ -377,18 +418,22 @@ export class ProgramService {
         nutritionVersionId,
       ],
     );
-    for (const goal of input.supportedGoals)
+    if (input.supportedGoals.length) {
       await query(
         m,
-        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
-        [versionId, goal],
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code)
+         SELECT $1, code FROM unnest($2::text[]) AS code`,
+        [versionId, input.supportedGoals],
       );
-    for (const level of input.supportedLevels)
+    }
+    if (input.supportedLevels.length) {
       await query(
         m,
-        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
-        [versionId, level],
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code)
+         SELECT $1, code FROM unnest($2::text[]) AS code`,
+        [versionId, input.supportedLevels],
       );
+    }
     await this.insertSchedule(m, versionId, nutritionVersionId, input);
     return versionId;
   }
@@ -418,23 +463,27 @@ export class ProgramService {
       `DELETE FROM program_version_supported_goals WHERE program_version_id=$1`,
       [id],
     );
-    for (const goal of input.supportedGoals)
+    if (input.supportedGoals.length) {
       await query(
         m,
-        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code) VALUES($1,$2)`,
-        [id, goal],
+        `INSERT INTO program_version_supported_goals(program_version_id,primary_goal_code)
+         SELECT $1, code FROM unnest($2::text[]) AS code`,
+        [id, input.supportedGoals],
       );
+    }
     await query(
       m,
       `DELETE FROM program_version_supported_levels WHERE program_version_id=$1`,
       [id],
     );
-    for (const level of input.supportedLevels)
+    if (input.supportedLevels.length) {
       await query(
         m,
-        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code) VALUES($1,$2)`,
-        [id, level],
+        `INSERT INTO program_version_supported_levels(program_version_id,fitness_level_code)
+         SELECT $1, code FROM unnest($2::text[]) AS code`,
+        [id, input.supportedLevels],
       );
+    }
   }
 
   private async clearSchedule(
@@ -526,43 +575,77 @@ export class ProgramService {
         `Fitness level value(s) ${unavailableLevels.join(', ')} are unavailable or inactive. Fetch GET /references/fitness-levels for currently available values.`,
         { fitness_level_codes: unavailableLevels },
       );
-    for (const month of input.months)
+    const exerciseIds = new Set<string>();
+    const mealIds = new Set<string>();
+    for (const month of input.months) {
       for (const week of month.weeks) {
         const trainingDays = week.days.filter((d) => d.kind === 'TRAINING');
         if (trainingDays.length !== input.trainingDaysPerWeek)
           throw new ApiError('PROGRAM_WEEK_TRAINING_DAYS_INVALID', 422);
         for (const day of week.days) {
-          if (day.kind === 'TRAINING')
+          if (day.kind === 'TRAINING') {
             for (const exercise of day.workout.exercises) {
-              const [row] = await query(
-                m,
-                `SELECT er.id FROM exercise_revisions er JOIN exercises e ON e.id=er.exercise_id WHERE er.id=$1 AND NOT e.archived AND ($2::boolean=false OR er.status='PUBLISHED') FOR SHARE OF er,e`,
-                [exercise.exerciseRevisionId, publication],
-              );
-              if (!row)
-                throw new ApiError(
-                  'PROGRAM_EXERCISE_UNAVAILABLE',
-                  422,
-                  `Exercise revision "${exercise.exerciseRevisionId}" is unavailable.`,
-                  { exercise_revision_id: exercise.exerciseRevisionId },
-                );
+              exerciseIds.add(exercise.exerciseRevisionId);
             }
+          }
           for (const slot of day.meals) {
-            const [row] = await query(
-              m,
-              `SELECT mv.id FROM meal_versions mv JOIN meals m ON m.id=mv.meal_id JOIN meal_sections ms ON ms.id=mv.section_id WHERE mv.id=$1 AND NOT m.archived AND NOT ms.archived AND ($2::boolean=false OR (mv.status='PUBLISHED' AND mv.availability_status='AVAILABLE')) FOR SHARE OF mv,m,ms`,
-              [slot.mealVersionId, publication],
-            );
-            if (!row)
-              throw new ApiError(
-                'PROGRAM_MEAL_UNAVAILABLE',
-                422,
-                `Meal version "${slot.mealVersionId}" is unavailable.`,
-                { meal_version_id: slot.mealVersionId },
-              );
+            mealIds.add(slot.mealVersionId);
           }
         }
       }
+    }
+
+    const uniqueExerciseIds = [...exerciseIds];
+    if (uniqueExerciseIds.length) {
+      const validExercises = await query(
+        m,
+        `SELECT er.id FROM exercise_revisions er
+         JOIN exercises e ON e.id=er.exercise_id
+         WHERE er.id = ANY($1::uuid[])
+           AND NOT e.archived
+           AND ($2::boolean=false OR er.status='PUBLISHED')
+         FOR SHARE OF er, e`,
+        [uniqueExerciseIds, publication],
+      );
+      const validSet = new Set(
+        validExercises.map((row: { id: string }) => row.id),
+      );
+      const missingExercise = uniqueExerciseIds.find((id) => !validSet.has(id));
+      if (missingExercise) {
+        throw new ApiError(
+          'PROGRAM_EXERCISE_UNAVAILABLE',
+          422,
+          `Exercise revision "${missingExercise}" is unavailable.`,
+          { exercise_revision_id: missingExercise },
+        );
+      }
+    }
+
+    const uniqueMealIds = [...mealIds];
+    if (uniqueMealIds.length) {
+      const validMeals = await query(
+        m,
+        `SELECT mv.id FROM meal_versions mv
+         JOIN meals m ON m.id=mv.meal_id
+         JOIN meal_sections ms ON ms.id=mv.section_id
+         WHERE mv.id = ANY($1::uuid[])
+           AND NOT m.archived
+           AND NOT ms.archived
+           AND ($2::boolean=false OR (mv.status='PUBLISHED' AND mv.availability_status='AVAILABLE'))
+         FOR SHARE OF mv, m, ms`,
+        [uniqueMealIds, publication],
+      );
+      const validSet = new Set(validMeals.map((row: { id: string }) => row.id));
+      const missingMeal = uniqueMealIds.find((id) => !validSet.has(id));
+      if (missingMeal) {
+        throw new ApiError(
+          'PROGRAM_MEAL_UNAVAILABLE',
+          422,
+          `Meal version "${missingMeal}" is unavailable.`,
+          { meal_version_id: missingMeal },
+        );
+      }
+    }
   }
 
   private async insertSchedule(
@@ -571,50 +654,82 @@ export class ProgramService {
     nutritionVersionId: string,
     input: Omit<ProgramAggregate, 'slug'>,
   ) {
+    const monthIds: string[] = [];
+    const monthPositions: number[] = [];
+    const monthTitles: string[] = [];
+
+    const weekIds: string[] = [];
+    const weekMonthIds: string[] = [];
+    const weekPositions: number[] = [];
+
+    const nutritionDayIds: string[] = [];
+    const nutritionDayPositions: number[] = [];
+
+    const workoutIds: string[] = [];
+    const workoutSlugs: string[] = [];
+
+    const workoutRevIds: string[] = [];
+    const workoutRevWorkoutIds: string[] = [];
+    const workoutRevTitles: string[] = [];
+    const workoutRevDescs: string[] = [];
+
+    const weIds: string[] = [];
+    const weWorkoutRevIds: string[] = [];
+    const weExerciseRevIds: string[] = [];
+    const wePositions: number[] = [];
+    const weSetCounts: number[] = [];
+    const weRepsMins: (number | null)[] = [];
+    const weRepsMaxs: (number | null)[] = [];
+    const weDurations: (number | null)[] = [];
+    const weRests: number[] = [];
+
+    const planDayIds: string[] = [];
+    const planDayWeekIds: string[] = [];
+    const planDayPositions: number[] = [];
+    const planDayKinds: string[] = [];
+    const planDayWorkoutRevIds: (string | null)[] = [];
+    const planDayNutritionDayIds: string[] = [];
+
+    const slotIds: string[] = [];
+    const slotTemplateDayIds: string[] = [];
+    const slotPositions: number[] = [];
+    const slotMealTypes: string[] = [];
+    const slotLocalTimes: string[] = [];
+    const slotMealVersionIds: string[] = [];
+
     let ordinal = 0;
     for (let monthIndex = 0; monthIndex < input.months.length; monthIndex++) {
       const month = input.months[monthIndex];
       const monthId = randomUUID();
-      await query(
-        m,
-        `INSERT INTO monthly_plans(id,program_version_id,position,title) VALUES($1,$2,$3,$4)`,
-        [monthId, programVersionId, monthIndex + 1, month.title],
-      );
+      monthIds.push(monthId);
+      monthPositions.push(monthIndex + 1);
+      monthTitles.push(month.title);
+
       for (let weekIndex = 0; weekIndex < 4; weekIndex++) {
         const weekId = randomUUID();
-        await query(
-          m,
-          `INSERT INTO plan_weeks(id,monthly_plan_id,position) VALUES($1,$2,$3)`,
-          [weekId, monthId, weekIndex + 1],
-        );
+        weekIds.push(weekId);
+        weekMonthIds.push(monthId);
+        weekPositions.push(weekIndex + 1);
+
         for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
           const day = month.weeks[weekIndex].days[dayIndex];
           ordinal++;
           const nutritionDayId = randomUUID();
-          await query(
-            m,
-            `INSERT INTO nutrition_template_days(id,nutrition_plan_version_id,day_position) VALUES($1,$2,$3)`,
-            [nutritionDayId, nutritionVersionId, ordinal],
-          );
+          nutritionDayIds.push(nutritionDayId);
+          nutritionDayPositions.push(ordinal);
+
           let workoutRevisionId: string | null = null;
           if (day.kind === 'TRAINING') {
             const workoutId = randomUUID();
             workoutRevisionId = randomUUID();
-            const slug = `program-${programVersionId}-${ordinal}`;
-            await query(m, `INSERT INTO workouts(id,slug) VALUES($1,$2)`, [
-              workoutId,
-              slug,
-            ]);
-            await query(
-              m,
-              `INSERT INTO workout_revisions(id,workout_id,version,title,description) VALUES($1,$2,1,$3,$4)`,
-              [
-                workoutRevisionId,
-                workoutId,
-                day.workout.title,
-                day.workout.description,
-              ],
-            );
+            workoutIds.push(workoutId);
+            workoutSlugs.push(`program-${programVersionId}-${ordinal}`);
+
+            workoutRevIds.push(workoutRevisionId);
+            workoutRevWorkoutIds.push(workoutId);
+            workoutRevTitles.push(day.workout.title);
+            workoutRevDescs.push(day.workout.description);
+
             for (
               let position = 0;
               position < day.workout.exercises.length;
@@ -622,55 +737,150 @@ export class ProgramService {
             ) {
               const exercise = day.workout.exercises[position];
               const prescription = exercise.prescription;
-              await query(
-                m,
-                `INSERT INTO workout_exercises(id,workout_revision_id,exercise_revision_id,position,set_count,reps_min,reps_max,duration_seconds,rest_seconds) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-                [
-                  randomUUID(),
-                  workoutRevisionId,
-                  exercise.exerciseRevisionId,
-                  position,
-                  prescription.setCount,
-                  prescription.mode === 'REPS' ? prescription.repsMin : null,
-                  prescription.mode === 'REPS' ? prescription.repsMax : null,
-                  prescription.mode === 'DURATION'
-                    ? prescription.durationSeconds
-                    : null,
-                  prescription.restSeconds,
-                ],
+              weIds.push(randomUUID());
+              weWorkoutRevIds.push(workoutRevisionId);
+              weExerciseRevIds.push(exercise.exerciseRevisionId);
+              wePositions.push(position);
+              weSetCounts.push(prescription.setCount);
+              weRepsMins.push(
+                prescription.mode === 'REPS' ? prescription.repsMin : null,
               );
+              weRepsMaxs.push(
+                prescription.mode === 'REPS' ? prescription.repsMax : null,
+              );
+              weDurations.push(
+                prescription.mode === 'DURATION'
+                  ? prescription.durationSeconds
+                  : null,
+              );
+              weRests.push(prescription.restSeconds);
             }
           }
-          const planDayId = randomUUID();
-          await query(
-            m,
-            `INSERT INTO plan_days(id,week_id,position,kind,workout_revision_id,nutrition_template_day_id) VALUES($1,$2,$3,$4,$5,$6)`,
-            [
-              planDayId,
-              weekId,
-              dayIndex + 1,
-              day.kind,
-              workoutRevisionId,
-              nutritionDayId,
-            ],
-          );
+
+          planDayIds.push(randomUUID());
+          planDayWeekIds.push(weekId);
+          planDayPositions.push(dayIndex + 1);
+          planDayKinds.push(day.kind);
+          planDayWorkoutRevIds.push(workoutRevisionId);
+          planDayNutritionDayIds.push(nutritionDayId);
+
           for (let position = 0; position < day.meals.length; position++) {
             const slot = day.meals[position];
-            await query(
-              m,
-              `INSERT INTO meal_slots(id,template_day_id,position,meal_type,local_time,default_meal_version_id) VALUES($1,$2,$3,$4,$5,$6)`,
-              [
-                randomUUID(),
-                nutritionDayId,
-                position,
-                slot.mealType,
-                slot.localTime,
-                slot.mealVersionId,
-              ],
-            );
+            slotIds.push(randomUUID());
+            slotTemplateDayIds.push(nutritionDayId);
+            slotPositions.push(position);
+            slotMealTypes.push(slot.mealType);
+            slotLocalTimes.push(slot.localTime);
+            slotMealVersionIds.push(slot.mealVersionId);
           }
         }
       }
+    }
+
+    if (monthIds.length) {
+      await query(
+        m,
+        `INSERT INTO monthly_plans(id,program_version_id,position,title)
+         SELECT id, $1, pos, title
+         FROM unnest($2::uuid[], $3::integer[], $4::text[]) AS t(id, pos, title)`,
+        [programVersionId, monthIds, monthPositions, monthTitles],
+      );
+    }
+    if (weekIds.length) {
+      await query(
+        m,
+        `INSERT INTO plan_weeks(id,monthly_plan_id,position)
+         SELECT id, mp_id, pos
+         FROM unnest($1::uuid[], $2::uuid[], $3::integer[]) AS t(id, mp_id, pos)`,
+        [weekIds, weekMonthIds, weekPositions],
+      );
+    }
+    if (nutritionDayIds.length) {
+      await query(
+        m,
+        `INSERT INTO nutrition_template_days(id,nutrition_plan_version_id,day_position)
+         SELECT id, $1, pos
+         FROM unnest($2::uuid[], $3::integer[]) AS t(id, pos)`,
+        [nutritionVersionId, nutritionDayIds, nutritionDayPositions],
+      );
+    }
+    if (workoutIds.length) {
+      await query(
+        m,
+        `INSERT INTO workouts(id,slug)
+         SELECT id, slug
+         FROM unnest($1::uuid[], $2::text[]) AS t(id, slug)`,
+        [workoutIds, workoutSlugs],
+      );
+      await query(
+        m,
+        `INSERT INTO workout_revisions(id,workout_id,version,title,description)
+         SELECT id, w_id, 1, title, descr
+         FROM unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[])
+           AS t(id, w_id, title, descr)`,
+        [
+          workoutRevIds,
+          workoutRevWorkoutIds,
+          workoutRevTitles,
+          workoutRevDescs,
+        ],
+      );
+    }
+    if (weIds.length) {
+      await query(
+        m,
+        `INSERT INTO workout_exercises(id,workout_revision_id,exercise_revision_id,position,set_count,reps_min,reps_max,duration_seconds,rest_seconds)
+         SELECT * FROM unnest(
+           $1::uuid[], $2::uuid[], $3::uuid[], $4::integer[], $5::integer[],
+           $6::integer[], $7::integer[], $8::integer[], $9::integer[]
+         )`,
+        [
+          weIds,
+          weWorkoutRevIds,
+          weExerciseRevIds,
+          wePositions,
+          weSetCounts,
+          weRepsMins,
+          weRepsMaxs,
+          weDurations,
+          weRests,
+        ],
+      );
+    }
+    if (planDayIds.length) {
+      await query(
+        m,
+        `INSERT INTO plan_days(id,week_id,position,kind,workout_revision_id,nutrition_template_day_id)
+         SELECT * FROM unnest(
+           $1::uuid[], $2::uuid[], $3::integer[], $4::text[], $5::uuid[], $6::uuid[]
+         )`,
+        [
+          planDayIds,
+          planDayWeekIds,
+          planDayPositions,
+          planDayKinds,
+          planDayWorkoutRevIds,
+          planDayNutritionDayIds,
+        ],
+      );
+    }
+    if (slotIds.length) {
+      await query(
+        m,
+        `INSERT INTO meal_slots(id,template_day_id,position,meal_type,local_time,default_meal_version_id)
+         SELECT id, td_id, pos, mt, lt::time, mv_id
+         FROM unnest(
+           $1::uuid[], $2::uuid[], $3::integer[], $4::text[], $5::text[], $6::uuid[]
+         ) AS t(id, td_id, pos, mt, lt, mv_id)`,
+        [
+          slotIds,
+          slotTemplateDayIds,
+          slotPositions,
+          slotMealTypes,
+          slotLocalTimes,
+          slotMealVersionIds,
+        ],
+      );
     }
   }
 

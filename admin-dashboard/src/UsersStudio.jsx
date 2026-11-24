@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
   PauseCircle,
@@ -10,9 +10,18 @@ import {
   Users,
   UserX,
 } from 'lucide-react';
+import { fetchPage } from './api';
 import { readableCode } from './program';
-import { ConfirmDialog, ErrorNotice, Notice, Status } from './ui';
+import {
+  ConfirmDialog,
+  ErrorNotice,
+  Notice,
+  PaginationBar,
+  Status,
+} from './ui';
 import './analytics.css';
+
+const PAGE_SIZE = 10;
 
 function statusMeta(status) {
   if (status === 'ACTIVE') return { tone: 'PUBLISHED', label: 'نشط' };
@@ -22,6 +31,8 @@ function statusMeta(status) {
 
 export function UsersStudio({ api }) {
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [summary, setSummary] = useState({
     total: 0,
     active: 0,
@@ -30,38 +41,58 @@ export function UsersStudio({ api }) {
   });
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = new URLSearchParams();
-      if (statusFilter) qs.set('status', statusFilter);
-      if (search.trim()) qs.set('search', search.trim());
-      const path = `/admin/users${qs.toString() ? `?${qs.toString()}` : ''}`;
-      const res = await api(path);
-      setUsers(res.items || []);
-      setSummary(
-        res.summary || { total: 0, active: 0, suspended: 0, onboarded: 0 },
-      );
-    } catch (reason) {
-      setError(reason);
-    } finally {
-      setLoading(false);
-    }
-  }, [api, search, statusFilter]);
+  const [reload, setReload] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      void loadUsers();
-    }, 180);
+      setDebouncedSearch(search.trim());
+    }, 240);
     return () => clearTimeout(timer);
-  }, [loadUsers]);
+  }, [search]);
+
+  const loadUsers = useCallback(
+    async (signal) => {
+      if (hasLoadedRef.current) setFetching(true);
+      else setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchPage(api, '/admin/users', {
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+          search: debouncedSearch,
+          status: statusFilter || undefined,
+          signal,
+        });
+        hasLoadedRef.current = true;
+        setUsers(res.items || []);
+        setTotal(res.total ?? 0);
+        if (res.summary) setSummary(res.summary);
+      } catch (reason) {
+        if (reason?.name === 'AbortError') return;
+        setError(reason);
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+          setFetching(false);
+        }
+      }
+    },
+    [api, page, debouncedSearch, statusFilter],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadUsers(controller.signal);
+    return () => controller.abort();
+  }, [loadUsers, reload]);
 
   async function toggleStatus(user) {
     const nextStatus = user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
@@ -78,7 +109,7 @@ export function UsersStudio({ api }) {
           ? `تم إيقاف حساب ${user.email || user.name || 'المتدرب'} وسحب جلساته النشطة.`
           : `تمت إعادة تفعيل حساب ${user.email || user.name || 'المتدرب'} بنجاح.`,
       );
-      await loadUsers();
+      setReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -98,7 +129,8 @@ export function UsersStudio({ api }) {
       setNotice(
         `تم حذف حساب ${target.email || target.name || 'المتدرب'} نهائياً.`,
       );
-      await loadUsers();
+      if (users.length === 1 && page > 0) setPage((p) => p - 1);
+      else setReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -119,15 +151,15 @@ export function UsersStudio({ api }) {
         <button
           type="button"
           className="button secondary"
-          disabled={loading}
-          onClick={() => void loadUsers()}
+          disabled={loading || fetching}
+          onClick={() => setReload((n) => n + 1)}
         >
           <RefreshCw size={16} aria-hidden="true" />
           <span>تحديث القائمة</span>
         </button>
       </header>
 
-      <ErrorNotice error={error} onRetry={() => void loadUsers()} />
+      <ErrorNotice error={error} onRetry={() => setReload((n) => n + 1)} />
       <Notice text={notice} />
 
       <section
@@ -208,7 +240,10 @@ export function UsersStudio({ api }) {
                 key={val}
                 type="button"
                 aria-pressed={statusFilter === val}
-                onClick={() => setStatusFilter(val)}
+                onClick={() => {
+                  setStatusFilter(val);
+                  setPage(0);
+                }}
               >
                 {label}
               </button>
@@ -221,7 +256,10 @@ export function UsersStudio({ api }) {
               aria-label="بحث في المتدربين"
               placeholder="ابحث بالاسم أو البريد الإلكتروني…"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+              }}
             />
           </label>
         </div>
@@ -241,102 +279,117 @@ export function UsersStudio({ api }) {
             </p>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>المتدرب</th>
-                  <th>الحالة</th>
-                  <th>الهدف والمستوى</th>
-                  <th>البرنامج النشط</th>
-                  <th>الالتزام</th>
-                  <th>تاريخ التسجيل</th>
-                  <th>إجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => {
-                  const badge = statusMeta(user.status);
-                  const isBusy = busyId === user.id;
-                  return (
-                    <tr key={user.id}>
-                      <td>
-                        <strong>{user.name || 'متدرب بدون اسم'}</strong>
-                        <div className="muted-meta" dir="ltr">
-                          {user.email || '—'}
-                        </div>
-                      </td>
-                      <td>
-                        <Status value={badge.tone} customLabel={badge.label} />
-                        {!user.verified && (
-                          <div className="muted-meta">غير مفعّل البريد</div>
-                        )}
-                      </td>
-                      <td>
-                        <div>
-                          {user.primaryGoal
-                            ? readableCode(user.primaryGoal)
-                            : 'لم يُكمل التعريف'}
-                        </div>
-                        {user.fitnessLevel && (
-                          <div className="muted-meta">
-                            {readableCode(user.fitnessLevel)}
+          <>
+            <div className="table-wrap" data-fetching={fetching || undefined}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>المتدرب</th>
+                    <th>الحالة</th>
+                    <th>الهدف والمستوى</th>
+                    <th>البرنامج النشط</th>
+                    <th>الالتزام</th>
+                    <th>تاريخ التسجيل</th>
+                    <th>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => {
+                    const badge = statusMeta(user.status);
+                    const isBusy = busyId === user.id;
+                    return (
+                      <tr key={user.id}>
+                        <td>
+                          <strong>{user.name || 'متدرب بدون اسم'}</strong>
+                          <div className="muted-meta" dir="ltr">
+                            {user.email || '—'}
                           </div>
-                        )}
-                      </td>
-                      <td>
-                        {user.activeProgramTitle ? (
-                          <strong>{user.activeProgramTitle}</strong>
-                        ) : (
-                          <span className="muted-meta">لا يوجد اشتراك نشط</span>
-                        )}
-                      </td>
-                      <td className="numeric">
-                        {user.completedWorkouts} تمرين · {user.completedMeals}{' '}
-                        وجبة
-                      </td>
-                      <td dir="ltr">
-                        {new Date(user.createdAt).toLocaleDateString('ar-EG')}
-                      </td>
-                      <td>
-                        <div className="actions">
-                          {user.status !== 'DELETION_PENDING' && (
+                        </td>
+                        <td>
+                          <Status
+                            value={badge.tone}
+                            customLabel={badge.label}
+                          />
+                          {!user.verified && (
+                            <div className="muted-meta">غير مفعّل البريد</div>
+                          )}
+                        </td>
+                        <td>
+                          <div>
+                            {user.primaryGoal
+                              ? readableCode(user.primaryGoal)
+                              : 'لم يُكمل التعريف'}
+                          </div>
+                          {user.fitnessLevel && (
+                            <div className="muted-meta">
+                              {readableCode(user.fitnessLevel)}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {user.activeProgramTitle ? (
+                            <strong>{user.activeProgramTitle}</strong>
+                          ) : (
+                            <span className="muted-meta">
+                              لا يوجد اشتراك نشط
+                            </span>
+                          )}
+                        </td>
+                        <td className="numeric">
+                          {user.completedWorkouts} تمرين · {user.completedMeals}{' '}
+                          وجبة
+                        </td>
+                        <td dir="ltr">
+                          {new Date(user.createdAt).toLocaleDateString('ar-EG')}
+                        </td>
+                        <td>
+                          <div className="actions">
+                            {user.status !== 'DELETION_PENDING' && (
+                              <button
+                                type="button"
+                                className="button secondary compact"
+                                disabled={isBusy}
+                                onClick={() => void toggleStatus(user)}
+                              >
+                                {user.status === 'ACTIVE' ? (
+                                  <>
+                                    <PauseCircle size={14} aria-hidden="true" />
+                                    إيقاف
+                                  </>
+                                ) : (
+                                  <>
+                                    <PlayCircle size={14} aria-hidden="true" />
+                                    تفعيل
+                                  </>
+                                )}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              className="button secondary compact"
+                              className="button danger compact"
                               disabled={isBusy}
-                              onClick={() => void toggleStatus(user)}
+                              onClick={() => setDeleteTarget(user)}
                             >
-                              {user.status === 'ACTIVE' ? (
-                                <>
-                                  <PauseCircle size={14} aria-hidden="true" />
-                                  إيقاف
-                                </>
-                              ) : (
-                                <>
-                                  <PlayCircle size={14} aria-hidden="true" />
-                                  تفعيل
-                                </>
-                              )}
+                              <Trash2 size={14} aria-hidden="true" />
+                              حذف
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            className="button danger compact"
-                            disabled={isBusy}
-                            onClick={() => setDeleteTarget(user)}
-                          >
-                            <Trash2 size={14} aria-hidden="true" />
-                            حذف
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              visibleCount={users.length}
+              disabled={fetching}
+              onPageChange={(nextPage) => setPage(nextPage)}
+            />
+          </>
         )}
       </section>
 

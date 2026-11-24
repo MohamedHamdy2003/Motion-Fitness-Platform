@@ -11,6 +11,7 @@ import {
   Layers3,
   Mail,
   RefreshCw,
+  Search,
   Server,
   ShieldCheck,
   Sparkles,
@@ -22,8 +23,16 @@ import {
   MotionLatencyBarChart,
   MotionTrendChart,
 } from './AnalyticsCharts';
-import { ButtonContent, ErrorNotice, Notice, Status } from './ui';
+import {
+  ButtonContent,
+  ErrorNotice,
+  Notice,
+  PaginationBar,
+  Status,
+} from './ui';
 import './analytics.css';
+
+const CALLS_PAGE_SIZE = 10;
 
 const RANGE_OPTIONS = [
   { days: 7, label: '7 أيام' },
@@ -99,6 +108,8 @@ export function AnalyticsStudio({ api, onNavigate }) {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
+  const [callsPage, setCallsPage] = useState(0);
+  const [callsSearch, setCallsSearch] = useState('');
 
   const loadOverview = useCallback(
     async (period) => {
@@ -710,75 +721,133 @@ export function AnalyticsStudio({ api, onNavigate }) {
               <div>
                 <h2>سجل أحدث استدعاءات Gemini</h2>
                 <p className="rst-card-sub">
-                  آخر 25 استدعاءً للموديل بالتوكنز وزمن الاستجابة (بيانات
-                  تشغيلية فقط دون أي بيانات شخصية للمتدربين)
+                  آخر {recentCalls.length} استدعاءً للموديل بالتوكنز وزمن
+                  الاستجابة (بيانات تشغيلية فقط دون أي بيانات شخصية للمتدربين)
                 </p>
               </div>
+              <label
+                className="search"
+                style={{ minWidth: 220, maxWidth: 300 }}
+              >
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  aria-label="بحث في سجل استدعاءات Gemini"
+                  placeholder="ابحث بالوكيل أو الموديل أو الحالة…"
+                  value={callsSearch}
+                  onChange={(e) => {
+                    setCallsSearch(e.target.value);
+                    setCallsPage(0);
+                  }}
+                />
+              </label>
             </div>
 
-            {recentCalls.length === 0 ? (
-              <div className="rst-chart-empty">
-                <p>لا توجد استدعاءات حديثة مسجلة بعد.</p>
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>التوقيت</th>
-                      <th>الوكيل</th>
-                      <th>الموديل</th>
-                      <th>الحالة</th>
-                      <th>التوكنز (إدخال / إخراج)</th>
-                      <th>الزمن</th>
-                      <th>التكلفة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentCalls.map((call) => {
-                      const badge = integrationStatusMeta(call.status);
-                      return (
-                        <tr key={call.id}>
-                          <td dir="ltr">
-                            {new Date(call.createdAt).toLocaleString('ar-EG')}
-                          </td>
-                          <td>
-                            <strong>
-                              {AGENT_LABELS[call.operation] || call.operation}
-                            </strong>
-                          </td>
-                          <td dir="ltr">
-                            <code>{call.model}</code>
-                          </td>
-                          <td>
-                            <Status
-                              value={badge.tone}
-                              customLabel={badge.label}
-                            />
-                            {call.failureCode && (
-                              <div className="muted-meta" dir="ltr">
-                                {call.failureCode}
-                              </div>
-                            )}
-                          </td>
-                          <td className="numeric" dir="ltr">
-                            {formatNumber(call.totalTokens)} (
-                            {formatNumber(call.inputTokens)} /{' '}
-                            {formatNumber(call.outputTokens)})
-                          </td>
-                          <td className="numeric" dir="ltr">
-                            {call.latencyMs}ms
-                          </td>
-                          <td className="numeric" dir="ltr">
-                            {formatUsd(call.estimatedCostUsd)}
-                          </td>
+            {(() => {
+              const q = callsSearch.trim().toLowerCase();
+              const filteredCalls = q
+                ? recentCalls.filter((call) =>
+                    [
+                      AGENT_LABELS[call.operation] || call.operation,
+                      call.model,
+                      call.status,
+                      call.failureCode || '',
+                    ].some((v) => String(v).toLowerCase().includes(q)),
+                  )
+                : recentCalls;
+              const lastCallPage = Math.max(
+                0,
+                Math.ceil(filteredCalls.length / CALLS_PAGE_SIZE) - 1,
+              );
+              const safeCallPage = Math.min(callsPage, lastCallPage);
+              const pagedCalls = filteredCalls.slice(
+                safeCallPage * CALLS_PAGE_SIZE,
+                (safeCallPage + 1) * CALLS_PAGE_SIZE,
+              );
+
+              if (filteredCalls.length === 0) {
+                return (
+                  <div className="rst-chart-empty">
+                    <p>
+                      {q
+                        ? 'لا توجد استدعاءات مطابقة لبحثك.'
+                        : 'لا توجد استدعاءات حديثة مسجلة بعد.'}
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>التوقيت</th>
+                          <th>الوكيل</th>
+                          <th>الموديل</th>
+                          <th>الحالة</th>
+                          <th>التوكنز (إدخال / إخراج)</th>
+                          <th>الزمن</th>
+                          <th>التكلفة</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      </thead>
+                      <tbody>
+                        {pagedCalls.map((call) => {
+                          const badge = integrationStatusMeta(call.status);
+                          return (
+                            <tr key={call.id}>
+                              <td dir="ltr">
+                                {new Date(call.createdAt).toLocaleString(
+                                  'ar-EG',
+                                )}
+                              </td>
+                              <td>
+                                <strong>
+                                  {AGENT_LABELS[call.operation] ||
+                                    call.operation}
+                                </strong>
+                              </td>
+                              <td dir="ltr">
+                                <code>{call.model}</code>
+                              </td>
+                              <td>
+                                <Status
+                                  value={badge.tone}
+                                  customLabel={badge.label}
+                                />
+                                {call.failureCode && (
+                                  <div className="muted-meta" dir="ltr">
+                                    {call.failureCode}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="numeric" dir="ltr">
+                                {formatNumber(call.totalTokens)} (
+                                {formatNumber(call.inputTokens)} /{' '}
+                                {formatNumber(call.outputTokens)})
+                              </td>
+                              <td className="numeric" dir="ltr">
+                                {call.latencyMs}ms
+                              </td>
+                              <td className="numeric" dir="ltr">
+                                {formatUsd(call.estimatedCostUsd)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <PaginationBar
+                    page={safeCallPage}
+                    pageSize={CALLS_PAGE_SIZE}
+                    total={filteredCalls.length}
+                    visibleCount={pagedCalls.length}
+                    onPageChange={(next) => setCallsPage(next)}
+                  />
+                </>
+              );
+            })()}
           </section>
         </>
       )}

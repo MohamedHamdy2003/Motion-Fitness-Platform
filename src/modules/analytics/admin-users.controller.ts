@@ -19,6 +19,8 @@ const listUsersQuery = z
   .object({
     search: z.string().trim().max(120).optional(),
     status: z.enum(['ACTIVE', 'SUSPENDED', 'DELETION_PENDING']).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(10),
+    offset: z.coerce.number().int().min(0).max(100000).default(0),
   })
   .strict();
 

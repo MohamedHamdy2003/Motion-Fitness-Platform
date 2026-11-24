@@ -27,7 +27,10 @@ export class ProgramController {
   @Get()
   list(@Query() query: unknown) {
     const page = parse(dto.programList, query);
-    return this.programs.list(page.limit, page.offset, page.status);
+    return this.programs.list(page.limit, page.offset, {
+      status: page.status,
+      search: page.search,
+    });
   }
 
   @Post()

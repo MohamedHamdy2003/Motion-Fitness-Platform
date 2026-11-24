@@ -16,6 +16,8 @@ export class AnalyticsService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private timer?: NodeJS.Timeout;
+  private lastAiModel: string | null = null;
+  private lastAiUptimeSeconds: number | null = null;
 
   constructor(@Inject(DataSource) private readonly db: DataSource) {}
 
@@ -79,6 +81,10 @@ export class AnalyticsService
           aiModel = body?.model ?? null;
           aiUptimeSeconds =
             typeof body?.uptimeSeconds === 'number' ? body.uptimeSeconds : null;
+          if (aiModel) this.lastAiModel = aiModel;
+          if (aiUptimeSeconds !== null) {
+            this.lastAiUptimeSeconds = aiUptimeSeconds;
+          }
         } else {
           aiServiceStatus = 'DOWN';
         }
@@ -126,10 +132,9 @@ export class AnalyticsService
     return { id, ...live };
   }
 
-  async overview(days: number) {
+  async overview(days: number, live = false) {
     const e = environment();
     const [
-      liveStatus,
       platformRows,
       summaryRows,
       byOperationRows,
@@ -138,7 +143,6 @@ export class AnalyticsService
       availabilityRows,
       recentChecksRows,
     ] = await Promise.all([
-      this.probeLiveHealth(),
       query(
         this.db,
         `SELECT
@@ -215,7 +219,7 @@ export class AnalyticsService
            created_at AS "createdAt"
          FROM ai_usage_logs
          ORDER BY created_at DESC, id DESC
-         LIMIT 25`,
+         LIMIT 50`,
       ),
       query(
         this.db,
@@ -243,6 +247,37 @@ export class AnalyticsService
          LIMIT 24`,
       ),
     ]);
+
+    const latestCheck = recentChecksRows[0] as
+      | {
+          databaseOk: boolean;
+          databaseLatencyMs: number;
+          aiServiceStatus: 'UP' | 'DOWN' | 'NOT_CONFIGURED';
+          aiServiceLatencyMs: number | null;
+          apiUptimeSeconds: number;
+          checkedAt: string;
+        }
+      | undefined;
+    const liveStatus =
+      live || !latestCheck
+        ? await this.probeLiveHealth()
+        : {
+            database: {
+              ok: Boolean(latestCheck.databaseOk),
+              latencyMs: latestCheck.databaseLatencyMs ?? 0,
+            },
+            aiService: {
+              status: latestCheck.aiServiceStatus,
+              latencyMs: latestCheck.aiServiceLatencyMs ?? null,
+              model:
+                this.lastAiModel ??
+                (recentCallsRows[0]?.model as string | undefined) ??
+                null,
+              uptimeSeconds: this.lastAiUptimeSeconds,
+            },
+            apiUptimeSeconds: Math.floor(process.uptime()),
+            checkedAt: latestCheck.checkedAt,
+          };
 
     const rawSummary = summaryRows[0];
     const totalRequests = rawSummary?.totalRequests ?? 0;

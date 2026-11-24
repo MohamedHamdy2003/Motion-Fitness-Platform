@@ -22,7 +22,14 @@ interface TraineeRow {
 export class AdminUsersService {
   constructor(@Inject(DataSource) private readonly db: DataSource) {}
 
-  async listTrainees(options: { search?: string; status?: string }) {
+  async listTrainees(options: {
+    search?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
     const params: unknown[] = [];
     const conditions: string[] = [
       `NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_code = 'ADMIN')`,
@@ -41,8 +48,10 @@ export class AdminUsersService {
     }
 
     const where = conditions.join(' AND ');
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
 
-    const [rows, counts] = await Promise.all([
+    const [rows, filteredCountRows, counts] = await Promise.all([
       query(
         this.db,
         `SELECT
@@ -78,8 +87,16 @@ export class AdminUsersService {
          FROM users u
          LEFT JOIN user_profiles p ON p.user_id = u.id
          WHERE ${where}
-         ORDER BY u.created_at DESC
-         LIMIT 200`,
+         ORDER BY u.created_at DESC, u.id DESC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+        [...params, limit, offset],
+      ),
+      query(
+        this.db,
+        `SELECT count(*)::integer AS total
+         FROM users u
+         LEFT JOIN user_profiles p ON p.user_id = u.id
+         WHERE ${where}`,
         params,
       ),
       query(
@@ -97,6 +114,9 @@ export class AdminUsersService {
 
     return {
       items: rows as TraineeRow[],
+      total: filteredCountRows[0]?.total ?? 0,
+      limit,
+      offset,
       summary: counts[0] ?? { total: 0, active: 0, suspended: 0, onboarded: 0 },
     };
   }

@@ -151,9 +151,26 @@ export const mealItemUpdate = z
     'At least one meal item field must be supplied',
   );
 export const mealItemPosition = z.coerce.number().int().min(0).max(1000);
+const csvIds = z
+  .string()
+  .trim()
+  .max(4000)
+  .transform((value) =>
+    value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(z.uuid()).max(100))
+  .optional();
+
 export const page = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(30),
     offset: z.coerce.number().int().min(0).max(100000).default(0),
+    search: z.string().trim().max(120).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+    includeArchived: z.enum(['true', 'false']).optional(),
+    ids: csvIds,
   })
   .strict();

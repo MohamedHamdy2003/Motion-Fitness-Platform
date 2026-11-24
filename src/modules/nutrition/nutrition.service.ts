@@ -356,48 +356,103 @@ export class UserNutritionService {
        FROM meal_slots WHERE template_day_id=$1 ORDER BY position`,
       [templateDay.id],
     );
-    for (const slot of slots) {
-      const scheduledMealId = randomUUID();
+    if (slots.length) {
+      const smIds: string[] = [];
+      const smSlotIds: string[] = [];
+      const smPositions: number[] = [];
+      const smMealTypes: string[] = [];
+      const smLocalTimes: string[] = [];
+      const smMealVersionIds: string[] = [];
+      const mealIdBySlot = new Map<string, string>();
+
+      for (const slot of slots) {
+        const scheduledMealId = randomUUID();
+        mealIdBySlot.set(slot.id, scheduledMealId);
+        smIds.push(scheduledMealId);
+        smSlotIds.push(slot.id);
+        smPositions.push(slot.position);
+        smMealTypes.push(slot.meal_type);
+        smLocalTimes.push(slot.local_time);
+        smMealVersionIds.push(slot.default_meal_version_id);
+      }
+
       await query(
         manager,
         `INSERT INTO scheduled_meals(
            id,nutrition_day_id,meal_slot_id,position,meal_type,local_time,
            original_meal_version_id,selected_meal_version_id,selection_version,version,status
-         ) VALUES($1,$2,$3,$4,$5,$6::time,$7,$7,1,1,'PENDING')`,
+         )
+         SELECT id, $1, slot_id, pos, mt, lt::time, mv_id, mv_id, 1, 1, 'PENDING'
+         FROM unnest($2::uuid[], $3::uuid[], $4::integer[], $5::text[], $6::text[], $7::uuid[])
+           AS t(id, slot_id, pos, mt, lt, mv_id)`,
         [
-          scheduledMealId,
           dayId,
-          slot.id,
-          slot.position,
-          slot.meal_type,
-          slot.local_time,
-          slot.default_meal_version_id,
+          smIds,
+          smSlotIds,
+          smPositions,
+          smMealTypes,
+          smLocalTimes,
+          smMealVersionIds,
         ],
       );
-      const mealItems = await query(
+
+      const uniqueVersionIds = [...new Set(smMealVersionIds)];
+      const allTemplateItems = await query(
         manager,
-        `SELECT mi.position,mi.default_exchange_member_id,mi.exchange_units,
+        `SELECT mi.meal_version_id,mi.position,mi.default_exchange_member_id,mi.exchange_units,
                 (mi.exchange_units * fem.portion_g_per_unit) AS portion_g
          FROM meal_items mi
          JOIN food_exchange_members fem ON fem.id=mi.default_exchange_member_id
-         WHERE mi.meal_version_id=$1 ORDER BY mi.position`,
-        [slot.default_meal_version_id],
+         WHERE mi.meal_version_id = ANY($1::uuid[])
+         ORDER BY mi.position`,
+        [uniqueVersionIds],
       );
-      for (const item of mealItems) {
+      const itemsByVersion = new Map<string, Record<string, any>[]>();
+      for (const item of allTemplateItems) {
+        const list = itemsByVersion.get(item.meal_version_id) ?? [];
+        list.push(item);
+        itemsByVersion.set(item.meal_version_id, list);
+      }
+
+      const smiIds: string[] = [];
+      const smiMealIds: string[] = [];
+      const smiPositions: number[] = [];
+      const smiMemberIds: string[] = [];
+      const smiUnits: number[] = [];
+      const smiPortions: number[] = [];
+
+      for (const slot of slots) {
+        const scheduledMealId = mealIdBySlot.get(slot.id)!;
+        const mealItems =
+          itemsByVersion.get(slot.default_meal_version_id) ?? [];
+        for (const item of mealItems) {
+          smiIds.push(randomUUID());
+          smiMealIds.push(scheduledMealId);
+          smiPositions.push(item.position);
+          smiMemberIds.push(item.default_exchange_member_id);
+          smiUnits.push(Number(item.exchange_units));
+          smiPortions.push(this.round(Number(item.portion_g)));
+        }
+      }
+
+      if (smiIds.length) {
         await query(
           manager,
           `INSERT INTO scheduled_meal_items(
              id,scheduled_meal_id,selection_version,position,
              original_exchange_member_id,selected_exchange_member_id,
              exchange_units,portion_g,version,status
-           ) VALUES($1,$2,1,$3,$4,$4,$5,$6,1,'PENDING')`,
+           )
+           SELECT id, sm_id, 1, pos, member_id, member_id, units, portion_g, 1, 'PENDING'
+           FROM unnest($1::uuid[], $2::uuid[], $3::integer[], $4::uuid[], $5::numeric[], $6::numeric[])
+             AS t(id, sm_id, pos, member_id, units, portion_g)`,
           [
-            randomUUID(),
-            scheduledMealId,
-            item.position,
-            item.default_exchange_member_id,
-            item.exchange_units,
-            this.round(Number(item.portion_g)),
+            smiIds,
+            smiMealIds,
+            smiPositions,
+            smiMemberIds,
+            smiUnits,
+            smiPortions,
           ],
         );
       }
@@ -441,10 +496,7 @@ export class UserNutritionService {
        ORDER BY sm.position`,
       [nutritionDayId],
     );
-    const meals = [];
-    for (const meal of mealRows) {
-      meals.push(await this.hydrateScheduledMeal(manager, userId, meal));
-    }
+    const meals = await this.hydrateScheduledMeals(manager, userId, mealRows);
     const plannedItems = meals.flatMap((m) => m._plannedItems);
     const selectedItems = meals.flatMap((m) => m.items);
     const consumedItems = selectedItems.filter(
@@ -476,10 +528,30 @@ export class UserNutritionService {
     userId: string,
     mealRow: Record<string, any>,
   ) {
+    const [hydrated] = await this.hydrateScheduledMeals(manager, userId, [
+      mealRow,
+    ]);
+    return hydrated;
+  }
+
+  private async hydrateScheduledMeals(
+    manager: EntityManager,
+    userId: string,
+    mealRows: Record<string, any>[],
+  ) {
+    if (!mealRows.length) return [];
     const prefs = await this.loadPreferences(manager, userId);
-    const activeItems = await query(
+
+    const mealIds = mealRows.map((m) => m.id as string);
+    const selectionVersions = mealRows.map((m) => Number(m.selectionVersion));
+    const originalVersionIds = [
+      ...new Set(mealRows.map((m) => m.originalMealVersionId as string)),
+    ];
+
+    const activeRows = await query(
       manager,
-      `SELECT smi.id,smi.position,smi.selection_version AS "selectionVersion",
+      `SELECT smi.id,smi.scheduled_meal_id AS "scheduledMealId",smi.position,
+              smi.selection_version AS "selectionVersion",
               smi.original_exchange_member_id AS "originalMemberId",
               smi.selected_exchange_member_id AS "selectedMemberId",
               smi.exchange_units AS "exchangeUnits",
@@ -489,99 +561,123 @@ export class UserNutritionService {
               fem.food_version_id AS "foodVersionId",
               fem.portion_g_per_unit AS "portionGPerUnit",
               fem.display_portion AS "displayPortion"
-       FROM scheduled_meal_items smi
+       FROM unnest($1::uuid[], $2::integer[]) AS target(meal_id, sel_ver)
+       JOIN scheduled_meal_items smi
+         ON smi.scheduled_meal_id = target.meal_id
+        AND smi.selection_version = target.sel_ver
        JOIN food_exchange_members fem ON fem.id=smi.selected_exchange_member_id
-       WHERE smi.scheduled_meal_id=$1 AND smi.selection_version=$2
-       ORDER BY smi.position`,
-      [mealRow.id, mealRow.selectionVersion],
+       ORDER BY smi.scheduled_meal_id, smi.position`,
+      [mealIds, selectionVersions],
     );
-    const originalTemplateItems = await query(
-      manager,
-      `SELECT mi.position,mi.exchange_units AS "exchangeUnits",
-              fem.food_version_id AS "foodVersionId",
-              fem.portion_g_per_unit AS "portionGPerUnit"
-       FROM meal_items mi
-       JOIN food_exchange_members fem ON fem.id=mi.default_exchange_member_id
-       WHERE mi.meal_version_id=$1
-       ORDER BY mi.position`,
-      [mealRow.originalMealVersionId],
-    );
+
+    const templateRows = originalVersionIds.length
+      ? await query(
+          manager,
+          `SELECT mi.meal_version_id AS "mealVersionId",mi.position,
+                  mi.exchange_units AS "exchangeUnits",
+                  fem.food_version_id AS "foodVersionId",
+                  fem.portion_g_per_unit AS "portionGPerUnit"
+           FROM meal_items mi
+           JOIN food_exchange_members fem ON fem.id=mi.default_exchange_member_id
+           WHERE mi.meal_version_id = ANY($1::uuid[])
+           ORDER BY mi.meal_version_id, mi.position`,
+          [originalVersionIds],
+        )
+      : [];
 
     const foodMap = await this.loadFoodMetadataMap(manager, [
-      ...activeItems.map((i: { foodVersionId: string }) => i.foodVersionId),
-      ...originalTemplateItems.map(
-        (i: { foodVersionId: string }) => i.foodVersionId,
-      ),
+      ...activeRows.map((i: { foodVersionId: string }) => i.foodVersionId),
+      ...templateRows.map((i: { foodVersionId: string }) => i.foodVersionId),
     ]);
 
-    const items = activeItems.map((row: Record<string, any>) => {
-      const food = foodMap.get(row.foodVersionId)!;
-      const portionG = this.round(Number(row.portionG));
-      const nutrients = this.computeItemNutrients(food, portionG);
-      const flags = this.evaluateFlags(food, prefs);
+    const activeByMeal = new Map<string, Record<string, any>[]>();
+    for (const row of activeRows) {
+      const list = activeByMeal.get(row.scheduledMealId) ?? [];
+      list.push(row);
+      activeByMeal.set(row.scheduledMealId, list);
+    }
+
+    const templateByVersion = new Map<string, Record<string, any>[]>();
+    for (const row of templateRows) {
+      const list = templateByVersion.get(row.mealVersionId) ?? [];
+      list.push(row);
+      templateByVersion.set(row.mealVersionId, list);
+    }
+
+    return mealRows.map((mealRow) => {
+      const activeItems = activeByMeal.get(mealRow.id) ?? [];
+      const originalTemplateItems =
+        templateByVersion.get(mealRow.originalMealVersionId) ?? [];
+
+      const items = activeItems.map((row: Record<string, any>) => {
+        const food = foodMap.get(row.foodVersionId)!;
+        const portionG = this.round(Number(row.portionG));
+        const nutrients = this.computeItemNutrients(food, portionG);
+        const flags = this.evaluateFlags(food, prefs);
+        return {
+          id: row.id,
+          position: row.position,
+          status: row.status,
+          completedAt: row.completedAt,
+          version: row.version,
+          originalMemberId: row.originalMemberId,
+          selectedMemberId: row.selectedMemberId,
+          groupVersionId: row.groupVersionId,
+          foodId: food.foodId,
+          foodVersionId: row.foodVersionId,
+          foodTitle: food.foodTitle,
+          preparation: food.preparation,
+          preparationState: food.preparationState,
+          prepMinutes: food.prepMinutes,
+          exchangeUnits: Number(row.exchangeUnits),
+          portionGPerUnit: Number(row.portionGPerUnit),
+          portionG,
+          displayPortion: row.displayPortion,
+          nutrients,
+          ...flags,
+        };
+      });
+
+      const plannedItems = originalTemplateItems.map(
+        (row: Record<string, any>) => {
+          const food = foodMap.get(row.foodVersionId)!;
+          const portionG = this.round(
+            Number(row.exchangeUnits) * Number(row.portionGPerUnit),
+          );
+          return {
+            nutrients: this.computeItemNutrients(food, portionG),
+          };
+        },
+      );
+
+      const consumedItems = items.filter((item) => item.status === 'COMPLETED');
       return {
-        id: row.id,
-        position: row.position,
-        status: row.status,
-        completedAt: row.completedAt,
-        version: row.version,
-        originalMemberId: row.originalMemberId,
-        selectedMemberId: row.selectedMemberId,
-        groupVersionId: row.groupVersionId,
-        foodId: food.foodId,
-        foodVersionId: row.foodVersionId,
-        foodTitle: food.foodTitle,
-        preparation: food.preparation,
-        preparationState: food.preparationState,
-        prepMinutes: food.prepMinutes,
-        exchangeUnits: Number(row.exchangeUnits),
-        portionGPerUnit: Number(row.portionGPerUnit),
-        portionG,
-        displayPortion: row.displayPortion,
-        nutrients,
-        ...flags,
+        id: mealRow.id,
+        mealSlotId: mealRow.mealSlotId,
+        position: mealRow.position,
+        mealType: mealRow.mealType,
+        localTime: mealRow.localTime.slice(0, 5),
+        status: mealRow.status,
+        completedAt: mealRow.completedAt,
+        originalMealVersionId: mealRow.originalMealVersionId,
+        selectedMealVersionId: mealRow.selectedMealVersionId,
+        mealId: mealRow.mealId,
+        sectionId: mealRow.sectionId,
+        title: mealRow.title,
+        selectionVersion: mealRow.selectionVersion,
+        version: mealRow.version,
+        totals: {
+          planned: this.sumNutrients(plannedItems),
+          selected: this.sumNutrients(items),
+          consumed: this.sumNutrients(
+            consumedItems,
+            consumedItems.length < items.length,
+          ),
+        },
+        items,
+        _plannedItems: plannedItems,
       };
     });
-
-    const plannedItems = originalTemplateItems.map(
-      (row: Record<string, any>) => {
-        const food = foodMap.get(row.foodVersionId)!;
-        const portionG = this.round(
-          Number(row.exchangeUnits) * Number(row.portionGPerUnit),
-        );
-        return {
-          nutrients: this.computeItemNutrients(food, portionG),
-        };
-      },
-    );
-
-    const consumedItems = items.filter((item) => item.status === 'COMPLETED');
-    return {
-      id: mealRow.id,
-      mealSlotId: mealRow.mealSlotId,
-      position: mealRow.position,
-      mealType: mealRow.mealType,
-      localTime: mealRow.localTime.slice(0, 5),
-      status: mealRow.status,
-      completedAt: mealRow.completedAt,
-      originalMealVersionId: mealRow.originalMealVersionId,
-      selectedMealVersionId: mealRow.selectedMealVersionId,
-      mealId: mealRow.mealId,
-      sectionId: mealRow.sectionId,
-      title: mealRow.title,
-      selectionVersion: mealRow.selectionVersion,
-      version: mealRow.version,
-      totals: {
-        planned: this.sumNutrients(plannedItems),
-        selected: this.sumNutrients(items),
-        consumed: this.sumNutrients(
-          consumedItems,
-          consumedItems.length < items.length,
-        ),
-      },
-      items,
-      _plannedItems: plannedItems,
-    };
   }
 
   private async ownedMeal(
@@ -961,31 +1057,47 @@ export class UserNutritionService {
        ORDER BY mv.title, m.id`,
       [sectionId, currentMealId, currentMealVersionId],
     );
+    if (!candidateMeals.length) return [];
+    const candidateVersionIds = candidateMeals.map(
+      (c: { mealVersionId: string }) => c.mealVersionId,
+    );
+    const allRawItems = await query(
+      manager,
+      `SELECT mi.meal_version_id AS "mealVersionId",
+              mi.position,
+              mi.default_exchange_member_id AS "memberId",
+              mi.exchange_units AS "exchangeUnits",
+              fem.group_version_id AS "groupVersionId",
+              fem.food_version_id AS "foodVersionId",
+              fem.portion_g_per_unit AS "portionGPerUnit",
+              fem.display_portion AS "displayPortion",
+              fgv.status AS "groupStatus",
+              fg.archived AS "groupArchived",
+              fv.status AS "foodStatus",
+              f.archived AS "foodArchived"
+       FROM meal_items mi
+       JOIN food_exchange_members fem ON fem.id=mi.default_exchange_member_id
+       JOIN food_exchange_group_versions fgv ON fgv.id=fem.group_version_id
+       JOIN food_exchange_groups fg ON fg.id=fgv.group_id
+       JOIN food_versions fv ON fv.id=fem.food_version_id
+       JOIN foods f ON f.id=fv.food_id
+       WHERE mi.meal_version_id = ANY($1::uuid[])
+       ORDER BY mi.meal_version_id, mi.position`,
+      [candidateVersionIds],
+    );
+    const itemsByCandidate = new Map<string, Record<string, any>[]>();
+    for (const row of allRawItems) {
+      const list = itemsByCandidate.get(row.mealVersionId) ?? [];
+      list.push(row);
+      itemsByCandidate.set(row.mealVersionId, list);
+    }
+    const foodMap = await this.loadFoodMetadataMap(
+      manager,
+      allRawItems.map((i: { foodVersionId: string }) => i.foodVersionId),
+    );
     const results = [];
     for (const candidate of candidateMeals) {
-      const rawItems = await query(
-        manager,
-        `SELECT mi.position,
-                mi.default_exchange_member_id AS "memberId",
-                mi.exchange_units AS "exchangeUnits",
-                fem.group_version_id AS "groupVersionId",
-                fem.food_version_id AS "foodVersionId",
-                fem.portion_g_per_unit AS "portionGPerUnit",
-                fem.display_portion AS "displayPortion",
-                fgv.status AS "groupStatus",
-                fg.archived AS "groupArchived",
-                fv.status AS "foodStatus",
-                f.archived AS "foodArchived"
-         FROM meal_items mi
-         JOIN food_exchange_members fem ON fem.id=mi.default_exchange_member_id
-         JOIN food_exchange_group_versions fgv ON fgv.id=fem.group_version_id
-         JOIN food_exchange_groups fg ON fg.id=fgv.group_id
-         JOIN food_versions fv ON fv.id=fem.food_version_id
-         JOIN foods f ON f.id=fv.food_id
-         WHERE mi.meal_version_id=$1
-         ORDER BY mi.position`,
-        [candidate.mealVersionId],
-      );
+      const rawItems = itemsByCandidate.get(candidate.mealVersionId) ?? [];
       if (
         !rawItems.length ||
         rawItems.some(
@@ -998,10 +1110,6 @@ export class UserNutritionService {
       ) {
         continue;
       }
-      const foodMap = await this.loadFoodMetadataMap(
-        manager,
-        rawItems.map((i: { foodVersionId: string }) => i.foodVersionId),
-      );
       let hasConflict = false;
       const hydratedItems = [];
       for (const row of rawItems) {
@@ -1101,22 +1209,25 @@ export class UserNutritionService {
          WHERE id=$1`,
         [meal.id, chosen.mealVersionId, nextSelectionVersion],
       );
-      for (const item of chosen.items) {
+      if (chosen.items.length) {
         await query(
           manager,
           `INSERT INTO scheduled_meal_items(
              id,scheduled_meal_id,selection_version,position,
              original_exchange_member_id,selected_exchange_member_id,
              exchange_units,portion_g,version,status
-           ) VALUES($1,$2,$3,$4,$5,$5,$6,$7,1,'PENDING')`,
+           )
+           SELECT id, $1, $2, pos, member_id, member_id, units, portion_g, 1, 'PENDING'
+           FROM unnest($3::uuid[], $4::integer[], $5::uuid[], $6::numeric[], $7::numeric[])
+             AS t(id, pos, member_id, units, portion_g)`,
           [
-            randomUUID(),
             meal.id,
             nextSelectionVersion,
-            item.position,
-            item.memberId,
-            item.exchangeUnits,
-            item.portionG,
+            chosen.items.map(() => randomUUID()),
+            chosen.items.map((item) => item.position),
+            chosen.items.map((item) => item.memberId),
+            chosen.items.map((item) => item.exchangeUnits),
+            chosen.items.map((item) => item.portionG),
           ],
         );
       }

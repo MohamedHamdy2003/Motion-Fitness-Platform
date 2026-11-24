@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, HelpCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FileText,
+  HelpCircle,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { fetchPage } from './api';
 import {
   ButtonContent,
   ConfirmDialog,
@@ -7,8 +16,11 @@ import {
   ErrorNotice,
   Field,
   Notice,
+  PaginationBar,
   Status,
 } from './ui';
+
+const PAGE_SIZE = 10;
 
 const FAQ_CATEGORIES = [
   { code: 'PROGRAMS', label: 'البرامج والتدريب' },
@@ -193,14 +205,33 @@ function FaqEditDialog({ item, onClose, onSaved, api }) {
 
 export function SupportStudio({ api }) {
   const [faqItems, setFaqItems] = useState([]);
+  const [faqTotal, setFaqTotal] = useState(0);
+  const [faqPage, setFaqPage] = useState(0);
+  const [faqSearch, setFaqSearch] = useState('');
+  const [debouncedFaqSearch, setDebouncedFaqSearch] = useState('');
+  const [faqCategoryFilter, setFaqCategoryFilter] = useState('');
+  const [faqLoading, setFaqLoading] = useState(true);
+  const [faqFetching, setFaqFetching] = useState(false);
+
   const [legalItems, setLegalItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [legalTotal, setLegalTotal] = useState(0);
+  const [legalPage, setLegalPage] = useState(0);
+  const [legalSearch, setLegalSearch] = useState('');
+  const [debouncedLegalSearch, setDebouncedLegalSearch] = useState('');
+  const [legalLoading, setLegalLoading] = useState(true);
+  const [legalFetching, setLegalFetching] = useState(false);
+
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [savingFaq, setSavingFaq] = useState(false);
   const [savingLegal, setSavingLegal] = useState(false);
   const [editingFaq, setEditingFaq] = useState(null);
   const [deletingFaq, setDeletingFaq] = useState(null);
+  const [faqReload, setFaqReload] = useState(0);
+  const [legalReload, setLegalReload] = useState(0);
+
+  const faqLoadedRef = useRef(false);
+  const legalLoadedRef = useRef(false);
 
   const [faqForm, setFaqForm] = useState({
     category: 'PROGRAMS',
@@ -225,31 +256,95 @@ export function SupportStudio({ api }) {
     [legalItems, legalForm.type, legalForm.locale],
   );
 
-  async function loadAll() {
-    setLoading(true);
-    setError(null);
-    try {
-      const [faqRes, legalRes] = await Promise.all([
-        api('/admin/faq'),
-        api('/admin/legal'),
-      ]);
-      const loadedFaqs = faqRes.items || [];
-      setFaqItems(loadedFaqs);
-      setLegalItems(legalRes.items || []);
-      setFaqForm((prev) => ({
-        ...prev,
-        displayOrder: loadedFaqs.length + 1,
-      }));
-    } catch (reason) {
-      setError(reason);
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFaqSearch(faqSearch.trim()), 240);
+    return () => clearTimeout(t);
+  }, [faqSearch]);
 
   useEffect(() => {
-    void loadAll();
-  }, []);
+    const t = setTimeout(
+      () => setDebouncedLegalSearch(legalSearch.trim()),
+      240,
+    );
+    return () => clearTimeout(t);
+  }, [legalSearch]);
+
+  const loadFaq = useCallback(
+    async (signal) => {
+      if (faqLoadedRef.current) setFaqFetching(true);
+      else setFaqLoading(true);
+      setError(null);
+      try {
+        const res = await fetchPage(api, '/admin/faq', {
+          limit: PAGE_SIZE,
+          offset: faqPage * PAGE_SIZE,
+          search: debouncedFaqSearch,
+          extra: faqCategoryFilter
+            ? { category: faqCategoryFilter }
+            : undefined,
+          signal,
+        });
+        faqLoadedRef.current = true;
+        setFaqItems(res.items);
+        setFaqTotal(res.total);
+        if (!debouncedFaqSearch && !faqCategoryFilter) {
+          setFaqForm((prev) => ({
+            ...prev,
+            displayOrder: res.total + 1,
+          }));
+        }
+      } catch (reason) {
+        if (reason?.name === 'AbortError') return;
+        setError(reason);
+      } finally {
+        if (!signal?.aborted) {
+          setFaqLoading(false);
+          setFaqFetching(false);
+        }
+      }
+    },
+    [api, faqPage, debouncedFaqSearch, faqCategoryFilter],
+  );
+
+  const loadLegal = useCallback(
+    async (signal) => {
+      if (legalLoadedRef.current) setLegalFetching(true);
+      else setLegalLoading(true);
+      setError(null);
+      try {
+        const res = await fetchPage(api, '/admin/legal', {
+          limit: PAGE_SIZE,
+          offset: legalPage * PAGE_SIZE,
+          search: debouncedLegalSearch,
+          signal,
+        });
+        legalLoadedRef.current = true;
+        setLegalItems(res.items);
+        setLegalTotal(res.total);
+      } catch (reason) {
+        if (reason?.name === 'AbortError') return;
+        setError(reason);
+      } finally {
+        if (!signal?.aborted) {
+          setLegalLoading(false);
+          setLegalFetching(false);
+        }
+      }
+    },
+    [api, legalPage, debouncedLegalSearch],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadFaq(controller.signal);
+    return () => controller.abort();
+  }, [loadFaq, faqReload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadLegal(controller.signal);
+    return () => controller.abort();
+  }, [loadLegal, legalReload]);
 
   async function createFaq(event) {
     event.preventDefault();
@@ -275,11 +370,11 @@ export function SupportStudio({ api }) {
         answerAr: '',
         questionEn: '',
         answerEn: '',
-        displayOrder: faqItems.length + 2,
+        displayOrder: faqTotal + 2,
         active: true,
       });
       setNotice('تمت إضافة السؤال الشائع باللغتين بنجاح.');
-      await loadAll();
+      setFaqReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -300,7 +395,7 @@ export function SupportStudio({ api }) {
           ? 'تم إيقاف عرض السؤال في التطبيق.'
           : 'تم تفعيل عرض السؤال في التطبيق.',
       );
-      await loadAll();
+      setFaqReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     }
@@ -315,7 +410,8 @@ export function SupportStudio({ api }) {
     try {
       await api(`/admin/faq/${target.id}`, { method: 'DELETE' });
       setNotice('تم مسح السؤال الشائع بنجاح.');
-      await loadAll();
+      if (faqItems.length === 1 && faqPage > 0) setFaqPage((p) => p - 1);
+      else setFaqReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     }
@@ -341,7 +437,8 @@ export function SupportStudio({ api }) {
       setNotice(
         `تم نشر ${legalForm.type === 'TERMS' ? 'الشروط والأحكام' : 'سياسة الخصوصية'} تلقائياً كإصدار v${created.version}.`,
       );
-      await loadAll();
+      setLegalPage(0);
+      setLegalReload((n) => n + 1);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -564,22 +661,71 @@ export function SupportStudio({ api }) {
         </section>
       </div>
 
-      <section className="editor-panel panel-spaced">
-        <div className="editor-body">
+      <section
+        className="listing panel-spaced"
+        aria-label="سجل الأسئلة الشائعة"
+      >
+        <div className="editor-body" style={{ paddingBottom: 0 }}>
           <div className="section-heading">
             <div>
-              <h2>سجل الأسئلة الشائعة ({faqItems.length})</h2>
+              <h2>سجل الأسئلة الشائعة ({faqTotal})</h2>
               <p>جميع الأسئلة الشائعة بنصيها العربي والإنجليزي.</p>
             </div>
           </div>
-          {loading ? (
-            <div className="loading-list">
-              <span className="spinner" /> جارٍ تحميل الأسئلة…
-            </div>
-          ) : faqItems.length === 0 ? (
-            <p className="inline-help">لا توجد أسئلة شائعة مضافة بعد.</p>
-          ) : (
-            <div className="table-wrap">
+        </div>
+        <div className="list-controls">
+          <div style={{ minWidth: 210 }}>
+            <CustomSelect
+              value={faqCategoryFilter}
+              onChange={(val) => {
+                setFaqCategoryFilter(val);
+                setFaqPage(0);
+              }}
+              ariaLabel="تصفية حسب التصنيف"
+              options={[
+                { value: '', label: 'كل التصنيفات' },
+                ...FAQ_CATEGORIES.map((cat) => ({
+                  value: cat.code,
+                  label: cat.label,
+                })),
+              ]}
+            />
+          </div>
+          <label className="search">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="بحث في الأسئلة الشائعة"
+              placeholder="ابحث في الأسئلة أو الإجابات…"
+              value={faqSearch}
+              onChange={(e) => {
+                setFaqSearch(e.target.value);
+                setFaqPage(0);
+              }}
+            />
+          </label>
+        </div>
+
+        {faqLoading ? (
+          <div className="loading-list">
+            <span className="spinner" /> جارٍ تحميل الأسئلة…
+          </div>
+        ) : faqItems.length === 0 ? (
+          <div className="empty-state">
+            <Search size={24} aria-hidden="true" />
+            <h2>لا توجد أسئلة مطابقة</h2>
+            <p>
+              {faqSearch || faqCategoryFilter
+                ? 'جرّب تغيير البحث أو التصنيف.'
+                : 'لا توجد أسئلة شائعة مضافة بعد.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div
+              className="table-wrap"
+              data-fetching={faqFetching || undefined}
+            >
               <table>
                 <thead>
                   <tr>
@@ -637,20 +783,63 @@ export function SupportStudio({ api }) {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+            <PaginationBar
+              page={faqPage}
+              pageSize={PAGE_SIZE}
+              total={faqTotal}
+              visibleCount={faqItems.length}
+              disabled={faqFetching}
+              onPageChange={(next) => setFaqPage(next)}
+            />
+          </>
+        )}
       </section>
 
-      <section className="editor-panel panel-spaced">
-        <div className="editor-body">
+      <section
+        className="listing panel-spaced"
+        aria-label="إصدارات الوثائق القانونية"
+      >
+        <div className="editor-body" style={{ paddingBottom: 0 }}>
           <div className="section-heading">
             <div>
-              <h2>إصدارات الوثائق القانونية ({legalItems.length})</h2>
+              <h2>إصدارات الوثائق القانونية ({legalTotal})</h2>
               <p>سجل إصدارات الشروط والأحكام وسياسة الخصوصية.</p>
             </div>
           </div>
-          {!loading && (
-            <div className="table-wrap">
+        </div>
+        <div className="list-controls">
+          <div />
+          <label className="search">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="بحث في الوثائق القانونية"
+              placeholder="ابحث بالعنوان أو رقم الإصدار…"
+              value={legalSearch}
+              onChange={(e) => {
+                setLegalSearch(e.target.value);
+                setLegalPage(0);
+              }}
+            />
+          </label>
+        </div>
+
+        {legalLoading ? (
+          <div className="loading-list">
+            <span className="spinner" /> جارٍ تحميل الوثائق القانونية…
+          </div>
+        ) : legalItems.length === 0 ? (
+          <div className="empty-state">
+            <FileText size={24} aria-hidden="true" />
+            <h2>لا توجد وثائق مطابقة</h2>
+            <p>جرّب تعديل كلمة البحث أو انشر أول وثيقة قانونية أعلاه.</p>
+          </div>
+        ) : (
+          <>
+            <div
+              className="table-wrap"
+              data-fetching={legalFetching || undefined}
+            >
               <table>
                 <thead>
                   <tr>
@@ -685,8 +874,16 @@ export function SupportStudio({ api }) {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+            <PaginationBar
+              page={legalPage}
+              pageSize={PAGE_SIZE}
+              total={legalTotal}
+              visibleCount={legalItems.length}
+              disabled={legalFetching}
+              onPageChange={(next) => setLegalPage(next)}
+            />
+          </>
+        )}
       </section>
 
       {editingFaq && (
@@ -697,7 +894,7 @@ export function SupportStudio({ api }) {
           onSaved={async (msg) => {
             setEditingFaq(null);
             setNotice(msg);
-            await loadAll();
+            setFaqReload((n) => n + 1);
           }}
         />
       )}

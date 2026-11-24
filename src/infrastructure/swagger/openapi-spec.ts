@@ -1547,6 +1547,30 @@ const ROUTES: RouteDoc[] = [
   // 06. Admin — Meal Sections
   {
     method: 'get',
+    path: '/admin/food-exchange-members',
+    audience: 'admin',
+    tag: '05. Admin — Food Sections',
+    summary:
+      'List and search food exchange members across active food sections in a single query',
+    auth: 'bearer',
+    params: [
+      ...paginationParams(),
+      {
+        name: 'search',
+        in: 'query',
+        description: 'Search by food title or section title',
+        schema: { type: 'string' },
+      },
+      {
+        name: 'ids',
+        in: 'query',
+        description: 'Comma-separated member UUIDs to resolve directly',
+        schema: { type: 'string' },
+      },
+    ],
+  },
+  {
+    method: 'get',
     path: '/admin/meal-sections',
     audience: 'admin',
     tag: '06. Admin — Meal Sections',
