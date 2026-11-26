@@ -14,6 +14,7 @@ COPY package.json package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/infrastructure/database/seeds/data ./dist/infrastructure/database/seeds/data
+COPY --from=build /app/src/infrastructure/mail/templates ./dist/infrastructure/mail/templates
 USER node
 EXPOSE 3100
 CMD ["node", "dist/main.js"]
