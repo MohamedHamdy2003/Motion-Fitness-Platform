@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { environment } from '../../config/environment';
 import { ApiError } from '../../common/http';
 import { encrypt } from '../../common/crypto';
+import { OtpEmailPurpose, renderOtpEmail } from './otp-email.template';
 @Injectable()
 export class MailService {
   constructor(@Inject(DataSource) private db: DataSource) {}
@@ -16,19 +17,19 @@ export class MailService {
     m: EntityManager,
     userId: string,
     to: string,
-    purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET',
+    purpose: OtpEmailPurpose,
     token: string,
   ) {
     this.assertConfigured();
     const env = environment();
+    const rendered = renderOtpEmail(purpose, token);
     const payload = encrypt(
       JSON.stringify({
         to,
-        subject:
-          purpose === 'PASSWORD_RESET'
-            ? 'Reset your Motion password'
-            : 'Verify your Motion email',
-        text: `Your Motion ${purpose === 'PASSWORD_RESET' ? 'password reset' : 'email verification'} code is: ${token}. It expires in 10 minutes. Do not share this code.`,
+        subject: rendered.subject,
+        text: rendered.text,
+        html: rendered.html,
+        logoCid: rendered.logoCid,
       }),
       env.MAIL_ENCRYPTION_KEY,
     );

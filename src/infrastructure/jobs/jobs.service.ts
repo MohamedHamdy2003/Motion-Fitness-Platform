@@ -12,6 +12,7 @@ import { decrypt } from '../../common/crypto';
 import { ApiError } from '../../common/http';
 import { SocialService } from '../../modules/auth/social.service';
 import { MediaService } from '../../modules/media/media.service';
+import { getMotionLogoPng, OTP_LOGO_CID } from '../mail/otp-email.template';
 import nodemailer from 'nodemailer';
 @Injectable()
 export class JobsService
@@ -85,7 +86,17 @@ export class JobsService
       throw new ApiError('EMAIL_NOT_CONFIGURED', 503);
     const mail = JSON.parse(
       decrypt(job.payload.encrypted, e.MAIL_ENCRYPTION_KEY),
-    );
+    ) as {
+      to: string;
+      subject: string;
+      text: string;
+      html?: string;
+      logoCid?: string;
+    };
+    const attachLogo =
+      typeof mail.html === 'string' &&
+      (mail.logoCid === OTP_LOGO_CID ||
+        mail.html.includes(`cid:${OTP_LOGO_CID}`));
     if (e.MAIL_MODE === 'smtp') {
       const transport = nodemailer.createTransport({
         host: e.SMTP_HOST,
@@ -104,6 +115,20 @@ export class JobsService
         to: mail.to,
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html ? { html: mail.html } : {}),
+        ...(attachLogo
+          ? {
+              attachments: [
+                {
+                  filename: 'motion-logo.png',
+                  content: getMotionLogoPng(),
+                  cid: OTP_LOGO_CID,
+                  contentType: 'image/png',
+                  contentDisposition: 'inline',
+                },
+              ],
+            }
+          : {}),
         messageId: `<${job.id}@motion-api.local>`,
       });
       return;
@@ -119,6 +144,18 @@ export class JobsService
         to: [mail.to],
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html ? { html: mail.html } : {}),
+        ...(attachLogo
+          ? {
+              attachments: [
+                {
+                  filename: 'motion-logo.png',
+                  content: getMotionLogoPng().toString('base64'),
+                  content_id: OTP_LOGO_CID,
+                },
+              ],
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(10000),
     });
