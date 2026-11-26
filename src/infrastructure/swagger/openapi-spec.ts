@@ -1059,6 +1059,33 @@ const ROUTES: RouteDoc[] = [
       stopWhenGoalReached: true,
     },
   },
+  {
+    method: 'put',
+    path: '/me/push-tokens',
+    audience: 'customer',
+    tag: '10. Notifications & Water Reminders',
+    summary:
+      'Register or refresh a Firebase Cloud Messaging (FCM) device push token',
+    auth: 'bearer',
+    bodyExample: {
+      token: 'fcm_device_registration_token_example_1234567890',
+      platform: 'ANDROID',
+      deviceId: 'pixel-9-pro-uuid',
+      appVersion: '1.0.0',
+      locale: 'ar',
+    },
+  },
+  {
+    method: 'delete',
+    path: '/me/push-tokens',
+    audience: 'customer',
+    tag: '10. Notifications & Water Reminders',
+    summary: 'Unregister a device FCM push token on logout',
+    auth: 'bearer',
+    bodyExample: {
+      token: 'fcm_device_registration_token_example_1234567890',
+    },
+  },
 
   // =========================================================================
   // 11. SUPPORT, FAQ & LEGAL

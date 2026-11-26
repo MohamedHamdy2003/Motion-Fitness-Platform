@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { ApiError } from '../../common/http';
@@ -6,6 +6,10 @@ import { RateLimit } from '../../common/rate-limit';
 import { query } from '../../infrastructure/database/query';
 import { ActivityService } from '../activity/activity.service';
 import { ProgramEnrollmentService } from '../enrollments/program-enrollment.service';
+import {
+  PushNotificationPayload,
+  PushNotificationService,
+} from '../notifications/push-notification.service';
 import { UserNutritionService } from '../nutrition/nutrition.service';
 
 export interface CheckInCreateInput {
@@ -27,6 +31,9 @@ export class DashboardService {
     private readonly activity: ActivityService,
     @Inject(RateLimit)
     private readonly rateLimit: RateLimit,
+    @Optional()
+    @Inject(PushNotificationService)
+    private readonly push?: PushNotificationService,
   ) {}
 
   async dashboard(userId: string, requestedDate?: string) {
@@ -402,7 +409,8 @@ export class DashboardService {
 
   async submitCheckIn(userId: string, input: CheckInCreateInput) {
     await this.rateLimit.take('check-in', userId, 10, 900);
-    return this.db.transaction(async (manager) => {
+    let pendingNotification: PushNotificationPayload | null = null;
+    const result = await this.db.transaction(async (manager) => {
       const [user] = await query(
         manager,
         "SELECT id FROM users WHERE id=$1 AND status='ACTIVE' FOR UPDATE",
@@ -517,22 +525,31 @@ export class DashboardService {
         ],
       );
 
+      const notificationId = randomUUID();
+      const notificationPayload = {
+        checkInId,
+        date: profileRow.today,
+        nextCheckInDate: profileRow.nextCheckInDate,
+        weightKg: input.weightKg,
+      };
       await query(
         manager,
         `INSERT INTO notifications(id, user_id, type, title, body, payload)
          VALUES($1, $2, 'CHECKIN_COMPLETED', 'Check-in recorded', $3, $4)`,
         [
-          randomUUID(),
+          notificationId,
           userId,
           automatedSummary,
-          JSON.stringify({
-            checkInId,
-            date: profileRow.today,
-            nextCheckInDate: profileRow.nextCheckInDate,
-            weightKg: input.weightKg,
-          }),
+          JSON.stringify(notificationPayload),
         ],
       );
+      pendingNotification = {
+        id: notificationId,
+        type: 'CHECKIN_COMPLETED',
+        title: 'Check-in recorded',
+        body: automatedSummary,
+        payload: notificationPayload,
+      };
 
       return {
         ...inserted,
@@ -541,6 +558,10 @@ export class DashboardService {
         daysUntilDue: 3,
       };
     });
+    if (pendingNotification) {
+      this.push?.dispatchAsync(userId, pendingNotification);
+    }
+    return result;
   }
 
   private async computeCheckInStatus(

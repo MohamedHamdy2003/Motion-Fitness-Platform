@@ -1,10 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { ApiError } from '../../common/http';
 import { query } from '../../infrastructure/database/query';
 import { ExerciseFittingService } from '../fitting/fitting.service';
 import { MediaService } from '../media/media.service';
+import {
+  PushNotificationPayload,
+  PushNotificationService,
+} from '../notifications/push-notification.service';
 
 @Injectable()
 export class ProgramEnrollmentService {
@@ -13,6 +17,9 @@ export class ProgramEnrollmentService {
     @Inject(MediaService) private readonly media: MediaService,
     @Inject(ExerciseFittingService)
     private readonly fitting: ExerciseFittingService,
+    @Optional()
+    @Inject(PushNotificationService)
+    private readonly push?: PushNotificationService,
   ) {}
 
   // Matching holds the user lock and writes the validated decision in this transaction.
@@ -21,14 +28,14 @@ export class ProgramEnrollmentService {
     userId: string,
     runId: string,
     programVersionId: string,
-  ) {
+  ): Promise<PushNotificationPayload | null> {
     const [history] = await query(
       manager,
       'SELECT id,program_version_id FROM program_enrollments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1',
       [userId],
     );
     if (history) {
-      await query(
+      const [notification] = (await query(
         manager,
         `INSERT INTO notifications(id,user_id,type,title,body,payload)
          SELECT $1,$2,'PROGRAM_CHANGE_READY','New program recommendation available',
@@ -38,12 +45,19 @@ export class ProgramEnrollmentService {
                   'programVersionId', pv.id::text,
                   'title', pv.title
                 )
-         FROM program_versions pv WHERE pv.id=$4`,
+         FROM program_versions pv WHERE pv.id=$4
+         RETURNING id, type, title, body, payload`,
         [randomUUID(), userId, runId, programVersionId],
-      );
-      return;
+      )) as PushNotificationPayload[];
+      return notification ?? null;
     }
-    await this.createEnrollment(manager, userId, runId, programVersionId);
+    const { notification } = await this.createEnrollment(
+      manager,
+      userId,
+      runId,
+      programVersionId,
+    );
+    return notification;
   }
 
   private async createEnrollment(
@@ -51,7 +65,10 @@ export class ProgramEnrollmentService {
     userId: string,
     runId: string,
     programVersionId: string,
-  ) {
+  ): Promise<{
+    enrollmentId: string;
+    notification: PushNotificationPayload | null;
+  }> {
     const [enrollment] = await query(
       manager,
       `INSERT INTO program_enrollments(id,user_id,recommendation_run_id,program_version_id,starts_on,timezone,training_weekdays)
@@ -69,7 +86,7 @@ export class ProgramEnrollmentService {
     if (!enrollment) throw this.scheduleUnavailable();
 
     await this.scheduleMonth(manager, enrollment.id, 1, enrollment.starts_on);
-    await query(
+    const [notification] = (await query(
       manager,
       `INSERT INTO notifications(id,user_id,type,title,body,payload)
        SELECT $1,$2,'PROGRAM_READY','Your program is ready',
@@ -80,14 +97,19 @@ export class ProgramEnrollmentService {
                 'programVersionId', pv.id::text,
                 'title', pv.title
               )
-       FROM program_versions pv WHERE pv.id=$5`,
+       FROM program_versions pv WHERE pv.id=$5
+       RETURNING id, type, title, body, payload`,
       [randomUUID(), userId, enrollment.id, runId, programVersionId],
-    );
-    return enrollment.id as string;
+    )) as PushNotificationPayload[];
+    return {
+      enrollmentId: enrollment.id as string,
+      notification: notification ?? null,
+    };
   }
 
   async acceptProgramChange(userId: string, recommendationRunId: string) {
-    return this.db.transaction(async (manager) => {
+    let pendingNotification: PushNotificationPayload | null = null;
+    const result = await this.db.transaction(async (manager) => {
       const [user] = await query(
         manager,
         "SELECT id FROM users WHERE id=$1 AND status='ACTIVE' FOR UPDATE",
@@ -137,14 +159,19 @@ export class ProgramEnrollmentService {
          WHERE user_id=$1 AND ended_at IS NULL`,
         [userId],
       );
-      await this.createEnrollment(
+      const { notification } = await this.createEnrollment(
         manager,
         userId,
         recommendationRunId,
         latestRun.selectedProgramVersionId,
       );
+      pendingNotification = notification;
       return this.readCurrent(manager, userId);
     });
+    if (pendingNotification) {
+      this.push?.dispatchAsync(userId, pendingNotification);
+    }
+    return result;
   }
 
   async activeId(

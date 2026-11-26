@@ -4074,4 +4074,128 @@ describe('Single Admin CLI, F06 Enrollment/Schedule, F17 Fitting, F08 Nutrition 
       }
     }
   });
+
+  it('registers, reassigns, unregisters FCM push tokens and dispatches push after check-in', async () => {
+    const firstUser = await register('push-one@example.test');
+    const secondUser = await register('push-two@example.test');
+    const sharedToken =
+      'fcm_device_token_shared_0123456789abcdefghijklmnopqrstuvwxyz';
+
+    // 1. Register push token for first user
+    const reg1 = await api
+      .put(prefix + '/me/push-tokens')
+      .set(bearer(firstUser.accessToken))
+      .send({
+        token: sharedToken,
+        platform: 'ANDROID',
+        deviceId: 'pixel-9-device',
+        appVersion: '1.0.0',
+        locale: 'ar',
+      });
+    expect(reg1.status, reg1.text).toBe(200);
+    expect(reg1.body.platform).toBe('ANDROID');
+    expect(reg1.body.deviceId).toBe('pixel-9-device');
+    expect(reg1.body.appVersion).toBe('1.0.0');
+    expect(reg1.body.locale).toBe('ar');
+    expect(reg1.body.pushConfigured).toBe(false);
+
+    // 2. Idempotent refresh keeps the same row id and updates metadata
+    const reg1Refresh = await api
+      .put(prefix + '/me/push-tokens')
+      .set(bearer(firstUser.accessToken))
+      .send({
+        token: sharedToken,
+        platform: 'ANDROID',
+        appVersion: '1.1.0',
+      });
+    expect(reg1Refresh.status, reg1Refresh.text).toBe(200);
+    expect(reg1Refresh.body.id).toBe(reg1.body.id);
+    expect(reg1Refresh.body.appVersion).toBe('1.1.0');
+    expect(reg1Refresh.body.deviceId).toBe('pixel-9-device');
+
+    // 3. Reassignment when another user logs into the same physical device
+    const reg2 = await api
+      .put(prefix + '/me/push-tokens')
+      .set(bearer(secondUser.accessToken))
+      .send({
+        token: sharedToken,
+        platform: 'IOS',
+        appVersion: '1.2.0',
+      });
+    expect(reg2.status, reg2.text).toBe(200);
+    const tokenOwners = await db.query(
+      'SELECT user_id, platform FROM user_push_tokens WHERE token = $1',
+      [sharedToken],
+    );
+    expect(tokenOwners).toHaveLength(1);
+    expect(tokenOwners[0].user_id).toBe(secondUser.user.id);
+    expect(tokenOwners[0].platform).toBe('IOS');
+
+    // 4. First user cannot delete second user's token
+    const deleteWrongOwner = await api
+      .delete(prefix + '/me/push-tokens')
+      .set(bearer(firstUser.accessToken))
+      .send({ token: sharedToken });
+    expect(deleteWrongOwner.status, deleteWrongOwner.text).toBe(200);
+    expect(deleteWrongOwner.body).toEqual({ removed: false });
+
+    // 5. Submitting a check-in triggers post-commit PushNotificationService.dispatchAsync
+    const { PushNotificationService } =
+      await import('../../src/modules/notifications/push-notification.service.js');
+    const pushService = app.get(PushNotificationService);
+    const dispatchSpy = vi.spyOn(pushService, 'dispatchAsync');
+
+    const profileRes = await api
+      .put(prefix + '/me/onboarding')
+      .set(bearer(secondUser.accessToken))
+      .send({
+        name: 'Push Tester',
+        gender: 'MALE',
+        date_of_birth: '1995-05-10',
+        timezone: 'Africa/Cairo',
+        locale: 'ar',
+        height_cm: 178,
+        weight_kg: 82,
+        target_weight_kg: 76,
+        primary_goal: 'FAT_LOSS',
+        fitness_level: 'INTERMEDIATE',
+        training_days_per_week: ['MONDAY', 'WEDNESDAY', 'FRIDAY'],
+        food_preferences: { allergen_codes: [], disliked_food_ids: [] },
+      });
+    expect(profileRes.status, profileRes.text).toBe(200);
+
+    const checkInRes = await api
+      .post(prefix + '/me/check-ins')
+      .set(bearer(secondUser.accessToken))
+      .send({
+        workoutDifficulty: 'MODERATE',
+        nutritionAdherence: 'HIGH',
+        weightKg: 81.2,
+        notes: 'Feeling energetic',
+      });
+    expect(checkInRes.status, checkInRes.text).toBe(201);
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      secondUser.user.id,
+      expect.objectContaining({
+        type: 'CHECKIN_COMPLETED',
+        title: 'Check-in recorded',
+      }),
+    );
+
+    // 6. Owner unregisters token cleanly on logout (and repeat is idempotent)
+    const del1 = await api
+      .delete(prefix + '/me/push-tokens')
+      .set(bearer(secondUser.accessToken))
+      .send({ token: sharedToken });
+    expect(del1.status, del1.text).toBe(200);
+    expect(del1.body).toEqual({ removed: true });
+
+    const del2 = await api
+      .delete(prefix + '/me/push-tokens')
+      .set(bearer(secondUser.accessToken))
+      .send({ token: sharedToken });
+    expect(del2.status, del2.text).toBe(200);
+    expect(del2.body).toEqual({ removed: false });
+  });
 });

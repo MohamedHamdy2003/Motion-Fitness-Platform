@@ -1,13 +1,24 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { z } from 'zod';
 import { ApiError } from '../../common/http';
 import { query } from '../../infrastructure/database/query';
-import { notificationsQuery, waterReminderInput } from './notifications.dto';
+import {
+  notificationsQuery,
+  registerPushTokenInput,
+  waterReminderInput,
+} from './notifications.dto';
+import { PushNotificationService } from './push-notification.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(@Inject(DataSource) private readonly db: DataSource) {}
+  constructor(
+    @Inject(DataSource) private readonly db: DataSource,
+    @Optional()
+    @Inject(PushNotificationService)
+    private readonly push?: PushNotificationService,
+  ) {}
 
   async list(userId: string, input: z.infer<typeof notificationsQuery>) {
     const items = await query(
@@ -60,6 +71,61 @@ export class NotificationsService {
     return {
       updatedCount: updated.length,
       unreadCount: 0,
+    };
+  }
+
+  async registerPushToken(
+    userId: string,
+    input: z.infer<typeof registerPushTokenInput>,
+  ) {
+    const [saved] = await query(
+      this.db,
+      `INSERT INTO user_push_tokens (
+         id, user_id, token, platform, device_id, app_version, locale, last_seen_at, updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+       ON CONFLICT (token) DO UPDATE
+         SET user_id = EXCLUDED.user_id,
+             platform = EXCLUDED.platform,
+             device_id = COALESCE(EXCLUDED.device_id, user_push_tokens.device_id),
+             app_version = COALESCE(EXCLUDED.app_version, user_push_tokens.app_version),
+             locale = COALESCE(EXCLUDED.locale, user_push_tokens.locale),
+             last_seen_at = now(),
+             updated_at = now()
+       RETURNING id,
+                 platform,
+                 device_id AS "deviceId",
+                 app_version AS "appVersion",
+                 locale,
+                 last_seen_at AS "lastSeenAt",
+                 created_at AS "createdAt",
+                 updated_at AS "updatedAt"`,
+      [
+        randomUUID(),
+        userId,
+        input.token,
+        input.platform,
+        input.deviceId ?? null,
+        input.appVersion ?? null,
+        input.locale ?? null,
+      ],
+    );
+    return {
+      ...saved,
+      pushConfigured: Boolean(this.push?.isConfigured()),
+    };
+  }
+
+  async unregisterPushToken(userId: string, token: string) {
+    const deleted = await query(
+      this.db,
+      `DELETE FROM user_push_tokens
+       WHERE user_id = $1 AND token = $2
+       RETURNING id`,
+      [userId, token],
+    );
+    return {
+      removed: deleted.length > 0,
     };
   }
 

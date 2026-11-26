@@ -1,10 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../../infrastructure/database/query';
 import { ApiError } from '../../common/http';
 import { ProgramEnrollmentService } from '../enrollments/program-enrollment.service';
+import {
+  PushNotificationPayload,
+  PushNotificationService,
+} from '../notifications/push-notification.service';
 import { assertAgeEligible } from '../profiles/profile.policy';
 import {
   Candidate,
@@ -28,6 +32,9 @@ export class ProgramMatchingService {
     @Inject(PROGRAM_MATCHER) private matcher: ProgramMatcher,
     @Inject(ProgramEnrollmentService)
     private enrollment: ProgramEnrollmentService,
+    @Optional()
+    @Inject(PushNotificationService)
+    private readonly push?: PushNotificationService,
   ) {}
   private eligibility = new ProgramEligibilityPolicy();
   private metrics = new MetricsCalculator();
@@ -165,6 +172,7 @@ export class ProgramMatchingService {
       : this.db.transaction('REPEATABLE READ', work);
   }
   async triggerUser(userId: string, retry = false, manager?: EntityManager) {
+    let pendingNotification: PushNotificationPayload | null = null;
     const work = async (m: EntityManager) => {
       const [u] = await query(
         m,
@@ -197,7 +205,7 @@ export class ProgramMatchingService {
         let enrollmentId = await this.enrollment.activeId(m, userId);
         // An explicit retry can apply a still-current recommendation recorded before enrollment existed.
         if (retry && !enrollmentId && previous.status === 'MATCH') {
-          await this.enrollment.assignFirst(
+          pendingNotification = await this.enrollment.assignFirst(
             m,
             userId,
             previous.id,
@@ -221,7 +229,11 @@ export class ProgramMatchingService {
       const r = await this.insertRun(m, p, c, ruleset.id, 'USER', userId);
       return this.publicRun(r, await this.enrollment.activeId(m, userId));
     };
-    return manager ? work(manager) : this.db.transaction(work);
+    const result = await (manager ? work(manager) : this.db.transaction(work));
+    if (pendingNotification) {
+      this.push?.dispatchAsync(userId, pendingNotification);
+    }
+    return result;
   }
   private async insertRun(
     m: EntityManager,
@@ -375,6 +387,7 @@ export class ProgramMatchingService {
         }),
         run.candidates,
       );
+      let pendingNotification: PushNotificationPayload | null = null;
       await this.db.transaction(async (m) => {
         if (run.user_id)
           await query(m, 'SELECT id FROM users WHERE id=$1 FOR UPDATE', [
@@ -417,13 +430,16 @@ export class ProgramMatchingService {
           decision.status === 'MATCH' &&
           decision.selectedProgramVersionId
         )
-          await this.enrollment.assignFirst(
+          pendingNotification = await this.enrollment.assignFirst(
             m,
             run.user_id,
             run.id,
             decision.selectedProgramVersionId,
           );
       });
+      if (pendingNotification && run.user_id) {
+        this.push?.dispatchAsync(run.user_id, pendingNotification);
+      }
     } catch (error) {
       const code =
         error instanceof ApiError ? error.code : 'AI_MATCHING_UNAVAILABLE';
