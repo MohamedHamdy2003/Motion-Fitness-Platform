@@ -22,3 +22,21 @@ export const waterReminderInput = z
     stopWhenGoalReached: z.boolean().default(true),
   })
   .strict();
+
+export const pushPlatformEnum = z.enum(['ANDROID', 'IOS', 'WEB']);
+
+export const registerPushTokenInput = z
+  .object({
+    token: z.string().trim().min(20).max(4096),
+    platform: pushPlatformEnum,
+    deviceId: z.string().trim().min(1).max(200).optional(),
+    appVersion: z.string().trim().min(1).max(64).optional(),
+    locale: z.string().trim().min(2).max(32).optional(),
+  })
+  .strict();
+
+export const unregisterPushTokenInput = z
+  .object({
+    token: z.string().trim().min(20).max(4096),
+  })
+  .strict();

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
@@ -14,7 +15,12 @@ import {
 import { z } from 'zod';
 import { AuthGuard } from '../../common/auth.guard';
 import { ApiRequest, parse } from '../../common/http';
-import { notificationsQuery, waterReminderInput } from './notifications.dto';
+import {
+  notificationsQuery,
+  registerPushTokenInput,
+  unregisterPushTokenInput,
+  waterReminderInput,
+} from './notifications.dto';
 import { NotificationsService } from './notifications.service';
 
 @Controller('me')
@@ -57,6 +63,23 @@ export class NotificationsController {
     return this.notifications.updateWaterReminders(
       req.principal.userId,
       parse(waterReminderInput, body),
+    );
+  }
+
+  @Put('push-tokens')
+  registerPushToken(@Req() req: ApiRequest, @Body() body: unknown) {
+    return this.notifications.registerPushToken(
+      req.principal.userId,
+      parse(registerPushTokenInput, body),
+    );
+  }
+
+  @Delete('push-tokens')
+  unregisterPushToken(@Req() req: ApiRequest, @Body() body: unknown) {
+    const parsed = parse(unregisterPushTokenInput, body);
+    return this.notifications.unregisterPushToken(
+      req.principal.userId,
+      parsed.token,
     );
   }
 }

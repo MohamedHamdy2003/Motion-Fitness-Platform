@@ -1,0 +1,21 @@
+meta {
+  name: Unregister Push Token
+  type: http
+  seq: 159
+}
+
+delete {
+  url: {{baseUrl}}/me/push-tokens
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "token": "fcm_device_registration_token_example_1234567890"
+  }
+}

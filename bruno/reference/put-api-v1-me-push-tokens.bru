@@ -1,0 +1,25 @@
+meta {
+  name: Register Push Token
+  type: http
+  seq: 158
+}
+
+put {
+  url: {{baseUrl}}/me/push-tokens
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "token": "fcm_device_registration_token_example_1234567890",
+    "platform": "ANDROID",
+    "deviceId": "device-demo-001",
+    "appVersion": "1.0.0",
+    "locale": "ar"
+  }
+}

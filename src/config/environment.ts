@@ -47,6 +47,10 @@ const schema = z.object({
   S3_BUCKET: z.string().default(''),
   S3_ACCESS_KEY_ID: z.string().default(''),
   S3_SECRET_ACCESS_KEY: z.string().default(''),
+  FCM_SERVICE_ACCOUNT_BASE64: z.string().default(''),
+  FCM_PROJECT_ID: z.string().default(''),
+  FCM_CLIENT_EMAIL: z.string().default(''),
+  FCM_PRIVATE_KEY: z.string().default(''),
 });
 export type Environment = z.infer<typeof schema>;
 export function environment(): Environment {
